@@ -3,7 +3,7 @@
         ".": {
             "release-type": "python",
             "package-name": "ecg-chagas-embeddings",
-            "path": "src/ecg_chagas_embeddings"
+            "path": "src/ecg-chagas-embeddings"
         }
     }
 }
