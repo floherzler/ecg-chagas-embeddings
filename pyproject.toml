@@ -8,3 +8,6 @@ dependencies = [
     "ruff>=0.13.1",
     "ty>=0.0.1a21",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
