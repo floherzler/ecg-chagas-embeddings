@@ -52,7 +52,7 @@ def fft_resample_ecg(
 def resample_ecg(
     ecg: np.ndarray, sample_rate: int, target_sample_rate: int
 ) -> Tuple[np.ndarray, str]:
-    """Resample an ECG. We use polymorphic resmpling if the original sampling rate and target sampling
+    """Resample an ECG. We use polymorphic resampling if the original sampling rate and target sampling
     rate are integer multiples of each other. Otherwise, FFT resampling is used"""
 
     if sample_rate == target_sample_rate:
