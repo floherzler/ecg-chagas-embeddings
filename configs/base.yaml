@@ -1,0 +1,9 @@
+data_dir: /path/to/v2/
+batch_size: 32
+num_workers: 4
+model: resnet18_se_gn
+loss_fn: rat
+lr: 0.001
+max_epochs: 150
+swa_start: 100
+swa_lr: 0.005
