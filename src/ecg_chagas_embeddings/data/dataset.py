@@ -1,14 +1,17 @@
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
 import torch
 import wfdb
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler, Dataset
 
-from augmentation import ECGAugmentation
-from prepare_dataset import preprocess_ecg_safe, softclip_scale_ecg
+from ecg_chagas_embeddings.data.augmentation import ECGAugmentation
+from ecg_chagas_embeddings.data.prepare_dataset import (
+    preprocess_ecg_safe,
+    softclip_scale_ecg,
+)
 
 
 def read_metadata_folds(
@@ -160,7 +163,7 @@ def collate_dict_batch(batch):
     return batch_out
 
 
-class WfdbDataset:
+class WfdbDataset(Dataset):
     def __init__(
         self,
         meta_path: Path,
@@ -194,7 +197,7 @@ class WfdbDataset:
         return ecg, label
 
 
-class TorchDataset:
+class TorchDataset(Dataset):
     def __init__(
         self,
         meta_path: Path,
@@ -427,7 +430,30 @@ def get_train_val_loaders(
         train_transform_kwargs["per_view_wandering"] = False
 
     print("Train Transform kwargs:", train_transform_kwargs)
-    train_transform = ECGAugmentation(**train_transform_kwargs)
+    train_transform = ECGAugmentation(
+        crop_size=train_transform_kwargs.get("crop_size", crop_size),
+        n_views=train_transform_kwargs.get("n_views", 2 if use_sup_con else 1),
+        max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        mask_prob=train_transform_kwargs.get("mask_prob", None),
+        gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
+        per_view_noise=bool(train_transform_kwargs.get("per_view_noise", True)),
+        scaling=cast(
+            Optional[Tuple[float, float]], train_transform_kwargs.get("scaling", None)
+        ),
+        per_view_scaling=bool(train_transform_kwargs.get("per_view_scaling", True)),
+        max_time_warp=train_transform_kwargs.get("max_time_warp", None),
+        per_view_warp=bool(train_transform_kwargs.get("per_view_warp", False)),
+        wandering_max_amplitude=train_transform_kwargs.get(
+            "wandering_max_amplitude", None
+        ),
+        wandering_frequency_range=cast(
+            Optional[Tuple[float, float]],
+            train_transform_kwargs.get("wandering_frequency_range", None),
+        ),
+        per_view_wandering=bool(
+            train_transform_kwargs.get("per_view_wandering", False)
+        ),
+    )
 
     # --- VALIDATION: single, clean view ---
     valid_transform = ECGAugmentation(
@@ -460,24 +486,24 @@ def get_train_val_loaders(
     )
 
     if oversample:
+        weights = get_sampling_weights_pos_frac(
+            train_dataset.metadata.chagas,
+            sources=train_dataset.metadata.source,
+            pos_weights_per_source={
+                "CODE-15%": pos_weight_code15,
+                "PTB-XL": pos_weight_ptb_xl,
+                "SaMi-Trop": pos_weight_sami_trop,
+            },
+            neg_weights_per_source={
+                "CODE-15%": neg_weight_code15,
+                "PTB-XL": neg_weight_ptb_xl,
+                "SaMi-Trop": neg_weight_sami_trop,
+            },
+            desired_positive_ratio=pos_fraction,
+        )
+        # WeightedRandomSampler expects a sequence of floats (e.g., list); convert tensor to list
         sampler = WeightedRandomSampler(
-            get_sampling_weights_pos_frac(
-                train_dataset.metadata.chagas,
-                sources=train_dataset.metadata.source,
-                pos_weights_per_source={
-                    "CODE-15%": pos_weight_code15,
-                    "PTB-XL": pos_weight_ptb_xl,
-                    "SaMi-Trop": pos_weight_sami_trop,
-                },
-                neg_weights_per_source={
-                    "CODE-15%": neg_weight_code15,
-                    "PTB-XL": neg_weight_ptb_xl,
-                    "SaMi-Trop": neg_weight_sami_trop,
-                },
-                desired_positive_ratio=pos_fraction,
-            ),
-            len(train_dataset),
-            replacement=True,
+            weights.tolist(), len(train_dataset), replacement=True
         )
     else:
         sampler = None

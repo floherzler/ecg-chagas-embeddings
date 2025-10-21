@@ -5,7 +5,7 @@ from functools import partial
 from multiprocessing import Pool
 from pathlib import Path
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -172,7 +172,7 @@ def prepare_data(
         save_meta_only=save_meta_only,
     )
 
-    total = len(records)
+    # total = len(records)
     metadata_list = []
 
     if processes <= 1:
@@ -376,47 +376,6 @@ def update_ptb_meta(ptb_df, meta_df):
     _df.loc[_df.path_source == "ptb-xl", "chagas"] = 0.0
 
     return _df
-
-
-import numpy as np
-import torch
-import wfdb
-from pathlib import Path
-from scipy.signal import butter, resample, resample_poly, sosfiltfilt
-from scipy.stats import kurtosis
-
-
-def butter_filter(ecg, sample_rate, lower_freq=0.5, upper_freq=45.0, order=3):
-    sos = butter(
-        N=order,
-        Wn=[lower_freq, upper_freq],
-        fs=sample_rate,
-        btype="bandpass",
-        output="sos",
-    )
-    return sosfiltfilt(sos, ecg)
-
-
-def poly_resample_ecg(ecg, sample_rate, target_sample_rate):
-    gcd = np.gcd(sample_rate, target_sample_rate)
-    up = target_sample_rate // gcd
-    down = sample_rate // gcd
-    return resample_poly(ecg, up=up, down=down, axis=-1)
-
-
-def fft_resample_ecg(ecg, sample_rate, target_sample_rate):
-    ecg_length_in_s = ecg.shape[1] / sample_rate
-    num = np.round(ecg_length_in_s * target_sample_rate)
-    resampled_ecg = resample(ecg, num=int(num), axis=-1)
-    return resampled_ecg
-
-
-def resample_ecg(ecg, sample_rate, target_sample_rate):
-    if sample_rate == target_sample_rate:
-        return ecg, "None"
-    if sample_rate % target_sample_rate == 0 or target_sample_rate % sample_rate == 0:
-        return poly_resample_ecg(ecg, sample_rate, target_sample_rate), "Polyphase"
-    return fft_resample_ecg(ecg, sample_rate, target_sample_rate), "FFT"
 
 
 def normalize_per_lead(ecg):

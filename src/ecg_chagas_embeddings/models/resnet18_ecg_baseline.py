@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import numpy as np
 from tqdm import tqdm
 
-from helper_code import compute_accuracy, compute_challenge_score
+from ecg_chagas_embeddings.helper_code import compute_accuracy, compute_challenge_score
 
 
 def _padding(downsample, kernel_size):
