@@ -390,7 +390,7 @@ def subtract_channel_means(ecg):
 
 
 def softplus(x):
-    """numerically stable calcuation for log(1 + exp(x))"""
+    """numerically stable calculation for log(1 + exp(x))"""
     return np.log(1 + np.exp(-np.abs(x))) + np.maximum(x, 0)
 
 
