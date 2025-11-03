@@ -37,7 +37,7 @@ from tqdm import tqdm
 from ecg_chagas_embeddings.data.dataset import get_train_val_loaders
 import glob
 import re
-from ecg_chagas_embeddings.models.resnet18_ecg_flex import BasicBlock, LitResNet18NJ
+from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18NJ
 from ecg_chagas_embeddings.data.prepare_dataset import (
     preprocess_ecg_safe,
     softclip_scale_ecg,
@@ -1013,10 +1013,10 @@ def create_model(
         momentum=config.momentum,
         classifier_weight_decay=config.classifier_weight_decay,
         params_weight_decay=config.params_weight_decay,
-        block=BasicBlock,
+        block="basic",
         norm_type=config.norm_type,
         norm_groups=config.norm_groups,
-        layers=[2, 2, 2, 2],
+        layers=(2, 2, 2, 2),
         criterion=criterion,
         crop_size=config.crop_size,
         max_time_warp=config.max_time_warp,

@@ -1,7 +1,7 @@
-from typing import Callable, List, Optional, Type, Union, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple, Type, Union
 
 
-import pytorch_lightning as pl
+from lightning.pytorch import LightningModule
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from torch import Tensor
 from torchvision.ops import StochasticDepth
 from tqdm import tqdm
 import wandb
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger
 
 
 from ecg_chagas_embeddings.helper_code import compute_accuracy, compute_challenge_score
@@ -257,11 +257,17 @@ class SELayer1D(nn.Module):
         return x * y
 
 
-class LitResNet18NJ(pl.LightningModule):
+BLOCK_REGISTRY = {
+    "basic": BasicBlock,
+    "bottleneck": Bottleneck,
+}
+
+
+class LitResNet18NJ(LightningModule):
     def __init__(
         self,
-        block: Type[Union[BasicBlock, Bottleneck]],
-        layers: List[int],
+        block: Union[str, Type[Union[BasicBlock, Bottleneck]]] = "basic",
+        layers: Sequence[int] = (2, 2, 2, 2),
         inplanes: int = 64,
         num_classes: int = 26,
         zero_init_residual: bool = False,
@@ -294,6 +300,27 @@ class LitResNet18NJ(pl.LightningModule):
         se_reduction=None,
     ) -> None:
         super().__init__()
+
+        if isinstance(block, str):
+            block_key = block.lower()
+            if block_key not in BLOCK_REGISTRY:
+                raise ValueError(
+                    f"Unknown block '{block}'. Available options: {list(BLOCK_REGISTRY)}"
+                )
+            block_cls = BLOCK_REGISTRY[block_key]
+        else:
+            block_cls = block
+
+        layers = tuple(layers)
+        if len(layers) != 4:
+            raise ValueError(
+                f"Expected 'layers' to have 4 elements (got {len(layers)}). "
+                "Adjust the architecture helpers if you require a different depth."
+            )
+
+        self.block_type = block_cls
+        self.layers_config = layers
+
         if norm_layer is None:
             norm_layer = get_norm_layer
         self._norm_layer = norm_layer
@@ -335,8 +362,9 @@ class LitResNet18NJ(pl.LightningModule):
             eps_1=0.1,
             negatives_weight=1.0,
         )
-        # keep string in wandb config and prevent overwriting
-        self.save_hyperparameters(ignore=["criterion"])
+        # keep string-friendly block identifier in the saved hyperparameters
+        block_hparam = block if isinstance(block, str) else block_cls.__name__
+        self.save_hyperparameters(ignore=["criterion"], block=block_hparam)
         self.train_step_losses = []
         self.train_step_supcon_losses = []
         self.val_step_losses = []
@@ -371,7 +399,7 @@ class LitResNet18NJ(pl.LightningModule):
         self._total_layers = sum(layers)
 
         self.layer1 = self._make_layer(
-            block,
+            block_cls,
             norm_type,
             norm_groups,
             inplanes,
@@ -379,7 +407,7 @@ class LitResNet18NJ(pl.LightningModule):
             se_reduction=self.se_reduction,
         )
         self.layer2 = self._make_layer(
-            block,
+            block_cls,
             norm_type,
             norm_groups,
             inplanes * 2,
@@ -389,7 +417,7 @@ class LitResNet18NJ(pl.LightningModule):
             se_reduction=self.se_reduction,
         )
         self.layer3 = self._make_layer(
-            block,
+            block_cls,
             norm_type,
             norm_groups,
             inplanes * 4,
@@ -399,7 +427,7 @@ class LitResNet18NJ(pl.LightningModule):
             se_reduction=self.se_reduction,
         )
         self.layer4 = self._make_layer(
-            block,
+            block_cls,
             norm_type,
             norm_groups,
             inplanes * 8,
@@ -975,4 +1003,4 @@ class LitResNet18NJ(pl.LightningModule):
 
 
 def resnet18(**kwargs) -> LitResNet18NJ:
-    return LitResNet18NJ(BasicBlock, [2, 2, 2, 2], **kwargs)
+    return LitResNet18NJ(**kwargs)
