@@ -37,7 +37,7 @@ from tqdm import tqdm
 from ecg_chagas_embeddings.data.dataset import get_train_val_loaders
 import glob
 import re
-from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18NJ
+from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18
 from ecg_chagas_embeddings.data.prepare_dataset import (
     preprocess_ecg_safe,
     softclip_scale_ecg,
@@ -475,8 +475,6 @@ def train_model(data_folder, model_folder, verbose, args=None):
     for k, v in asdict(config).items():
         print(f"  {k}: {v}")
     device = set_device(verbose=verbose)
-    pl.seed_everything(42, workers=True)
-    # set_seeds(42)
 
     # Ensure the model_folder exists
     if not os.path.exists(model_folder):
@@ -654,7 +652,7 @@ def train_model(data_folder, model_folder, verbose, args=None):
     #         break
 
     # saving one model correctly to only have weights
-    # ckpt = LitResNet18NJ.load_from_checkpoint("/home/herzlerf/physionet-challenge-25/wandb/PhysioNetChallenge25/mhnli3m9/checkpoints/best-chagas-epoch=09-val/score=0.4363.ckpt", map_location="cpu", strict=False)
+    # ckpt = LitResNet18.load_from_checkpoint("/home/herzlerf/physionet-challenge-25/wandb/PhysioNetChallenge25/mhnli3m9/checkpoints/best-chagas-epoch=09-val/score=0.4363.ckpt", map_location="cpu", strict=False)
     # torch.save(ckpt, "/sc-scratch/sc-scratch-dh-face/physionet2025/evaluation_models/bce/pos1/model_weights_only.pt")
 
     # import shutil
@@ -710,7 +708,7 @@ def load_model(model_folder, verbose):
     #     model.load_state_dict(checkpoint["model"])
     # else:
     #     model.load_state_dict(checkpoint["state_dict"])
-    model = LitResNet18NJ.load_from_checkpoint(
+    model = LitResNet18.load_from_checkpoint(
         best_model_path,
         map_location=device,
         strict=False,
@@ -1004,7 +1002,7 @@ def create_model(
     tqdm.write(f"am i using supcon? {config.use_sup_con}")
     tqdm.write(f"am i using prototypes? {config.use_prototypes}")
 
-    model = LitResNet18NJ(
+    model = LitResNet18(
         num_classes=1,
         channels=12,
         lr=config.lr,

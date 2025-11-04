@@ -263,7 +263,7 @@ BLOCK_REGISTRY = {
 }
 
 
-class LitResNet18NJ(LightningModule):
+class LitResNet18(LightningModule):
     def __init__(
         self,
         block: Union[str, Type[Union[BasicBlock, Bottleneck]]] = "basic",
@@ -1002,5 +1002,5 @@ class LitResNet18NJ(LightningModule):
         }
 
 
-def resnet18(**kwargs) -> LitResNet18NJ:
-    return LitResNet18NJ(**kwargs)
+def resnet18(**kwargs) -> LitResNet18:
+    return LitResNet18(**kwargs)
