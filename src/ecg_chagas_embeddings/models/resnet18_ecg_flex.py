@@ -290,7 +290,7 @@ class LitResNet18(LightningModule):
         stochastic_depth_prob=0.0,
         crop_size=2500,
         max_time_warp=0.15,
-        criterion=nn.BCEWithLogitsLoss(),
+        criterion: Optional[nn.Module] = None,
         use_sup_con=False,
         use_prototypes=False,
         classifier_weight=1.0,
@@ -337,7 +337,7 @@ class LitResNet18(LightningModule):
         self.stochastic_depth_prob = stochastic_depth_prob
         self.crop_size = crop_size
         self.max_time_warp = max_time_warp
-        self.criterion = criterion
+        self.criterion = criterion or nn.BCEWithLogitsLoss()
         self.se_reduction = se_reduction
         self.use_sup_con = use_sup_con
         self.use_prototypes = use_prototypes
@@ -364,7 +364,8 @@ class LitResNet18(LightningModule):
         )
         # keep string-friendly block identifier in the saved hyperparameters
         block_hparam = block if isinstance(block, str) else block_cls.__name__
-        self.save_hyperparameters(ignore=["criterion"], block=block_hparam)
+        self.save_hyperparameters(ignore=["criterion"])
+        self.hparams.update({"block": block_hparam})
         self.train_step_losses = []
         self.train_step_supcon_losses = []
         self.val_step_losses = []
@@ -440,9 +441,9 @@ class LitResNet18(LightningModule):
         self.dropout = (
             nn.Dropout(p=dropout_rate) if dropout_rate > 0.0 else nn.Identity()
         )
-        self.fc = nn.Linear(inplanes * 8 * block.expansion, num_classes)
+        self.fc = nn.Linear(inplanes * 8 * block_cls.expansion, num_classes)
 
-        feat_dim = inplanes * 8 * block.expansion
+        feat_dim = inplanes * 8 * block_cls.expansion
 
         if use_sup_con or use_prototypes:
             self.projection_head = nn.Sequential(

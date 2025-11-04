@@ -1,9 +1,26 @@
-data_dir: /path/to/v2/
-batch_size: 32
-num_workers: 4
-model: resnet18_se_gn
-loss_fn: rat
-lr: 0.001
-max_epochs: 150
-swa_start: 100
-swa_lr: 0.005
+seed_everything: 42
+
+trainer:
+  accelerator: cpu
+  devices: 1
+  max_epochs: 1
+  precision: 32
+  logger: null
+  enable_checkpointing: false
+
+model:
+  lr: 0.0001
+  num_classes: 1
+  channels: 12
+  norm_type: group
+  norm_groups: 4
+
+data:
+  meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/metadata_official_clean_v3.csv
+  data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedOfficialCleanV3
+  batch_size: 32
+  num_workers: 0
+  pos_fraction: 0.25
+  oversample: false
+  train_folds: [0] # [0,1,2,3]
+  valid_folds: [4]
