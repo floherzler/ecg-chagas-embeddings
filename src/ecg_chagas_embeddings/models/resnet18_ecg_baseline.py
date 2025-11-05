@@ -83,7 +83,7 @@ class ResBlock1d(nn.Module):
         if self.skip_connection is not None:
             y = self.skip_connection(y)
         else:
-            y = y
+            pass
 
         # 1st layer
         x = self.conv1(x)
