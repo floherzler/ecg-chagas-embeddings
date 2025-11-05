@@ -11,8 +11,8 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18  # ruff: noqa: E402
-from ecg_chagas_embeddings.data.datamodule import ECGDataModule  # ruff: noqa: E402
+from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18  # noqa: E402
+from ecg_chagas_embeddings.data.datamodule import ECGDataModule  # noqa: E402
 
 
 def main():
