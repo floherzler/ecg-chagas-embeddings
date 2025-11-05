@@ -1,0 +1,68 @@
+direction: down
+
+LightningCLI: {
+  style.fill: "#b45aff"
+  description: |md
+    - Manages hyperparameters and configurations
+    - Configurable via YAML
+  |
+}
+
+ECGDataModule: {
+  description: |md
+    - Loads and preprocesses ECG datasets
+    - Supports train, validation, and test splits
+    - Implements augmentation and resampling for imbalance
+    - Ensures reproducible data pipelines
+  |
+  description -> Dataset / Dataloader
+}
+CNN: {
+  Resnet18: {
+    icon: https://icons.terrastruct.com/essentials%2F220-layers.svg
+  }
+  loss_functions: |md
+    **ResNet18 with flexible:**
+      - SE-Blocks
+      - Normalization
+
+      **Classification Losses**
+      - Binary Cross Entropy Loss
+      - Focal Loss
+
+      **Geometric Losses**
+      - SupCon Loss
+      - Prototype Loss
+  |
+  loss_functions -> Resnet18
+}
+
+LightningTrainer: {
+  style.fill: "#b45aff"
+}
+
+WeightsBiases: Weights & Biases {
+  shape: image
+  icon: https://wandb.ai/logo-transparent.png
+  style.fill: orange
+}
+
+Embeddings
+Comparisons: {
+  orientation: |md
+    ### Separability
+    ### Alignment
+    ### Uniformity
+  |
+}
+
+# Relationships
+LightningCLI -> CNN: model_class
+LightningCLI -> ECGDataModule: datamodule_class
+ECGDataModule.Dataset / Dataloader -> LightningTrainer: "feeds batches"
+LightningTrainer -> WeightsBiases: "logs metrics"
+CNN <-> LightningTrainer: "fits model"
+
+CNN -> Embeddings: "produces"
+Embeddings -> Comparisons: "used for"
+Embeddings -> WeightsBiases: "visualized in"
