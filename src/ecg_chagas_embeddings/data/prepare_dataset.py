@@ -401,7 +401,6 @@ def softminus(x):
 # default scaling constants to match tanh corner shape
 _c_tanh = 2 / (np.e * np.e + 1)  # == 1 - np.tanh(1) ~= 0.24
 _c_softclip = np.log(2) / _c_tanh
-_c_expclip = 1 / (2 * _c_tanh)
 
 
 def tanhclip(x, a, b):
