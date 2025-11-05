@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.0](https://github.com/floherzler/ecg-chagas-embeddings/compare/v0.1.0...v0.2.0) (2025-11-05)
+
+
+### Features
+
+* add d2 thesis overview diagram and basic installation scaffold in README ([9170357](https://github.com/floherzler/ecg-chagas-embeddings/commit/91703577162edc81dce1e5437cfc386c2062beb3))
+* add dataset code from physionet challenge participation ([d9402a7](https://github.com/floherzler/ecg-chagas-embeddings/commit/d9402a706ac718dc745c99eb9412f0150e7bbaea))
+* add models and training code from physionet challenge ([6ab143b](https://github.com/floherzler/ecg-chagas-embeddings/commit/6ab143b6ff3035e86bcaf1ee4f42eac7034f3bef))
+
+
+### Bug Fixes
+
+* imorts and missing argparse package,  LightningCLI now working correctly! ([c4fd695](https://github.com/floherzler/ecg-chagas-embeddings/commit/c4fd6955b98943b5f018a6e95df4c287a49bcd62))
+* pass weight_decay to adamw (copilot) ([3ca89c8](https://github.com/floherzler/ecg-chagas-embeddings/commit/3ca89c87d15249396d454e31c2a0cf2da7a337b3))
+* some more type checks ([bdc885e](https://github.com/floherzler/ecg-chagas-embeddings/commit/bdc885eaa62f609ce45a6c6e5635eeb67c6fe08f))
+* use correct ruff ignore for src imports ([11f1b91](https://github.com/floherzler/ecg-chagas-embeddings/commit/11f1b91fdf2c5a88a29efd5cf1eda0aa0bfc0d6f))
+* use new lightning imort style and setup LightningCLI ([d84cc85](https://github.com/floherzler/ecg-chagas-embeddings/commit/d84cc85c77cd45b1c38df6a9b9a7df7c4361855c))
+
 ## 0.1.0 (2025-09-24)
 
 
