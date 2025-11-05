@@ -690,7 +690,7 @@ class LitResNet18(LightningModule):
         preds = (probs > 0.5).long()
         if type(self.criterion).__name__ == "SourceWeightedBCE":
             loss = self.criterion(logits, labels, metadata)
-        if type(self.criterion).__name__ == "SourceWeightedTopTverskyLoss":
+        elif type(self.criterion).__name__ == "SourceWeightedTopTverskyLoss":
             loss = self.criterion(logits, labels, metadata)
         else:
             loss = self.criterion(logits, labels)
