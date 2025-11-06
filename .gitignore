@@ -26,3 +26,7 @@ build/
 
 # Ruff
 .ruff_cache/
+
+# Models
+lightning_logs/
+wandb/
