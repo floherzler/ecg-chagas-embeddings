@@ -8,6 +8,32 @@ import torch.distributed as dist
 import torch.distributed.nn.functional as dist_f
 
 
+class BCEWithLogitsLossModule(nn.Module):
+    def __init__(self, pos_weight: float | torch.Tensor | None = None, **kwargs):
+        super().__init__()
+        if pos_weight is not None and not isinstance(pos_weight, torch.Tensor):
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight, **kwargs)
+
+    def forward(self, inputs, targets):
+        return self.loss(inputs, targets)
+
+    def as_config(self) -> dict[str, Optional[Union[float, list[float], str]]]:
+        """Return a serialisable view of the wrapped loss for logging."""
+        cfg: dict[str, Optional[Union[float, list[float], str]]] = {
+            "reduction": getattr(self.loss, "reduction", None)
+        }
+        pos_weight = getattr(self.loss, "pos_weight", None)
+        if isinstance(pos_weight, torch.Tensor):
+            if pos_weight.numel() == 1:
+                cfg["pos_weight"] = float(pos_weight.item())
+            else:
+                cfg["pos_weight"] = pos_weight.detach().cpu().tolist()
+        elif pos_weight is not None:
+            cfg["pos_weight"] = float(pos_weight)
+        return cfg
+
+
 class RankingBCELoss(nn.Module):
     def __init__(self):
         super().__init__()

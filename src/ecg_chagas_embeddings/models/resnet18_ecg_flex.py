@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 
 from lightning.pytorch import LightningModule
@@ -131,8 +131,8 @@ class BasicBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.norm2 = norm_layer(norm_type, planes, num_groups=norm_groups)
-        self.downsample = downsample
-        self.stride = stride
+        self.downsample = downsample  # ty: ignore[unresolved-attribute]
+        self.stride = stride  # ty: ignore[unresolved-attribute]
         self.stochastic_depth = StochasticDepth(stochastic_depth_prob, "row")
 
         ch = planes * self.expansion
@@ -199,8 +199,8 @@ class Bottleneck(nn.Module):
             norm_type, planes * self.expansion, num_groups=norm_groups
         )
         self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
-        self.stride = stride
+        self.downsample = downsample  # ty: ignore[unresolved-attribute]
+        self.stride = stride  # ty: ignore[unresolved-attribute]
         self.stochastic_depth = StochasticDepth(stochastic_depth_prob, "row")
 
         ch = planes * self.expansion
@@ -263,7 +263,51 @@ BLOCK_REGISTRY = {
 }
 
 
+# TODO: fix all the typing issues in this file
 class LitResNet18(LightningModule):
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        if isinstance(value, torch.Tensor):
+            if value.numel() == 1:
+                return float(value.item())
+            return value.detach().cpu().tolist()
+        if isinstance(value, (int, float, str, bool)) or value is None:
+            return value
+        if isinstance(value, (list, tuple)):
+            return [LitResNet18._serialize_value(v) for v in value]
+        return str(value)
+
+    @classmethod
+    def _extract_criterion_metadata(cls, criterion: nn.Module) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {"class_name": type(criterion).__name__}
+
+        as_config = getattr(criterion, "as_config", None)
+        if callable(as_config):
+            cfg = as_config()
+            if cfg:
+                meta["config"] = {
+                    key: cls._serialize_value(val) for key, val in cfg.items()
+                }
+
+        # fallback: introspect common attributes if no explicit config provided
+        if "config" not in meta:
+            candidate_attrs = (
+                "pos_weight",
+                "weight",
+                "alpha",
+                "gamma",
+                "beta",
+                "reduction",
+            )
+            extracted = {}
+            for attr in candidate_attrs:
+                if hasattr(criterion, attr):
+                    extracted[attr] = cls._serialize_value(getattr(criterion, attr))
+            if extracted:
+                meta["config"] = extracted
+
+        return meta
+
     def __init__(
         self,
         block: Union[str, Type[Union[BasicBlock, Bottleneck]]] = "basic",
@@ -279,8 +323,15 @@ class LitResNet18(LightningModule):
         lr_scheduler: str = "none",
         optimizer: str = "adamw",
         momentum: float = 0.9,
+        optimizer_betas: Optional[Sequence[float]] = (0.9, 0.999),
+        optimizer_eps: float = 1e-8,
         classifier_weight_decay: float = 1e-5,
         params_weight_decay: float = 1e-5,
+        final_div_factor: float = 1e4,
+        one_cycle_pct_start: float = 0.1,
+        one_cycle_div_factor: float = 25.0,
+        step_size: int = 10,
+        step_gamma: float = 0.1,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
         channels=12,
@@ -301,6 +352,9 @@ class LitResNet18(LightningModule):
     ) -> None:
         super().__init__()
 
+        if optimizer_betas is not None:
+            optimizer_betas = tuple(optimizer_betas)
+
         if isinstance(block, str):
             block_key = block.lower()
             if block_key not in BLOCK_REGISTRY:
@@ -318,34 +372,49 @@ class LitResNet18(LightningModule):
                 "Adjust the architecture helpers if you require a different depth."
             )
 
-        self.block_type = block_cls
-        self.layers_config = layers
+        self.block_type = block_cls  # ty: ignore[unresolved-attribute]
+        self.layers_config = layers  # ty: ignore[unresolved-attribute]
+
+        if replace_stride_with_dilation is None:
+            replace_stride_with_dilation = [False, False, False]
+        else:
+            replace_stride_with_dilation = list(replace_stride_with_dilation)
+            if len(replace_stride_with_dilation) != 3:
+                raise ValueError(
+                    "replace_stride_with_dilation should be None "
+                    f"or a 3-element tuple, got {replace_stride_with_dilation}"
+                )
 
         if norm_layer is None:
             norm_layer = get_norm_layer
-        self._norm_layer = norm_layer
-        self.norm_groups = norm_groups
-        self.max_lr = lr
-        self.lr_scheduler = lr_scheduler
+        self._norm_layer = norm_layer  # ty: ignore[unresolved-attribute]
+        self.norm_groups = norm_groups  # ty: ignore[unresolved-attribute]
+        self.max_lr = lr  # ty: ignore[unresolved-attribute]
+        self.lr_scheduler = lr_scheduler  # ty: ignore[unresolved-attribute]
+        self.final_div_factor = final_div_factor  # ty: ignore[unresolved-attribute]
+        self.one_cycle_pct_start = one_cycle_pct_start  # ty: ignore[unresolved-attribute]
+        self.one_cycle_div_factor = one_cycle_div_factor  # ty: ignore[unresolved-attribute]
+        self.step_size = step_size  # ty: ignore[unresolved-attribute]
+        self.step_gamma = step_gamma  # ty: ignore[unresolved-attribute]
 
-        self.inplanes = inplanes
-        self.dilation = 1
-        self.channels = channels
-        self.initial_kernel_size = initial_kernel_size
-        self.initial_stride = initial_stride
-        self.initial_padding = initial_padding
-        self.stochastic_depth_prob = stochastic_depth_prob
-        self.crop_size = crop_size
-        self.max_time_warp = max_time_warp
+        self.inplanes = inplanes  # ty: ignore[unresolved-attribute]
+        self.dilation = 1  # ty: ignore[unresolved-attribute]
+        self.channels = channels  # ty: ignore[unresolved-attribute]
+        self.initial_kernel_size = initial_kernel_size  # ty: ignore[unresolved-attribute]
+        self.initial_stride = initial_stride  # ty: ignore[unresolved-attribute]
+        self.initial_padding = initial_padding  # ty: ignore[unresolved-attribute]
+        self.stochastic_depth_prob = stochastic_depth_prob  # ty: ignore[unresolved-attribute]
+        self.crop_size = crop_size  # ty: ignore[unresolved-attribute]
+        self.max_time_warp = max_time_warp  # ty: ignore[unresolved-attribute]
         self.criterion = criterion or nn.BCEWithLogitsLoss()
-        self.se_reduction = se_reduction
-        self.use_sup_con = use_sup_con
-        self.use_prototypes = use_prototypes
-        self.classifier_weight = classifier_weight
-        self.sup_con_weight = sup_con_weight
-        self.sup_con_temp = sup_con_temp
+        self.se_reduction = se_reduction  # ty: ignore[unresolved-attribute]
+        self.use_sup_con = use_sup_con  # ty: ignore[unresolved-attribute]
+        self.use_prototypes = use_prototypes  # ty: ignore[unresolved-attribute]
+        self.classifier_weight = classifier_weight  # ty: ignore[unresolved-attribute]
+        self.sup_con_weight = sup_con_weight  # ty: ignore[unresolved-attribute]
+        self.sup_con_temp = sup_con_temp  # ty: ignore[unresolved-attribute]
         self.fake_sup_dropout = nn.Dropout(p=0.1)
-        self.fake_sup_noise_std = 0.01
+        self.fake_sup_noise_std = 0.01  # ty: ignore[unresolved-attribute]
         self.sup_con_loss = SupConLoss(
             temperature=self.sup_con_temp,
             contrast_mode="ALL_VIEWS",
@@ -364,25 +433,24 @@ class LitResNet18(LightningModule):
         )
         # keep string-friendly block identifier in the saved hyperparameters
         block_hparam = block if isinstance(block, str) else block_cls.__name__
+        criterion_meta = self._extract_criterion_metadata(self.criterion)
         self.save_hyperparameters(ignore=["criterion"])
-        self.hparams.update({"block": block_hparam})
-        self.train_step_losses = []
-        self.train_step_supcon_losses = []
-        self.val_step_losses = []
-        self.validation_step_outputs = []
-        self._pred_rows = []
+        self.hparams.update({"block": block_hparam, "criterion_meta": criterion_meta})
+        if optimizer_betas is not None:
+            # make sure betas are logged as a regular list for readability
+            self.hparams.optimizer_betas = list(optimizer_betas)  # ty: ignore[unresolved-attribute]
+        self.hparams.optimizer_eps = optimizer_eps  # ty: ignore[unresolved-attribute]
+        self.hparams.layers = list(self.layers_config)  # ty: ignore[unresolved-attribute]
+        self.hparams.replace_stride_with_dilation = list(replace_stride_with_dilation)  # ty: ignore[unresolved-attribute]
 
-        if replace_stride_with_dilation is None:
-            # each element in the tuple indicates if we should replace
-            # the 2x2 stride with a dilated convolution instead
-            replace_stride_with_dilation = [False, False, False]
-        if len(replace_stride_with_dilation) != 3:
-            raise ValueError(
-                "replace_stride_with_dilation should be None "
-                f"or a 3-element tuple, got {replace_stride_with_dilation}"
-            )
-        self.groups = groups
-        self.base_width = width_per_group
+        self.train_step_losses = []  # ty: ignore[unresolved-attribute]
+        self.train_step_supcon_losses = []  # ty: ignore[unresolved-attribute]
+        self.val_step_losses = []  # ty: ignore[unresolved-attribute]
+        self.validation_step_outputs = []  # ty: ignore[unresolved-attribute]
+        self._pred_rows = []  # ty: ignore[unresolved-attribute]
+
+        self.groups = groups  # ty: ignore[unresolved-attribute]
+        self.base_width = width_per_group  # ty: ignore[unresolved-attribute]
         self.conv1 = nn.Conv1d(
             channels,
             self.inplanes,
@@ -395,9 +463,9 @@ class LitResNet18(LightningModule):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
 
-        self._stage_block_id = 0
-        self._sd_prob = 0.0
-        self._total_layers = sum(layers)
+        self._stage_block_id = 0  # ty: ignore[unresolved-attribute]
+        self._sd_prob = 0.0  # ty: ignore[unresolved-attribute]
+        self._total_layers = sum(layers)  # ty: ignore[unresolved-attribute]
 
         self.layer1 = self._make_layer(
             block_cls,
@@ -512,7 +580,7 @@ class LitResNet18(LightningModule):
                 stochastic_depth_prob=self._get_and_update_stochastic_depth_prob(),
             )
         )
-        self.inplanes = planes * block.expansion
+        self.inplanes = planes * block.expansion  # ty: ignore[unresolved-attribute]
         for _ in range(1, blocks):
             layers.append(
                 block(
@@ -568,7 +636,30 @@ class LitResNet18(LightningModule):
         if not self.use_prototypes:
             return
         with torch.no_grad():
-            D = self.projection_head[-1].out_features
+            # If projection_head is a Sequential with a final Linear, use its out_features,
+            # otherwise fall back to the feature dimensionality stored in fc.in_features
+            D = None
+            if (
+                isinstance(self.projection_head, nn.Sequential)
+                and len(self.projection_head) > 0
+            ):
+                last_module = self.projection_head[-1]
+                if hasattr(last_module, "out_features"):
+                    D = int(last_module.out_features)
+            if D is None:
+                # fallback to feature dimension produced before the classifier
+                if hasattr(self.fc, "in_features"):
+                    D = int(self.fc.in_features)
+                else:
+                    # ultimate fallback: run a dummy forward pass to infer dimension
+                    dummy = torch.zeros(
+                        1, getattr(self, "inplanes", 1), device=self.device
+                    )
+                    # try to get features size by running through _forward_impl -> projection_head
+                    feats, _ = self._forward_impl(dummy)
+                    proj = self.projection_head(feats)
+                    D = int(proj.shape[-1])
+
             u = torch.randn(D, device=self.device)
             u = u / (u.norm() + 1e-6)
             prototypes = torch.stack([u, -u], dim=0)  # [2, D]
@@ -950,18 +1041,35 @@ class LitResNet18(LightningModule):
     def configure_optimizers(self):
         param_groups = split_optimizer_in_decay_and_no_decay(
             self,
-            self.hparams.classifier_weight_decay,
-            self.hparams.params_weight_decay,
+            self.hparams.classifier_weight_decay,  # ty: ignore[unresolved-attribute]
+            self.hparams.params_weight_decay,  # ty: ignore[unresolved-attribute]
         )
+        optimizer_name = self.hparams.optimizer.lower()  # ty: ignore[unresolved-attribute]
+        optimizer_kwargs: dict[str, Any] = {}
+        if optimizer_name in ("adam", "adamw"):
+            betas = getattr(self.hparams, "optimizer_betas", None)
+            if betas is not None:
+                optimizer_kwargs["betas"] = tuple(betas)
+            eps = getattr(self.hparams, "optimizer_eps", None)
+            if eps is not None:
+                optimizer_kwargs["eps"] = eps
+
         optimizer = get_optimizer(
-            name=self.hparams.optimizer,
+            name=self.hparams.optimizer,  # ty: ignore[unresolved-attribute]
             params=param_groups,
             lr=self.max_lr,
-            weight_decay=self.hparams.params_weight_decay,
+            weight_decay=self.hparams.params_weight_decay,  # ty: ignore[unresolved-attribute]
             momentum=getattr(self.hparams, "momentum", 0.0),
+            **optimizer_kwargs,
         )
 
-        scheduler_type = self.hparams.lr_scheduler.lower()
+        # robustly fetch lr_scheduler from hparams whether hparams behaves like a mapping or an object
+        if isinstance(self.hparams, dict):
+            _scheduler_raw = self.hparams.get("lr_scheduler", None)
+        else:
+            _scheduler_raw = getattr(self.hparams, "lr_scheduler", None)
+        scheduler_type = str(_scheduler_raw or "none").lower()
+
         if scheduler_type == "none":
             return optimizer
 
@@ -969,28 +1077,35 @@ class LitResNet18(LightningModule):
             sched = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer,
                 max_lr=self.max_lr,
-                total_steps=self.trainer.estimated_stepping_batches,
-                pct_start=0.1,
-                div_factor=25.0,
-                final_div_factor=1e4,
+                total_steps=(
+                    int(self.trainer.estimated_stepping_batches)
+                    if self.trainer.estimated_stepping_batches is not None
+                    else None
+                ),
+                pct_start=getattr(self.hparams, "one_cycle_pct_start", 0.1),
+                div_factor=getattr(self.hparams, "one_cycle_div_factor", 25.0),
+                final_div_factor=getattr(self.hparams, "final_div_factor", 1e4),
             )
             interval = "step"
         elif scheduler_type == "cosine":
             sched = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer,
-                T_max=self.trainer.max_epochs,
-                eta_min=self.hparams.lr / self.hparams.final_div_factor,
+                T_max=int(self.trainer.max_epochs)
+                if self.trainer.max_epochs is not None
+                else 1,
+                eta_min=getattr(self.hparams, "lr", self.max_lr)
+                / getattr(self.hparams, "final_div_factor", 1e4),
             )
             interval = "epoch"
         elif scheduler_type == "step":
             sched = torch.optim.lr_scheduler.StepLR(
                 optimizer,
-                step_size=self.hparams.step_size,
-                gamma=self.hparams.step_gamma,
+                step_size=getattr(self.hparams, "step_size", 10),
+                gamma=getattr(self.hparams, "step_gamma", 0.1),
             )
             interval = "epoch"
         else:
-            raise ValueError(f"Unknown scheduler: {self.hparams.scheduler_type}")
+            raise ValueError(f"Unknown scheduler: {_scheduler_raw}")
 
         return {
             "optimizer": optimizer,
