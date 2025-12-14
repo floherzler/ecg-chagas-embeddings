@@ -19,6 +19,13 @@ from ecg_chagas_embeddings.utils import (
     get_optimizer,
     split_optimizer_in_decay_and_no_decay,
 )
+from ecg_chagas_embeddings.metrics.ttc_metrics import (
+    calculate_class_alignment_distance,
+    calculate_class_alignment_consistency,
+    calculate_gaussian_potential_uniformity,
+    calculate_sample_alignment_distance,
+    calculate_sample_alignment_accuracy,
+)
 
 
 def draw_quantile_bar(
@@ -40,6 +47,101 @@ def draw_quantile_bar(
     bar[pos(q3)] = q3char
 
     return "|" + "".join(bar) + "|"
+
+
+def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
+    """
+    Compute per-class TTC embedding metrics (SAD, SAA, CAD, CAC, GPU)
+    for embeddings with potentially multiple views per sample.
+
+    Args:
+        embeddings: np.ndarray of shape [N, V, D]
+            N = number of samples
+            V = number of views (augmentations)
+            D = embedding dimension
+        labels: np.ndarray of shape [N] (0/1 class labels)
+
+    Returns:
+        dict: per-class metrics only
+    """
+
+    n_samples, n_views, emb_dim = embeddings.shape
+    labels = labels.astype(int)
+
+    # ---- Flatten to [V*N, D] in view-major order ----
+    embs_flat = embeddings.transpose(1, 0, 2).reshape(n_samples * n_views, emb_dim)
+    labels_rep = np.tile(labels, n_views)
+
+    # ---- L2 normalize ----
+    norms = np.linalg.norm(embs_flat, axis=1, keepdims=True)
+    embs_flat = embs_flat / np.clip(norms, a_min=1e-12, a_max=None)
+
+    # ---- Pairwise cosine distances ----
+    dot = np.clip(embs_flat @ embs_flat.T, -1.0, 1.0)
+    dist_sq = np.clip(2.0 - 2.0 * dot, 0.0, None)
+    pairwise_dist = np.sqrt(dist_sq, out=dist_sq)
+
+    metrics = {}
+    print(
+        f"Computing representation metrics for {n_samples} samples, {n_views} views each."
+    )
+
+    # ---- SAD / SAA (need >=2 views) ----
+    if n_views >= 2:
+        sad0, sad1 = calculate_sample_alignment_distance(
+            pairwise_dist, n_samples, labels
+        )
+
+        # Note: SAA mutates 'sim' by filling its diagonal with inf, so pass a copy
+        saa0, saa1 = calculate_sample_alignment_accuracy(
+            pairwise_dist.copy(), n_samples, labels, labels_rep
+        )
+
+        metrics.update(
+            {
+                "SAD_0": float(np.mean(sad0)) if sad0.size > 0 else np.nan,
+                "SAD_1": float(np.mean(sad1)) if sad1.size > 0 else np.nan,
+                "SAA_0": float(saa0),
+                "SAA_1": float(saa1),
+            }
+        )
+        print(f"Computed metrics for {n_samples} samples, {n_views} views each.")
+    else:
+        # No second view — metrics undefined
+        metrics.update(
+            {
+                "SAD_0": np.nan,
+                "SAD_1": np.nan,
+                "SAA_0": np.nan,
+                "SAA_1": np.nan,
+            }
+        )
+        print(f"Skipped SAD / SAA metrics (only {n_views} view(s) available).")
+
+    # ---- CAD / CAC / GPU (class-wise) ----
+    cad0, cad1 = calculate_class_alignment_distance(
+        pairwise_dist, embs_flat, labels_rep
+    )
+    print("Computed CAD metrics.")
+    cac0, cac1 = calculate_class_alignment_consistency(
+        pairwise_dist, embs_flat, labels_rep
+    )
+    print("Computed CAC metrics.")
+    gpu0, gpu1 = calculate_gaussian_potential_uniformity(embs_flat, labels_rep)
+    print("Computed GPU metrics.")
+
+    metrics.update(
+        {
+            "CAD_0": float(np.mean(cad0)) if cad0.size > 0 else np.nan,
+            "CAD_1": float(np.mean(cad1)) if cad1.size > 0 else np.nan,
+            "CAC_0": float(np.mean(cac0)) if cac0.size > 0 else np.nan,
+            "CAC_1": float(np.mean(cac1)) if cac1.size > 0 else np.nan,
+            "GPU_0": float(gpu0),
+            "GPU_1": float(gpu1),
+        }
+    )
+
+    return metrics
 
 
 def conv3x3(
@@ -753,13 +855,29 @@ class LitResNet18(LightningModule):
             return cls_loss
 
     def validation_step(self, batch, batch_idx):
-        signals = batch["ecg"]
-        labels = batch["chagas"]
+        labels = batch["chagas"].view(-1)
         ages = batch.get("age", None)
         sexes = batch.get("sex", None)
         sources = batch.get("source", None)
         ids = batch.get("exam_id", None)
-        feats, proj, logits = self(signals)
+        multi_view = (self.use_sup_con or self.use_prototypes) and (
+            "ecg_views" in batch
+        )
+
+        if multi_view:
+            views = batch["ecg_views"]  # [B, V, C, T]
+            B, V, C, T = views.shape
+            flat = views.view(B * V, C, T)
+            feats, proj, logits = self(flat)
+            proj = F.normalize(proj, dim=1, eps=1e-6).view(B, V, -1)
+            logits = logits.view(B, V, -1).mean(dim=1).squeeze(-1)
+        else:
+            signals = batch.get("ecg")
+            if signals is None and "ecg_views" in batch:
+                # fall back to the first view when only multi-view tensors are present
+                signals = batch["ecg_views"][:, 0]
+            feats, proj, logits = self(signals)
+            proj = F.normalize(proj, dim=1, eps=1e-6).unsqueeze(1)
 
         # print(f"Sources: {sources}")
 
@@ -794,6 +912,7 @@ class LitResNet18(LightningModule):
                 sexes.view(-1) if sexes is not None else None,
                 sources.view(-1) if sources is not None else None,
                 ids if ids is not None else None,
+                proj.detach().to(device="cpu", dtype=torch.float32),  # [B,V,D]
             )
         )
         self.val_step_losses.append(loss)
@@ -831,6 +950,10 @@ class LitResNet18(LightningModule):
         #     if self.validation_step_outputs[0][6] is not None
         #     else None
         # )
+        embeddings = (
+            torch.cat([b[7] for b in self.validation_step_outputs], dim=0).cpu().numpy()
+        )
+        print(f"Embeddings shape: {embeddings.shape}")
 
         # if sources is not None:
         #    unique_sources, counts = np.unique(sources, return_counts=True)
@@ -856,6 +979,10 @@ class LitResNet18(LightningModule):
             code15_accuracy = None
             strong_score = None
             strong_accuracy = None
+            emb_metrics = compute_representation_metrics(embeddings, gts)
+            for k, v in emb_metrics.items():
+                print(f"Embedding metric {k}: {v:.4f}")
+                self.log(f"emb_{k}", v, prog_bar=False, on_epoch=True, on_step=False)
             if code15_gts.size > 0 or code15_probs.size > 0:
                 tqdm.write("CODE-15 confusion matrix:")
                 code15_score = (

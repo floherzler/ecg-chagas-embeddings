@@ -5,14 +5,14 @@ from functools import partial
 from multiprocessing import Pool
 from pathlib import Path
 import sys
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
 import wfdb
 from scipy.signal import butter, resample, resample_poly, sosfiltfilt
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from tqdm import tqdm
 
 # from .stats import MEAN, STD
@@ -136,6 +136,18 @@ def save_resampled_normalized_ecg(
     return str(method), str(output_path), p1, p99
 
 
+def _softclip_save(
+    pt_path: Path, lower: np.ndarray, upper: np.ndarray, c: np.ndarray
+) -> None:
+    """Apply softclip scaling to a saved tensor and overwrite in place."""
+    torch.save(
+        torch.from_numpy(
+            softclip_scale_ecg(torch.load(pt_path).numpy(), lower, upper, c)
+        ).float(),
+        pt_path,
+    )
+
+
 def extract_meta_and_process(
     record_path: Path,
     target_sample_rate: int,
@@ -176,17 +188,23 @@ def prepare_data(
     metadata_list = []
 
     if processes <= 1:
-        for i, r in enumerate(records, 1):
+        for r in tqdm(
+            records,
+            desc="Process records",
+            total=len(records),
+            disable=disable_tqdm,
+        ):
             metadata_list.append(preprocessor(r))
-            # if i % 1000 == 0 or i == total:
-            #     print(f"[prepare_data] processed {i}/{total} files")
     else:
         with Pool(processes) as pool:
             # imap preserves ordering, chunksize=1 streams as soon as ready
-            for i, meta in enumerate(pool.imap(preprocessor, records, chunksize=1), 1):
+            for meta in tqdm(
+                pool.imap(preprocessor, records, chunksize=1),
+                desc="Process records",
+                total=len(records),
+                disable=disable_tqdm,
+            ):
                 metadata_list.append(meta)
-                # if i % 1000 == 0 or i == total:
-                #     print(f"[prepare_data] processed {i}/{total} files")
 
     if save_meta_only:
         df = pd.DataFrame(metadata_list)
@@ -234,36 +252,31 @@ def prepare_data(
     pt_files = list(output_dir.glob("*.pt"))
 
     if processes <= 1:
-        for i, ptf in enumerate(pt_files, 1):
-            torch.save(
-                torch.from_numpy(
-                    softclip_scale_ecg(
-                        torch.load(ptf).numpy(), global_lower, global_upper, c
-                    )
-                ).float(),
-                ptf,
-            )
-            # if i % 1000 == 0 or i == total:
-            #     print(f"[soft-clip] processed {i}/{total} files")
+        for ptf in tqdm(
+            pt_files,
+            desc="Softclip scale",
+            total=len(pt_files),
+            disable=disable_tqdm,
+        ):
+            _softclip_save(ptf, global_lower, global_upper, c)
     else:
         with Pool(processes) as pool:
-            for i, ptf in enumerate(pt_files, 1):
-                # capture ptf in the default‐arg of the lambda
-                pool.apply_async(
-                    lambda ptf=ptf: torch.save(
-                        torch.from_numpy(
-                            softclip_scale_ecg(
-                                torch.load(ptf).numpy(), global_lower, global_upper, c
-                            )
-                        ).float(),
-                        ptf,
-                    )
+            list(
+                tqdm(
+                    pool.imap(
+                        partial(
+                            _softclip_save,
+                            lower=global_lower,
+                            upper=global_upper,
+                            c=c,
+                        ),
+                        pt_files,
+                    ),
+                    desc="Softclip scale",
+                    total=len(pt_files),
+                    disable=disable_tqdm,
                 )
-                # if i % 1000 == 0 or i == total:
-                #     print(f"[soft-clip] processed {i}/{total} files")
-
-            pool.close()
-            pool.join()
+            )
 
     # @Flo commented this out because it was not working on the cluster
     # if processes == 0:
@@ -317,40 +330,99 @@ def find_official_records(data_dir: Path, allowed_keywords: List[str]) -> List[P
 
 
 def add_fold_column(
-    df: pd.DataFrame, nsplits: int, target_col: str = "chagas"
+    df: pd.DataFrame,
+    nsplits: int,
+    label_col: str = "chagas",
+    dataset_col: str = "source",
+    group_col: Optional[str] = None,
+    random_state: int = 42,
 ) -> pd.DataFrame:
-    y = df[target_col].copy()
-    y = y.fillna(-1)
+    """
+    Add a 'fold' column with stratified (and optionally grouped) K-fold assignments.
 
-    stratifier = StratifiedKFold(nsplits, shuffle=True, random_state=42)
+    - Stratifies on a composite of (label, dataset_col) to balance Chagas condition per source.
+    - Optionally groups by group_col (e.g. patient_id or exam_id) to avoid leakage.
+    """
 
-    for i, (_, valid_idx) in enumerate(stratifier.split(df, y)):
-        df.loc[valid_idx, "fold"] = i
+    df = df.copy()
 
+    # --- 1. Build stratification label: (label, source) ---
+    # Handle missing labels safely
+    y = df[label_col].copy()
+    y = y.fillna(-1).astype(int)
+
+    # Encode dataset/source as integers
+    src_codes = df[dataset_col].astype("category").cat.codes.astype(int)
+
+    # Composite strat label: e.g. "0_0", "1_1", ...
+    strat_str = y.astype(str) + "_" + src_codes.astype(str)
+    # Factorize to integers because StratifiedKFold wants a 1D label array
+    strat_labels, _ = pd.factorize(strat_str)
+
+    # --- 2. Choose stratified splitter (with or without groups) ---
+    if group_col is not None:
+        # Ensure groups are a single dtype to avoid mixed type sorting errors
+        groups = df[group_col].astype(str).fillna("nan_group").values
+        splitter = StratifiedGroupKFold(
+            n_splits=nsplits,
+            shuffle=True,
+            random_state=random_state,
+        )
+        split_iterator = splitter.split(X=df, y=strat_labels, groups=groups)
+    else:
+        splitter = StratifiedKFold(
+            n_splits=nsplits,
+            shuffle=True,
+            random_state=random_state,
+        )
+        split_iterator = splitter.split(X=df, y=strat_labels)
+
+    # --- 3. Assign fold indices ---
+    df["fold"] = -1  # init
+
+    for fold_idx, (_, valid_idx) in enumerate(split_iterator):
+        df.iloc[valid_idx, df.columns.get_loc("fold")] = fold_idx
+
+    df["fold"] = df["fold"].astype(int)
     return df
 
 
 def update_ptb_meta(ptb_df, meta_df):
-    """Update PTB metadata with age and sex information from ptb_df.
+    """Update PTB metadata with patient_id information from ptb_df.
 
     Args:
-        ptb_df (pd.DataFrame): DataFrame containing PTB metadata with columns 'filename_hr', 'filename_lr', 'age', 'sex'.
+        ptb_df (pd.DataFrame): DataFrame containing PTB metadata with columns 'filename_hr', 'filename_lr', 'patient_id'.
         meta_df (pd.DataFrame): DataFrame containing metadata with column 'path'.
 
     Returns:
-        pd.DataFrame: Updated metadata DataFrame with age and sex information.
+        pd.DataFrame: Updated metadata DataFrame with patient_id information.
     """
     _df = meta_df.copy()
 
     # Only process rows from ptb-xl
     _df["path_source"] = _df.path.apply(lambda x: Path(x).parents[2].name)
-    ptb_mask = _df.path_source == "ptb-xl"
+    ptb_mask = _df["path_source"].eq("ptb-xl")
+    if "source" in _df.columns:
+        ptb_mask = ptb_mask | _df["source"].astype(str).eq("PTB-XL")
     ptb_paths = _df.loc[ptb_mask, "path"].map(Path)
 
+    def _path_to_record_name(p: Path) -> str:
+        """Map processed path back to the original PTB-XL record name (records500/… or records100/…)."""
+        rel = p.relative_to(p.parents[2])
+        parts = list(rel.parts)
+        if parts:
+            if parts[0].startswith("processedOfficial500"):
+                parts[0] = "records500"
+            elif parts[0].startswith("processedOfficial100") or parts[0].startswith(
+                "processedOfficial"
+            ):
+                parts[0] = "records100"
+            elif parts[0].startswith("processed"):
+                parts[0] = parts[0].replace("processed", "records")
+        return str(Path(*parts))
+
     # Extract record_name from relative path
-    record_names = ptb_paths.map(
-        lambda p: str(p.relative_to(p.parents[2])).replace("processed", "records")
-    )
+    record_names = ptb_paths.map(_path_to_record_name)
 
     # Create a temporary DataFrame for merging
     ptb_info = pd.DataFrame(
@@ -360,7 +432,7 @@ def update_ptb_meta(ptb_df, meta_df):
     # Melt ptb_df to unify filename_hr and filename_lr into a single column
     melted_ptb_df = pd.melt(
         ptb_df,
-        id_vars=["age", "sex"],
+        id_vars=["patient_id"],
         value_vars=["filename_hr", "filename_lr"],
         var_name="filename_type",
         value_name="record_name",
@@ -369,11 +441,117 @@ def update_ptb_meta(ptb_df, meta_df):
     # Merge on record_name
     merged = ptb_info.merge(melted_ptb_df, on="record_name", how="left")
 
-    # Update age and sex in _df using index alignment
-    _df.loc[ptb_mask, ["age", "sex"]] = merged[["age", "sex"]].values
+    # Update patient_id in _df using index alignment
+    if "patient_id" in merged.columns:
+        _df.loc[ptb_mask, "patient_id"] = merged["patient_id"]
 
     # PTB has no chagas cases!
-    _df.loc[_df.path_source == "ptb-xl", "chagas"] = 0.0
+    _df.loc[ptb_mask, "chagas"] = 0.0
+
+    return _df
+
+
+def update_code_meta(code_df: pd.DataFrame, meta_df: pd.DataFrame) -> pd.DataFrame:
+    """Merge CODE-15 metadata (patient_id and optional secondary labels) into meta_df.
+
+    Note: age/sex are taken from the WFDB .hea headers and are not overwritten from the CSV.
+    """
+    _df = meta_df.copy()
+
+    if "source" not in _df.columns:
+        return _df
+
+    code_mask = _df["source"].astype(str).isin({"CODE-15%", "CODE-15"})
+    if not code_mask.any():
+        return _df
+
+    code_cols = [
+        "exam_id",
+        "patient_id",
+        "RBBB",
+        "LBBB",
+        "1dAVb",
+        "SB",
+        "AF",
+        "ST",
+        "normal_ecg",
+        "death",
+        "timey",
+        "nn_predicted_age",
+    ]
+    available_cols = [c for c in code_cols if c in code_df.columns]
+    code_subset = code_df[available_cols].copy()
+    if "exam_id" in code_subset.columns:
+        code_subset["exam_id"] = code_subset["exam_id"].astype(str)
+
+    code_side = _df.loc[code_mask].copy()
+    if "exam_id" in code_side.columns:
+        code_side["exam_id"] = code_side["exam_id"].astype(str)
+
+    merged = code_side.merge(
+        code_subset, on="exam_id", how="left", suffixes=("", "_code")
+    )
+
+    pid_col = "patient_id_code" if "patient_id_code" in merged else "patient_id"
+    if pid_col in merged.columns:
+        _df.loc[code_mask, "patient_id"] = merged[pid_col]
+
+    secondary_cols = [
+        "RBBB",
+        "LBBB",
+        "1dAVb",
+        "SB",
+        "AF",
+        "ST",
+        "normal_ecg",
+        "death",
+        "timey",
+        "nn_predicted_age",
+    ]
+    for col in secondary_cols:
+        if col in merged.columns:
+            _df.loc[code_mask, col] = merged[col]
+
+    return _df
+
+
+def update_sami_meta(sami_df: pd.DataFrame, meta_df: pd.DataFrame) -> pd.DataFrame:
+    """Merge SaMi-Trop metadata (optional secondary labels) into meta_df.
+
+    Note: age/sex are taken from the WFDB .hea headers and are not overwritten from the CSV.
+    """
+    _df = meta_df.copy()
+
+    if "source" not in _df.columns:
+        return _df
+
+    sami_mask = _df["source"].astype(str).eq("SaMi-Trop")
+    if not sami_mask.any():
+        return _df
+
+    sami_cols = [
+        "exam_id",
+        "normal_ecg",
+        "death",
+        "timey",
+        "nn_predicted_age",
+    ]
+    available_cols = [c for c in sami_cols if c in sami_df.columns]
+    sami_subset = sami_df[available_cols].copy()
+    if "exam_id" in sami_subset.columns:
+        sami_subset["exam_id"] = sami_subset["exam_id"].astype(str)
+
+    sami_side = _df.loc[sami_mask].copy()
+    if "exam_id" in sami_side.columns:
+        sami_side["exam_id"] = sami_side["exam_id"].astype(str)
+
+    merged = sami_side.merge(
+        sami_subset, on="exam_id", how="left", suffixes=("", "_sami")
+    )
+
+    for col in ["normal_ecg", "death", "timey", "nn_predicted_age"]:
+        if col in merged.columns:
+            _df.loc[sami_mask, col] = merged[col]
 
     return _df
 
@@ -559,6 +737,24 @@ def parse_args():
         help="Path to output directory. Here we will save preprocessed .pt files and metadata.",
     )
     parser.add_argument(
+        "--ptb_meta_csv",
+        type=Path,
+        default=None,
+        help="Optional path to PTB-XL metadata CSV (ptbxl_database.csv).",
+    )
+    parser.add_argument(
+        "--code_meta_csv",
+        type=Path,
+        default=None,
+        help="Optional path to CODE-15 metadata CSV (exams.csv).",
+    )
+    parser.add_argument(
+        "--sami_meta_csv",
+        type=Path,
+        default=None,
+        help="Optional path to SaMi-Trop metadata CSV (exams.csv).",
+    )
+    parser.add_argument(
         "--save_meta_only",
         action="store_true",
         help="If set, only save metadata without processing ECG files.",
@@ -593,15 +789,15 @@ if __name__ == "__main__":
     print(f"Only saving metadata: {args.save_meta_only}")
 
     # Find all records *.dat files
-    records = find_all_records(args.data_dir)
+    # records = find_all_records(args.data_dir)
 
-    # allowed_keywords = [
-    #     "code15/processed/exams_part",         # matches exams_part0, exams_part20, etc.
-    #     "sami-trop/processedOfficial",  # matches sami-trop/processedOfficial
-    #     "ptb-xl/processedOfficial500",  # matches ptb-xl/processedOfficial500
-    # ]
+    allowed_keywords = [
+        "code15/processed/exams_part",  # matches exams_part0, exams_part20, etc.
+        "sami-trop/processedOfficial",  # matches sami-trop/processedOfficial
+        "ptb-xl/processedOfficial500",  # matches ptb-xl/processedOfficial500
+    ]
 
-    # records = find_official_records(args.data_dir, allowed_keywords)
+    records = find_official_records(args.data_dir, allowed_keywords)
 
     if len(records) != TOTAL_EXPECTED_FILES:
         print(
@@ -623,13 +819,42 @@ if __name__ == "__main__":
 
     print(df.head())
 
-    # Generate cross validation splits
-    df = add_fold_column(df, args.splits)
-
-    ptb_df_path: Path = args.data_dir / "ptb-xl" / "ptbxl_database.csv"
-    if ptb_df_path.is_file():
-        ptb_df = pd.read_csv(ptb_df_path)
+    # Enrich metadata per dataset BEFORE creating folds
+    ptb_meta_csv = getattr(args, "ptb_meta_csv", None)
+    if ptb_meta_csv is not None and Path(ptb_meta_csv).is_file():
+        ptb_df = pd.read_csv(ptb_meta_csv)
         df = update_ptb_meta(ptb_df=ptb_df, meta_df=df)
+
+    code_meta_csv = getattr(args, "code_meta_csv", None)
+    if code_meta_csv is not None and Path(code_meta_csv).is_file():
+        code_df = pd.read_csv(code_meta_csv)
+        df = update_code_meta(code_df=code_df, meta_df=df)
+
+    sami_meta_csv = getattr(args, "sami_meta_csv", None)
+    if sami_meta_csv is not None and Path(sami_meta_csv).is_file():
+        sami_df = pd.read_csv(sami_meta_csv)
+        df = update_sami_meta(sami_df=sami_df, meta_df=df)
+
+    # Ensure patient_id exists
+    if "patient_id" not in df.columns:
+        df["patient_id"] = df["exam_id"]
+    else:
+        df["patient_id"] = df["patient_id"].fillna(df["exam_id"])
+
+    # Generate cross validation splits using enriched metadata
+    df = add_fold_column(
+        df,
+        nsplits=args.splits,
+        label_col="chagas",
+        dataset_col="source",
+        group_col="patient_id",
+    )
+
+    # try:
+    #     print("Fold distribution by chagas and source:")
+    #     print(df.groupby(["fold", "source"])["chagas"].value_counts(normalize=True))
+    # except Exception as e:
+    #     print(f"Could not compute fold distribution: {e}")
 
     # Save metadata to CSV
     df.to_csv(args.output_dir / args.output_file, index=False)

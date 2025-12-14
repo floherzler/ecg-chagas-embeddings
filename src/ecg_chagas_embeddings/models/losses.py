@@ -95,17 +95,26 @@ class SourceWeightedBCE(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.75, gamma=2.0, reduction="mean"):
+    alpha: float
+    initial_gamma: float
+    gamma: float
+    reduction: str
+
+    def __init__(
+        self, alpha: float = 0.75, gamma: float = 2.0, reduction: str = "mean"
+    ) -> None:
         super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.initial_gamma = gamma
-        self.gamma = gamma
-        self.reduction = reduction
+        # Ensure attributes have the expected concrete types for static checkers
+        # Use object.__setattr__ to bypass nn.Module's custom __setattr__ and satisfy type checkers
+        object.__setattr__(self, "alpha", float(alpha))
+        object.__setattr__(self, "initial_gamma", float(gamma))
+        object.__setattr__(self, "gamma", float(gamma))
+        object.__setattr__(self, "reduction", reduction)
 
-    def update_gamma(self, new_gamma):
-        self.gamma = new_gamma
+    def update_gamma(self, new_gamma: float) -> None:
+        object.__setattr__(self, "gamma", float(new_gamma))
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
         probs = torch.sigmoid(inputs)
         pt = torch.where(targets == 1, probs, 1 - probs)

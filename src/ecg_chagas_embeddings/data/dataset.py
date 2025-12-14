@@ -456,9 +456,13 @@ def get_train_val_loaders(
     )
 
     # --- VALIDATION: single, clean view ---
+    val_n_views = 2 if use_sup_con else 1
     valid_transform = ECGAugmentation(
         crop_size=crop_size,
-        n_views=1,  # << single view
+        max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        mask_prob=train_transform_kwargs.get("mask_prob", None),
+        gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
+        n_views=val_n_views,
         # Keep val clean/deterministic; typically no masks/noise/warp here.
     )
     train_dataset = TorchDataset(
@@ -472,6 +476,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
+        use_sup_con_views=2 if use_sup_con else None,
     )
     valid_dataset = TorchDataset(
         meta_path,
@@ -483,6 +488,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
+        use_sup_con_views=2 if use_sup_con else None,
     )
 
     if oversample:
