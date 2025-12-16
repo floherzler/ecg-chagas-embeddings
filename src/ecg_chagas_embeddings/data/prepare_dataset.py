@@ -14,6 +14,7 @@ import wfdb
 from scipy.signal import butter, resample, resample_poly, sosfiltfilt, firwin, filtfilt
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from tqdm import tqdm
+import neurokit2 as nk
 
 TOTAL_EXPECTED_FILES = 430_766
 
@@ -315,10 +316,21 @@ def _compute_qc_metrics_bp(
     if lead_idx < 0 or lead_idx >= ecg.shape[0]:
         return None, float("nan")
 
+    import warnings
+
     try:
-        import neurokit2 as nk  # type: ignore
-    except Exception:
-        return None, float("nan")
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message=r".*joblib will operate in serial mode.*",
+            )
+            import neurokit2 as nk  # type: ignore
+            from neurokit2.misc import NeuroKitWarning  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "NeuroKit2 is required to compute QC metrics. Install `neurokit2` or re-run with `--no_qc`."
+        ) from e
 
     lead = np.asarray(ecg[lead_idx], dtype=float)
 
@@ -326,18 +338,33 @@ def _compute_qc_metrics_bp(
     qc_tm: float
 
     try:
-        qc_zhao = nk.ecg_quality(
-            lead, sampling_rate=sample_rate, method="zhao2018", approach="simple"
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=NeuroKitWarning,
+                message=r".*Too few peaks detected to compute the rate.*",
+            )
+            qc_zhao = nk.ecg_quality(
+                lead, sampling_rate=sample_rate, method="zhao2018", approach="simple"
+            )
         if qc_zhao is not None:
             qc_zhao = str(qc_zhao)
     except Exception:
         qc_zhao = None
 
     try:
-        tm = nk.ecg_quality(
-            lead, sampling_rate=sample_rate, method="templatematch", approach="simple"
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=NeuroKitWarning,
+                message=r".*Too few peaks detected to compute the rate.*",
+            )
+            tm = nk.ecg_quality(
+                lead,
+                sampling_rate=sample_rate,
+                method="templatematch",
+                approach="simple",
+            )
         qc_tm = float(np.nanmedian(tm))
     except Exception:
         qc_tm = float("nan")
