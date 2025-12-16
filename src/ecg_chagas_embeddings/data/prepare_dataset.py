@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wfdb
-from scipy.signal import butter, resample, resample_poly, sosfiltfilt
+from scipy.signal import butter, resample, resample_poly, sosfiltfilt, firwin, filtfilt
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from tqdm import tqdm
 
@@ -132,18 +132,63 @@ def resample_ecg(
 def butter_filter(
     ecg: np.ndarray,
     sample_rate: float,
-    lower_freq: float = 1,
-    upper_freq: float = 47,
-    order: int = 3,
+    lower_freq: float = 0.67,
+    upper_freq: float = 45.0,
+    order: float = 1.5,
 ) -> np.ndarray:
-    sos = butter(
-        N=order,
-        Wn=[lower_freq, upper_freq],
-        fs=sample_rate,
-        btype="bandpass",
-        output="sos",
-    )
-    return sosfiltfilt(sos, ecg)
+    """Apply zero-phase Butterworth bandpass filter to ECG signal. Cutoffs chosen to match biosppy in neurokit2"""
+    # sos = butter(
+    #     N=order,
+    #     Wn=[lower_freq, upper_freq],
+    #     fs=sample_rate,
+    #     btype="bandpass",
+    #     output="sos",
+    # )
+
+    n = int(ecg.shape[-1])
+
+    # BioSPPy/NeuroKit2-style FIR length is ~1.5 * fs. For short signals, SciPy's filtfilt
+    # requires len(x) > padlen, where padlen defaults to 3 * (numtaps - 1). Adapt the tap
+    # count downward to avoid crashing on short records.
+    desired_taps = int(order * sample_rate)
+    if desired_taps % 2 == 0:
+        desired_taps += 1  # enforce odd
+
+    # SciPy's default filtfilt padlen is 3 * max(len(a), len(b)) for FIR/IIR,
+    # so we need n > 3 * taps  => taps <= floor((n - 1) / 3).
+    max_taps = max((n - 1) // 3, 1)
+    taps = min(desired_taps, max_taps)
+    if taps < 3:
+        raise ValueError(
+            f"Signal too short for filtfilt FIR filtering (n={n}, taps={taps})."
+        )
+    if taps % 2 == 0:
+        taps -= 1
+        if taps < 3:
+            raise ValueError(
+                f"Signal too short for filtfilt FIR filtering (n={n}, taps={taps})."
+            )
+
+    # -> filter_signal()
+    frequency = [lower_freq, upper_freq]
+
+    #   -> get_filter()
+    #     -> _norm_freq()
+    frequency = (
+        2 * np.array(frequency) / sample_rate
+    )  # Normalize frequency to Nyquist Frequency (Fs/2).
+
+    #     -> get coeffs
+    a = np.array([1])
+    b = firwin(numtaps=taps, cutoff=frequency, pass_zero=False)
+
+    # _filter_signal()
+    filtered = filtfilt(b, a, ecg, axis=-1)
+
+    # DC offset
+    # filtered -= np.mean(filtered) # removed because comes later in pipeline
+
+    return filtered
 
 
 def extract_metadata(record_path):
@@ -180,7 +225,7 @@ def extract_metadata(record_path):
     }
 
 
-def subtract_channel_means(ecg: np.ndarray) -> np.ndarray:
+def subtract_channel_medians(ecg: np.ndarray) -> np.ndarray:
     medians = np.median(ecg, axis=1, keepdims=True)
     return ecg - medians
 
@@ -249,7 +294,7 @@ def preprocess_ecg_safe(path, target_sample_rate=400):
         ecg, method = resample_ecg(
             ecg, sample_rate=sample_rate, target_sample_rate=target_sample_rate
         )
-        ecg = subtract_channel_means(ecg)
+        ecg = subtract_channel_medians(ecg)
 
         return torch.from_numpy(ecg).float(), method
     except Exception as e:
@@ -703,6 +748,20 @@ if __name__ == "__main__":
     print(f"upper={upper}")
     print(f"c={c}")
 
+    bounds_path = args.output_dir / "softclip_bounds.npz"
+    np.savez(
+        bounds_path,
+        lower=lower,
+        upper=upper,
+        c=c,
+        train_folds=np.array(sorted(train_folds), dtype=np.int32),
+        sample_rate=np.int32(args.sample_rate),
+    )
+    print(f"Saved softclip bounds to {bounds_path}")
+
+    # p1/p99 are only needed to compute the dataset-level softclip bounds
+    df = df.drop(columns=["p1", "p99"], errors="ignore")
+
     # --- Phase 4: generate bp_sc and bp_sc_norm tensors ---
     # Create output path columns
     df["path_bp_sc"] = df["path_bp"].apply(
@@ -758,5 +817,14 @@ if __name__ == "__main__":
                 pass
 
     # Save final metadata to CSV
-    df.to_csv(args.output_dir / args.output_file, index=False)
+    # Keep a compact reference to processed tensors without storing 3 redundant absolute paths
+    if "path_bp" in df.columns:
+        df["proc_stem"] = df["path_bp"].apply(lambda p: Path(p).stem)
+    df["processed_root"] = str(args.output_dir)
+
+    df_out = df.drop(
+        columns=["path_bp", "path_bp_sc", "path_bp_sc_norm"],
+        errors="ignore",
+    )
+    df_out.to_csv(args.output_dir / args.output_file, index=False)
     print(f"Metadata saved to {args.output_dir / args.output_file}.")
