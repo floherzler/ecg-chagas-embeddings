@@ -302,13 +302,58 @@ def preprocess_ecg_safe(path, target_sample_rate=400):
         return None
 
 
+def _compute_qc_metrics_bp(
+    ecg: np.ndarray, sample_rate: int, lead_idx: int = 1
+) -> tuple[Optional[str], float]:
+    """
+    Compute two NeuroKit2 ECG QC metrics on a single lead:
+    - `zhao2018` (categorical string)
+    - `templatematch` (0..1-ish; aggregated via nanmedian)
+
+    Returns (qc_zhao2018, qc_templatematch). If QC cannot be computed, returns (None, nan).
+    """
+    if lead_idx < 0 or lead_idx >= ecg.shape[0]:
+        return None, float("nan")
+
+    try:
+        import neurokit2 as nk  # type: ignore
+    except Exception:
+        return None, float("nan")
+
+    lead = np.asarray(ecg[lead_idx], dtype=float)
+
+    qc_zhao: Optional[str]
+    qc_tm: float
+
+    try:
+        qc_zhao = nk.ecg_quality(
+            lead, sampling_rate=sample_rate, method="zhao2018", approach="simple"
+        )
+        if qc_zhao is not None:
+            qc_zhao = str(qc_zhao)
+    except Exception:
+        qc_zhao = None
+
+    try:
+        tm = nk.ecg_quality(
+            lead, sampling_rate=sample_rate, method="templatematch", approach="simple"
+        )
+        qc_tm = float(np.nanmedian(tm))
+    except Exception:
+        qc_tm = float("nan")
+
+    return qc_zhao, qc_tm
+
+
 def save_bp_tensor(
     record_path: Path,
     target_sample_rate: int,
     bp_dir: Path,
     skip_existing: bool,
-) -> Tuple[str, str, np.ndarray, np.ndarray]:
-    """Create and save band passed tensor. Returns (resample_method, bp_path, p1, p99)."""
+    compute_qc: bool = True,
+    qc_lead: int = 1,
+) -> tuple[str, str, np.ndarray, np.ndarray, Optional[str], float]:
+    """Create and save band passed tensor. Returns (resample_method, bp_path, p1, p99, qc_zhao2018_bp, qc_templatematch_bp)."""
     bp_path = bp_dir / f"{record_path.stem}.pt"
 
     if skip_existing and bp_path.is_file():
@@ -316,7 +361,14 @@ def save_bp_tensor(
         ecg = x.numpy()
         p1 = np.percentile(ecg, 1, axis=1)
         p99 = np.percentile(ecg, 99, axis=1)
-        return "Cached", str(bp_path), p1, p99
+        qc_zhao, qc_tm = (
+            _compute_qc_metrics_bp(
+                ecg, sample_rate=target_sample_rate, lead_idx=qc_lead
+            )
+            if compute_qc
+            else (None, float("nan"))
+        )
+        return "Cached", str(bp_path), p1, p99, qc_zhao, qc_tm
 
     out = preprocess_ecg_safe(record_path, target_sample_rate=target_sample_rate)
     if out is None:
@@ -328,9 +380,15 @@ def save_bp_tensor(
     p1 = np.percentile(ecg, 1, axis=1)  # (12,)
     p99 = np.percentile(ecg, 99, axis=1)  # (12,)
 
+    qc_zhao, qc_tm = (
+        _compute_qc_metrics_bp(ecg, sample_rate=target_sample_rate, lead_idx=qc_lead)
+        if compute_qc
+        else (None, float("nan"))
+    )
+
     torch.save(ecg_t, bp_path)
 
-    return str(method), str(bp_path), p1, p99
+    return str(method), str(bp_path), p1, p99, qc_zhao, qc_tm
 
 
 def extract_meta_and_process_bp(
@@ -338,19 +396,30 @@ def extract_meta_and_process_bp(
     target_sample_rate: int,
     bp_dir: Path,
     skip_existing: bool,
+    compute_qc: bool = True,
+    qc_lead: int = 1,
     save_meta_only: bool = False,
 ):
     metadata = extract_metadata(record_path)
     if save_meta_only:
+        metadata["qc_zhao2018_bp"] = None
+        metadata["qc_templatematch_bp"] = float("nan")
         return metadata
 
-    resample_method, bp_path, p1, p99 = save_bp_tensor(
-        record_path, target_sample_rate, bp_dir, skip_existing
+    resample_method, bp_path, p1, p99, qc_zhao, qc_tm = save_bp_tensor(
+        record_path,
+        target_sample_rate,
+        bp_dir,
+        skip_existing,
+        compute_qc=compute_qc,
+        qc_lead=qc_lead,
     )
     metadata["resample_method"] = resample_method
     metadata["path_bp"] = bp_path
     metadata["p1"] = p1
     metadata["p99"] = p99
+    metadata["qc_zhao2018_bp"] = qc_zhao
+    metadata["qc_templatematch_bp"] = qc_tm
     return metadata
 
 
@@ -360,6 +429,8 @@ def prepare_data_bp(
     processes: int = 0,
     target_sample_rate: int = 400,
     skip_existing: bool = False,
+    compute_qc: bool = True,
+    qc_lead: int = 1,
     save_meta_only: bool = False,
 ) -> pd.DataFrame:
     preprocessor = partial(
@@ -367,6 +438,8 @@ def prepare_data_bp(
         target_sample_rate=target_sample_rate,
         bp_dir=bp_dir,
         skip_existing=skip_existing,
+        compute_qc=compute_qc,
+        qc_lead=qc_lead,
         save_meta_only=save_meta_only,
     )
 
@@ -663,6 +736,17 @@ def parse_args():
     parser.add_argument("--processes", type=int, default=(cpu_count // 2))
     parser.add_argument("--sample_rate", type=int, default=400)
     parser.add_argument("--splits", type=int, default=5)
+    parser.add_argument(
+        "--no_qc",
+        action="store_true",
+        help="Disable NeuroKit2 ECG quality metrics for the bandpass-regime tensors.",
+    )
+    parser.add_argument(
+        "--qc_lead",
+        type=int,
+        default=1,
+        help="0-based lead index to compute QC on (default=1; Lead II in typical WFDB ordering).",
+    )
     return parser.parse_args()
 
 
@@ -702,6 +786,8 @@ if __name__ == "__main__":
         processes=args.processes,
         target_sample_rate=args.sample_rate,
         skip_existing=args.skip_existing,
+        compute_qc=(not args.no_qc),
+        qc_lead=args.qc_lead,
         save_meta_only=args.save_meta_only,
     )
 
