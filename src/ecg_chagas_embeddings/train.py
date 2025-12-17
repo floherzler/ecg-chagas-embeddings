@@ -112,6 +112,10 @@ class Config:
     classifier_weight: float = 1.0
     use_sup_con: bool = False
     use_prototypes: bool = False
+    track: int = 1
+    pretrained_encoder_path: str | None = None
+    freeze_encoder: bool = False
+    unfreeze_last_block: bool = False
     sup_con_weight: float = 0.05
     sup_con_temp: float = 0.07
     # Dataloader specific parameters
@@ -130,7 +134,6 @@ class Config:
     valid_folds: tuple = (4,)
     num_workers: int = 4
     prefetch_factor: int = 16
-    val_n_views: int | None = None
 
 
 def save_config(config: Config, filepath: Path):
@@ -293,9 +296,6 @@ def prepare_dataloaders(
         pos_weight_ptb_xl=config.pos_weight_ptb_xl,
         pos_weight_sami_trop=config.pos_weight_sami_trop,
         is_submission=is_submission,
-        use_sup_con=config.use_sup_con,
-        use_prototypes=config.use_prototypes,
-        val_n_views=config.val_n_views,
     )
     return train_dataloader, valid_dataloader
 
@@ -1024,6 +1024,10 @@ def create_model(
         classifier_weight=config.classifier_weight,
         use_sup_con=config.use_sup_con,
         use_prototypes=config.use_prototypes,
+        track=config.track,
+        pretrained_encoder_path=config.pretrained_encoder_path,
+        freeze_encoder=config.freeze_encoder,
+        unfreeze_last_block=config.unfreeze_last_block,
         sup_con_weight=config.sup_con_weight,
         sup_con_temp=config.sup_con_temp,
         dropout_rate=config.dropout_rate,

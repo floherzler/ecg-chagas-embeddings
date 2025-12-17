@@ -8,7 +8,7 @@ trainer:
   accumulate_grad_batches: 2
   gradient_clip_val: 0.0
   limit_train_batches: 0.25
-  limit_val_batches: 0.25
+  limit_val_batches: 1.0
   log_every_n_steps: 50
   enable_model_summary: true
   enable_progress_bar: true
@@ -67,8 +67,10 @@ model:
   use_prototypes: false
   sup_con_weight: 1.0
   sup_con_temp: 0.07
-  crop_size: 2500
-  max_time_warp: 0.15
+  track: 1
+  pretrained_encoder_path: null
+  freeze_encoder: false
+  unfreeze_last_block: false
   criterion:
     # class_path: ecg_chagas_embeddings.models.losses.BCEWithLogitsLossModule
     # init_args:
@@ -86,8 +88,6 @@ data:
   prefetch_factor: 16
   pos_fraction: 0.05
   oversample: true
-  use_sup_con: true
-  val_n_views: 2
   train_folds: [0]
   valid_folds: [4]
   neg_weight_code15: 1.0
@@ -97,11 +97,11 @@ data:
   pos_weight_ptb_xl: 1.0
   pos_weight_sami_trop: 1.0
   crop_size: 2500
-  max_time_warp: 0.15
-  scaling: [0.9, 1.1]
-  gaussian_noise_std: 0.2
+  max_time_warp: 0.00
+  scaling: [1.0, 1.0]
+  gaussian_noise_std: 0.01
   mask_prob: 0.1
-  max_mask_duration: 500
+  max_mask_duration: 250
   wandering_max_amplitude: 0.0
   wandering_frequency_range: [0.0, 0.0]
   is_submission: false

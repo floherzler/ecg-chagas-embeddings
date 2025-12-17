@@ -464,6 +464,10 @@ class LitResNet18(LightningModule):
         sup_con_temp=0.07,
         dropout_rate=0.1,
         se_reduction=None,
+        track: int = 1,
+        pretrained_encoder_path: Optional[str] = None,
+        freeze_encoder: bool = False,
+        unfreeze_last_block: bool = False,
     ) -> None:
         super().__init__()
 
@@ -523,11 +527,26 @@ class LitResNet18(LightningModule):
         self.max_time_warp = max_time_warp  # ty: ignore[unresolved-attribute]
         self.criterion = criterion or nn.BCEWithLogitsLoss()
         self.se_reduction = se_reduction  # ty: ignore[unresolved-attribute]
+        self.track = int(track)  # ty: ignore[unresolved-attribute]
+        if self.track not in (1, 2, 3):
+            raise ValueError(f"Unsupported track={self.track}. Use 1, 2, or 3.")
+        if self.track == 1 and (use_sup_con or use_prototypes):
+            raise ValueError("Track 1 is classifier-only; disable SupCon/Prototypes.")
+        if self.track == 2 and not (use_sup_con or use_prototypes):
+            raise ValueError("Track 2 requires SupCon or Prototypes enabled.")
+        if self.track == 3 and (use_sup_con or use_prototypes):
+            raise ValueError("Track 3 is classifier-only; disable SupCon/Prototypes.")
+
         self.use_sup_con = use_sup_con  # ty: ignore[unresolved-attribute]
         self.use_prototypes = use_prototypes  # ty: ignore[unresolved-attribute]
+        self.use_classifier = self.track in (1, 3)  # ty: ignore[unresolved-attribute]
         self.classifier_weight = classifier_weight  # ty: ignore[unresolved-attribute]
         self.sup_con_weight = sup_con_weight  # ty: ignore[unresolved-attribute]
         self.sup_con_temp = sup_con_temp  # ty: ignore[unresolved-attribute]
+        self.pretrained_encoder_path = pretrained_encoder_path  # ty: ignore[unresolved-attribute]
+        self.freeze_encoder = freeze_encoder  # ty: ignore[unresolved-attribute]
+        self.unfreeze_last_block = unfreeze_last_block  # ty: ignore[unresolved-attribute]
+        self._encoder_initialized = False  # ty: ignore[unresolved-attribute]
         self.fake_sup_dropout = nn.Dropout(p=0.1)
         self.fake_sup_noise_std = 0.01  # ty: ignore[unresolved-attribute]
         self.sup_con_loss = SupConLoss(
@@ -747,6 +766,58 @@ class LitResNet18(LightningModule):
         proj = self.projection_head(feats)
         return feats, proj, logits
 
+    def setup(self, stage: Optional[str] = None) -> None:
+        if self._encoder_initialized:
+            return
+
+        if self.track == 3:
+            if not self.pretrained_encoder_path:
+                raise ValueError(
+                    "Track 3 requires 'pretrained_encoder_path' to load encoder weights."
+                )
+            self._load_pretrained_encoder(self.pretrained_encoder_path)
+
+        self._apply_freeze_policy()
+        self._encoder_initialized = True
+
+    def _encoder_module_prefixes(self) -> Tuple[str, ...]:
+        return ("conv1", "norm1", "layer1", "layer2", "layer3", "layer4", "avgpool")
+
+    def _load_pretrained_encoder(self, path: str) -> None:
+        ckpt = torch.load(path, map_location="cpu")
+        state_dict = ckpt.get("state_dict", ckpt)
+        cleaned = {}
+        prefixes = self._encoder_module_prefixes()
+        for key, value in state_dict.items():
+            k = key
+            if k.startswith("model."):
+                k = k[len("model.") :]
+            if k.startswith(prefixes):
+                cleaned[k] = value
+        incompatible = self.load_state_dict(cleaned, strict=False)
+        if incompatible.missing_keys:
+            tqdm.write(f"Missing keys when loading encoder: {incompatible.missing_keys}")
+        if incompatible.unexpected_keys:
+            tqdm.write(
+                f"Unexpected keys when loading encoder: {incompatible.unexpected_keys}"
+            )
+
+    def _apply_freeze_policy(self) -> None:
+        if not self.use_classifier:
+            for param in self.fc.parameters():
+                param.requires_grad = False
+
+        if not self.freeze_encoder:
+            return
+
+        for name, param in self.named_parameters():
+            if name.startswith(self._encoder_module_prefixes()):
+                param.requires_grad = False
+
+        if self.unfreeze_last_block:
+            for param in self.layer4.parameters():
+                param.requires_grad = True
+
     def on_fit_start(self):
         if not self.use_prototypes:
             return
@@ -827,16 +898,20 @@ class LitResNet18(LightningModule):
             proj = F.normalize(proj, dim=1, eps=1e-6).view(B, V, -1)
             logits = logits.view(B, V, -1).mean(dim=1).squeeze(-1)  # [B]
 
-            # classifier wants FLOAT targets
-            cls_loss = self.criterion(logits, y_float)
-            cls_loss = self.classifier_weight * cls_loss
+            if self.use_classifier:
+                # classifier wants FLOAT targets
+                cls_loss = self.criterion(logits, y_float)
+                cls_loss = self.classifier_weight * cls_loss
+            else:
+                cls_loss = torch.tensor(0.0, device=logits.device)
 
             # SupCon can use INT labels
             with torch.cuda.amp.autocast(enabled=False):
                 con_loss, *_ = self.sup_con_loss(proj.float(), y_long)
             con_loss = self.sup_con_weight * con_loss
 
-            self.train_step_losses.append(cls_loss.detach())
+            if self.use_classifier:
+                self.train_step_losses.append(cls_loss.detach())
             self.train_step_supcon_losses.append(con_loss.detach())
 
             return cls_loss + con_loss
@@ -860,9 +935,12 @@ class LitResNet18(LightningModule):
             proj = F.normalize(proj, dim=1, eps=1e-6).view(B, V, -1)
             logits = logits.view(B, V, -1).mean(dim=1).squeeze(-1)  # [B]
 
-            # classifier wants FLOAT targets
-            cls_loss = self.criterion(logits, y_float)
-            cls_loss = self.classifier_weight * cls_loss
+            if self.use_classifier:
+                # classifier wants FLOAT targets
+                cls_loss = self.criterion(logits, y_float)
+                cls_loss = self.classifier_weight * cls_loss
+            else:
+                cls_loss = torch.tensor(0.0, device=logits.device)
 
             # prototype loss wants ONE-HOT (FLOAT)
             y_oh = F.one_hot(y_long, num_classes=2).to(torch.float32)
@@ -870,7 +948,8 @@ class LitResNet18(LightningModule):
                 proto_loss, *_ = self.proto_loss(proj.float(), y_oh)
             proto_loss = self.sup_con_weight * proto_loss  # or self.proto_weight
 
-            self.train_step_losses.append(cls_loss.detach())
+            if self.use_classifier:
+                self.train_step_losses.append(cls_loss.detach())
             self.train_step_supcon_losses.append(proto_loss.detach())
 
             return cls_loss + proto_loss
@@ -956,12 +1035,15 @@ class LitResNet18(LightningModule):
             print(f"labels: {labels}")
             print(f"exam_ids: {ids}")
         preds = (probs > 0.5).long()
-        if type(self.criterion).__name__ == "SourceWeightedBCE":
-            loss = self.criterion(logits, labels, metadata)
-        elif type(self.criterion).__name__ == "SourceWeightedTopTverskyLoss":
-            loss = self.criterion(logits, labels, metadata)
+        if self.use_classifier:
+            if type(self.criterion).__name__ == "SourceWeightedBCE":
+                loss = self.criterion(logits, labels, metadata)
+            elif type(self.criterion).__name__ == "SourceWeightedTopTverskyLoss":
+                loss = self.criterion(logits, labels, metadata)
+            else:
+                loss = self.criterion(logits, labels)
         else:
-            loss = self.criterion(logits, labels)
+            loss = torch.tensor(0.0, device=logits.device)
         self.validation_step_outputs.append(
             (
                 labels.view(-1),

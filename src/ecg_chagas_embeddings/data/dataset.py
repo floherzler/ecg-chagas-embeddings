@@ -364,9 +364,6 @@ def get_train_val_loaders(
     max_mask_duration: int = 50,
     mask_prob: float = 0.5,
     is_submission=False,
-    use_sup_con=False,
-    use_prototypes=False,
-    val_n_views: Optional[int] = None,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
     Creates and returns PyTorch DataLoaders for training and validation. Keyword arguments are used to configure the
@@ -389,20 +386,16 @@ def get_train_val_loaders(
         wandering_frequency_range: Frequency range of random wandering.
         max_mask_duration: Max duration of zero masking.
         mask_prob: Probability to completely mask a lead (channel).
-        use_sup_con: Enable multi-view augmentation for SupCon.
-        use_prototypes: Enable multi-view augmentation for prototype training.
-        val_n_views: Optional override for validation view count (e.g., 2 for metrics).
+        Note: this pipeline always produces two augmented views for both train and validation.
 
     Returns:
         Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
         A tuple containing the training and validation DataLoaders.
     """
 
-    use_two_views = bool(use_sup_con or use_prototypes)
-
     train_transform_kwargs = {
         "crop_size": crop_size,
-        "n_views": 2 if use_two_views else 1,  # << two views for SupCon/Prototypes
+        "n_views": 2,  # always two views for metrics/consistency
     }
 
     # (shared, light) masks
@@ -439,7 +432,7 @@ def get_train_val_loaders(
     print("Train Transform kwargs:", train_transform_kwargs)
     train_transform = ECGAugmentation(
         crop_size=train_transform_kwargs.get("crop_size", crop_size),
-        n_views=train_transform_kwargs.get("n_views", 2 if use_two_views else 1),
+        n_views=train_transform_kwargs.get("n_views", 2),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
@@ -462,8 +455,8 @@ def get_train_val_loaders(
         ),
     )
 
-    # --- VALIDATION: single, clean view ---
-    val_n_views = val_n_views if val_n_views is not None else (2 if use_two_views else 1)
+    # --- VALIDATION: always two views for metrics ---
+    val_n_views = 2
     valid_transform = ECGAugmentation(
         crop_size=crop_size,
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
@@ -483,7 +476,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
-        use_sup_con_views=val_n_views if val_n_views > 1 else None,
+        use_sup_con_views=2,
     )
     valid_dataset = TorchDataset(
         meta_path,
@@ -495,7 +488,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
-        use_sup_con_views=2 if use_two_views else None,
+        use_sup_con_views=2,
     )
 
     if oversample:
