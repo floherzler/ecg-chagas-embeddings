@@ -15,6 +15,8 @@ class ECGDataModule(LightningDataModule):
         prefetch_factor: int = 16,
         oversample: bool = True,
         use_sup_con: bool = False,
+        use_prototypes: bool = False,
+        val_n_views: int | None = None,
         **augment_kwargs,
     ):
         super().__init__()
@@ -29,6 +31,8 @@ class ECGDataModule(LightningDataModule):
             prefetch_factor=prefetch_factor,
             oversample=oversample,
             use_sup_con=use_sup_con,
+            use_prototypes=use_prototypes,
+            val_n_views=val_n_views,
             **augment_kwargs,
         )
         self._train_loader = None

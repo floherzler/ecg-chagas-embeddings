@@ -7,8 +7,8 @@ trainer:
   precision: bf16-mixed
   accumulate_grad_batches: 2
   gradient_clip_val: 0.0
-  limit_train_batches: 0.1
-  limit_val_batches: 0.1
+  limit_train_batches: 0.25
+  limit_val_batches: 0.25
   log_every_n_steps: 50
   enable_model_summary: true
   enable_progress_bar: true
@@ -40,7 +40,7 @@ model:
   zero_init_residual: false
   groups: 1
   width_per_group: 64
-  norm_type: group
+  norm_type: batch
   norm_groups: 8
   channels: 12
   initial_kernel_size: 7
@@ -63,7 +63,7 @@ model:
   classifier_weight_decay: 1.0e-05
   params_weight_decay: 1.0e-05
   classifier_weight: 1.0
-  use_sup_con: true
+  use_sup_con: false
   use_prototypes: false
   sup_con_weight: 1.0
   sup_con_temp: 0.07
@@ -79,14 +79,15 @@ model:
       gamma: 2.0
 
 data:
-  meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/metadata_official_clean_v3.csv
-  data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedOfficialCleanV3
-  batch_size: 256
+  meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv
+  data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc_norm
+  batch_size: 128
   num_workers: 4
   prefetch_factor: 16
   pos_fraction: 0.05
   oversample: true
   use_sup_con: true
+  val_n_views: 2
   train_folds: [0]
   valid_folds: [4]
   neg_weight_code15: 1.0

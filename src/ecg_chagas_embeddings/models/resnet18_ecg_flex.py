@@ -49,7 +49,12 @@ def draw_quantile_bar(
     return "|" + "".join(bar) + "|"
 
 
-def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
+def compute_representation_metrics(
+    embeddings: np.ndarray,
+    labels: np.ndarray,
+    max_samples: int = 2000,
+    seed: int = 12345,
+):
     """
     Compute per-class TTC embedding metrics (SAD, SAA, CAD, CAC, GPU)
     for embeddings with potentially multiple views per sample.
@@ -68,6 +73,14 @@ def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
     n_samples, n_views, emb_dim = embeddings.shape
     labels = labels.astype(int)
 
+    if max_samples is not None and n_samples > max_samples:
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(n_samples, size=max_samples, replace=False)
+        embeddings = embeddings[idx]
+        labels = labels[idx]
+        n_samples = max_samples
+        tqdm.write(f"Subsampled embeddings to {n_samples} samples for TTC metrics.")
+
     # ---- Flatten to [V*N, D] in view-major order ----
     embs_flat = embeddings.transpose(1, 0, 2).reshape(n_samples * n_views, emb_dim)
     labels_rep = np.tile(labels, n_views)
@@ -82,7 +95,7 @@ def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
     pairwise_dist = np.sqrt(dist_sq, out=dist_sq)
 
     metrics = {}
-    print(
+    tqdm.write(
         f"Computing representation metrics for {n_samples} samples, {n_views} views each."
     )
 
@@ -105,7 +118,7 @@ def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
                 "SAA_1": float(saa1),
             }
         )
-        print(f"Computed metrics for {n_samples} samples, {n_views} views each.")
+        tqdm.write(f"Computed metrics for {n_samples} samples, {n_views} views each.")
     else:
         # No second view — metrics undefined
         metrics.update(
@@ -116,19 +129,19 @@ def compute_representation_metrics(embeddings: np.ndarray, labels: np.ndarray):
                 "SAA_1": np.nan,
             }
         )
-        print(f"Skipped SAD / SAA metrics (only {n_views} view(s) available).")
+        tqdm.write(f"Skipped SAD / SAA metrics (only {n_views} view(s) available).")
 
     # ---- CAD / CAC / GPU (class-wise) ----
     cad0, cad1 = calculate_class_alignment_distance(
         pairwise_dist, embs_flat, labels_rep
     )
-    print("Computed CAD metrics.")
+    tqdm.write("Computed CAD metrics.")
     cac0, cac1 = calculate_class_alignment_consistency(
         pairwise_dist, embs_flat, labels_rep
     )
-    print("Computed CAC metrics.")
+    tqdm.write("Computed CAC metrics.")
     gpu0, gpu1 = calculate_gaussian_potential_uniformity(embs_flat, labels_rep)
-    print("Computed GPU metrics.")
+    tqdm.write("Computed GPU metrics.")
 
     metrics.update(
         {
@@ -795,8 +808,18 @@ class LitResNet18(LightningModule):
                 return self.criterion(logits, labels)
 
         # ------ SupCon path ------
-        if self.use_sup_con and "ecg_views" in batch:
+        if self.use_sup_con:
+            if "ecg_views" not in batch:
+                raise ValueError(
+                    "use_sup_con=True requires 'ecg_views' in batch. "
+                    "Check dataloader n_views or transforms."
+                )
             x = batch["ecg_views"]  # [B,2,C,T]
+            if x.dim() != 4 or x.shape[1] < 2:
+                raise ValueError(
+                    f"'ecg_views' must be [B,V,C,T] with V>=2 for SupCon; "
+                    f"got shape {tuple(x.shape)}."
+                )
             B, V, C, T = x.shape
             x = x.view(B * V, C, T)
 
@@ -818,8 +841,18 @@ class LitResNet18(LightningModule):
 
             return cls_loss + con_loss
 
-        elif self.use_prototypes and "ecg_views" in batch:
+        elif self.use_prototypes:
+            if "ecg_views" not in batch:
+                raise ValueError(
+                    "use_prototypes=True requires 'ecg_views' in batch. "
+                    "Check dataloader n_views or transforms."
+                )
             x = batch["ecg_views"]  # [B,2,C,T]
+            if x.dim() != 4 or x.shape[1] < 2:
+                raise ValueError(
+                    f"'ecg_views' must be [B,V,C,T] with V>=2 for prototypes; "
+                    f"got shape {tuple(x.shape)}."
+                )
             B, V, C, T = x.shape
             x = x.view(B * V, C, T)
 
@@ -844,7 +877,13 @@ class LitResNet18(LightningModule):
 
         # ------ Classification-only path ------
         else:
-            x = batch["ecg"]  # [B, C, T]
+            x = batch.get("ecg")
+            if x is None and "ecg_views" in batch:
+                x = batch["ecg_views"][:, 0]  # fall back to first view
+            if x is None:
+                raise ValueError(
+                    "Classification-only path requires 'ecg' or 'ecg_views' in batch."
+                )
             feats, proj, logits = self(x)
             if logits.ndim == 2 and logits.shape[1] == 1:
                 logits = logits.squeeze(1)  # [B]
@@ -860,24 +899,42 @@ class LitResNet18(LightningModule):
         sexes = batch.get("sex", None)
         sources = batch.get("source", None)
         ids = batch.get("exam_id", None)
-        multi_view = (self.use_sup_con or self.use_prototypes) and (
-            "ecg_views" in batch
-        )
+        needs_views = self.use_sup_con or self.use_prototypes
+        has_views = "ecg_views" in batch
+        if needs_views and not has_views:
+            raise ValueError(
+                "use_sup_con/use_prototypes=True requires 'ecg_views' in batch. "
+                "Check dataloader n_views or transforms."
+            )
 
-        if multi_view:
+        if has_views:
             views = batch["ecg_views"]  # [B, V, C, T]
+            if views.dim() != 4:
+                raise ValueError(
+                    f"'ecg_views' must be [B,V,C,T]; got shape {tuple(views.shape)}."
+                )
+            if needs_views and views.shape[1] < 2:
+                raise ValueError(
+                    f"'ecg_views' must have V>=2 for SupCon/Prototypes; "
+                    f"got shape {tuple(views.shape)}."
+                )
             B, V, C, T = views.shape
             flat = views.view(B * V, C, T)
             feats, proj, logits = self(flat)
             proj = F.normalize(proj, dim=1, eps=1e-6).view(B, V, -1)
-            logits = logits.view(B, V, -1).mean(dim=1).squeeze(-1)
+            logits = logits.view(B, V, -1)
+            if needs_views:
+                logits = logits.mean(dim=1).squeeze(-1)
+            else:
+                logits = logits[:, 0].squeeze(-1)
         else:
             signals = batch.get("ecg")
-            if signals is None and "ecg_views" in batch:
-                # fall back to the first view when only multi-view tensors are present
-                signals = batch["ecg_views"][:, 0]
+            if signals is None:
+                raise ValueError("Validation requires 'ecg' or 'ecg_views' in batch.")
             feats, proj, logits = self(signals)
             proj = F.normalize(proj, dim=1, eps=1e-6).unsqueeze(1)
+            if logits.ndim == 2 and logits.shape[1] == 1:
+                logits = logits.squeeze(1)
 
         # print(f"Sources: {sources}")
 
@@ -889,6 +946,8 @@ class LitResNet18(LightningModule):
             "sex": sexes,
         }
 
+        if logits.ndim == 2 and logits.shape[1] == 1:
+            logits = logits.squeeze(1)  # [B]
         probs = torch.sigmoid(logits)
         if torch.isnan(probs).any():
             print("NaN in probs")
@@ -953,7 +1012,7 @@ class LitResNet18(LightningModule):
         embeddings = (
             torch.cat([b[7] for b in self.validation_step_outputs], dim=0).cpu().numpy()
         )
-        print(f"Embeddings shape: {embeddings.shape}")
+        tqdm.write(f"Embeddings shape: {embeddings.shape}")
 
         # if sources is not None:
         #    unique_sources, counts = np.unique(sources, return_counts=True)
@@ -967,6 +1026,7 @@ class LitResNet18(LightningModule):
         # tqdm.write(f"Positive cases in epoch: {num_gts_ones} of total {len(gts)}")
 
         acc = compute_accuracy(gts, preds)
+        score = 0.0
         try:
             score = compute_challenge_score(gts, probs)
             code15_gts = gts[sources == 0] if sources is not None else gts
@@ -979,10 +1039,6 @@ class LitResNet18(LightningModule):
             code15_accuracy = None
             strong_score = None
             strong_accuracy = None
-            emb_metrics = compute_representation_metrics(embeddings, gts)
-            for k, v in emb_metrics.items():
-                print(f"Embedding metric {k}: {v:.4f}")
-                self.log(f"emb_{k}", v, prog_bar=False, on_epoch=True, on_step=False)
             if code15_gts.size > 0 or code15_probs.size > 0:
                 tqdm.write("CODE-15 confusion matrix:")
                 code15_score = (
@@ -1042,10 +1098,17 @@ class LitResNet18(LightningModule):
                     on_step=False,
                 )
         except Exception as e:
-            score = 0.0
             tqdm.write(
                 f"Error in computing challenge score: {repr(e)}. Setting score to 0.0"
             )
+
+        try:
+            emb_metrics = compute_representation_metrics(embeddings, gts)
+            for k, v in emb_metrics.items():
+                tqdm.write(f"Embedding metric {k}: {v:.4f}")
+                self.log(f"emb_{k}", v, prog_bar=False, on_epoch=True, on_step=False)
+        except Exception as e:
+            tqdm.write(f"Error in computing representation metrics: {repr(e)}")
 
         quartiles = {}
 

@@ -130,6 +130,7 @@ class Config:
     valid_folds: tuple = (4,)
     num_workers: int = 4
     prefetch_factor: int = 16
+    val_n_views: int | None = None
 
 
 def save_config(config: Config, filepath: Path):
@@ -292,7 +293,9 @@ def prepare_dataloaders(
         pos_weight_ptb_xl=config.pos_weight_ptb_xl,
         pos_weight_sami_trop=config.pos_weight_sami_trop,
         is_submission=is_submission,
-        use_sup_con=config.use_sup_con or config.use_prototypes,
+        use_sup_con=config.use_sup_con,
+        use_prototypes=config.use_prototypes,
+        val_n_views=config.val_n_views,
     )
     return train_dataloader, valid_dataloader
 
