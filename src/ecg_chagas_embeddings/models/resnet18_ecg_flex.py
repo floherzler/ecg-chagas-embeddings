@@ -458,6 +458,7 @@ class LitResNet18(LightningModule):
         max_time_warp=0.15,
         criterion: Optional[nn.Module] = None,
         use_sup_con=False,
+        ratio_supervised_majority=0.0,
         use_prototypes=False,
         classifier_weight=1.0,
         sup_con_weight=0.05,
@@ -468,6 +469,12 @@ class LitResNet18(LightningModule):
         pretrained_encoder_path: Optional[str] = None,
         freeze_encoder: bool = False,
         unfreeze_last_block: bool = False,
+        log_umap: bool = True,
+        umap_n_neighbors: int = 50,
+        umap_min_dist: float = 0.1,
+        umap_metric: str = "cosine",
+        umap_n_epochs: int = 250,
+        umap_seed: Optional[int] = None,
     ) -> None:
         super().__init__()
 
@@ -537,9 +544,10 @@ class LitResNet18(LightningModule):
         if self.track == 3 and (use_sup_con or use_prototypes):
             raise ValueError("Track 3 is classifier-only; disable SupCon/Prototypes.")
 
-        self.use_sup_con = use_sup_con  # ty: ignore[unresolved-attribute]
-        self.use_prototypes = use_prototypes  # ty: ignore[unresolved-attribute]
-        self.use_classifier = self.track in (1, 3)  # ty: ignore[unresolved-attribute]
+        self.use_sup_con = use_sup_con
+        self.ratio_supervised_majority = ratio_supervised_majority
+        self.use_prototypes = use_prototypes
+        self.use_classifier = self.track in (1, 3)
         self.classifier_weight = classifier_weight  # ty: ignore[unresolved-attribute]
         self.sup_con_weight = sup_con_weight  # ty: ignore[unresolved-attribute]
         self.sup_con_temp = sup_con_temp  # ty: ignore[unresolved-attribute]
@@ -547,13 +555,21 @@ class LitResNet18(LightningModule):
         self.freeze_encoder = freeze_encoder  # ty: ignore[unresolved-attribute]
         self.unfreeze_last_block = unfreeze_last_block  # ty: ignore[unresolved-attribute]
         self._encoder_initialized = False  # ty: ignore[unresolved-attribute]
+
+        self.log_umap = log_umap  # ty: ignore[unresolved-attribute]
+        self.umap_n_neighbors = umap_n_neighbors  # ty: ignore[unresolved-attribute]
+        self.umap_min_dist = umap_min_dist  # ty: ignore[unresolved-attribute]
+        self.umap_metric = umap_metric  # ty: ignore[unresolved-attribute]
+        self.umap_n_epochs = umap_n_epochs  # ty: ignore[unresolved-attribute]
+        self.umap_seed = umap_seed  # ty: ignore[unresolved-attribute]
+        self._umap_neg_ids: Optional[List[str]] = None  # ty: ignore[unresolved-attribute]
         self.fake_sup_dropout = nn.Dropout(p=0.1)
         self.fake_sup_noise_std = 0.01  # ty: ignore[unresolved-attribute]
         self.sup_con_loss = SupConLoss(
             temperature=self.sup_con_temp,
             contrast_mode="ALL_VIEWS",
-            base_temperature=0.07,
-            ratio_supervised_majority=0.0,
+            base_temperature=self.sup_con_temp,
+            ratio_supervised_majority=self.ratio_supervised_majority,
             min_class=1,
         )
         self.proto_loss = ConSupPrototypeLoss(
@@ -796,7 +812,9 @@ class LitResNet18(LightningModule):
                 cleaned[k] = value
         incompatible = self.load_state_dict(cleaned, strict=False)
         if incompatible.missing_keys:
-            tqdm.write(f"Missing keys when loading encoder: {incompatible.missing_keys}")
+            tqdm.write(
+                f"Missing keys when loading encoder: {incompatible.missing_keys}"
+            )
         if incompatible.unexpected_keys:
             tqdm.write(
                 f"Unexpected keys when loading encoder: {incompatible.unexpected_keys}"
@@ -901,14 +919,12 @@ class LitResNet18(LightningModule):
             if self.use_classifier:
                 # classifier wants FLOAT targets
                 cls_loss = self.criterion(logits, y_float)
-                cls_loss = self.classifier_weight * cls_loss
             else:
                 cls_loss = torch.tensor(0.0, device=logits.device)
 
             # SupCon can use INT labels
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(device_type=self.device.type, enabled=False):
                 con_loss, *_ = self.sup_con_loss(proj.float(), y_long)
-            con_loss = self.sup_con_weight * con_loss
 
             if self.use_classifier:
                 self.train_step_losses.append(cls_loss.detach())
@@ -938,15 +954,13 @@ class LitResNet18(LightningModule):
             if self.use_classifier:
                 # classifier wants FLOAT targets
                 cls_loss = self.criterion(logits, y_float)
-                cls_loss = self.classifier_weight * cls_loss
             else:
                 cls_loss = torch.tensor(0.0, device=logits.device)
 
             # prototype loss wants ONE-HOT (FLOAT)
             y_oh = F.one_hot(y_long, num_classes=2).to(torch.float32)
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(device_type=self.device.type, enabled=False):
                 proto_loss, *_ = self.proto_loss(proj.float(), y_oh)
-            proto_loss = self.sup_con_weight * proto_loss  # or self.proto_weight
 
             if self.use_classifier:
                 self.train_step_losses.append(cls_loss.detach())
@@ -968,7 +982,6 @@ class LitResNet18(LightningModule):
                 logits = logits.squeeze(1)  # [B]
 
             cls_loss = compute_cls_loss(logits)
-            cls_loss = self.classifier_weight * cls_loss
             self.train_step_losses.append(cls_loss.detach())
             return cls_loss
 
@@ -1086,11 +1099,22 @@ class LitResNet18(LightningModule):
             if self.validation_step_outputs[0][5] is not None
             else None
         )
-        # ids = (
-        #     sum((b[6] for b in self.validation_step_outputs), [])
-        #     if self.validation_step_outputs[0][6] is not None
-        #     else None
-        # )
+        ids: Optional[List[str]] = None
+        if (
+            self.validation_step_outputs
+            and self.validation_step_outputs[0][6] is not None
+        ):
+            ids = []
+            for batch_out in self.validation_step_outputs:
+                batch_ids = batch_out[6]
+                if batch_ids is None:
+                    continue
+                if isinstance(batch_ids, (list, tuple)):
+                    ids.extend([str(x) for x in batch_ids])
+                elif isinstance(batch_ids, torch.Tensor):
+                    ids.extend([str(x) for x in batch_ids.detach().cpu().tolist()])
+                else:
+                    ids.append(str(batch_ids))
         embeddings = (
             torch.cat([b[7] for b in self.validation_step_outputs], dim=0).cpu().numpy()
         )
@@ -1192,6 +1216,12 @@ class LitResNet18(LightningModule):
         except Exception as e:
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")
 
+        try:
+            if self.log_umap:
+                self._log_umap_diagnostics(embeddings, gts, ids=ids)
+        except Exception as e:
+            tqdm.write(f"Error in computing/logging UMAP diagnostics: {repr(e)}")
+
         quartiles = {}
 
         # tqdm.write(f"probs: {probs[:5]}")
@@ -1277,38 +1307,199 @@ class LitResNet18(LightningModule):
                 }
             )
 
-        if not len(self.train_step_losses) == 0 and not len(self.val_step_losses) == 0:
+        if self.train_step_losses:
+            mean_class_loss = torch.stack(list(self.train_step_losses)).mean()
             self.log(
                 "train/class_loss",
-                torch.stack([x for x in self.train_step_losses]).mean(),
+                mean_class_loss,
                 on_epoch=True,
                 on_step=False,
                 prog_bar=False,
             )
-            tqdm.write(
-                f"Train Classification loss: {torch.stack([x for x in self.train_step_losses]).mean().item():.4f}"
+            tqdm.write(f"Train Classification loss: {mean_class_loss.item():.4f}")
+            self.train_step_losses.clear()
+
+        if self.train_step_supcon_losses:
+            mean_supcon_loss = torch.stack(list(self.train_step_supcon_losses)).mean()
+            self.log(
+                "train/proj_loss",
+                mean_supcon_loss,
+                on_epoch=True,
+                on_step=False,
+                prog_bar=False,
             )
-            if self.use_sup_con or self.use_prototypes:
-                tqdm.write(
-                    f"Train SupCon loss: {torch.stack([x for x in self.train_step_supcon_losses]).mean().item():.4f}"
-                )
-                self.log(
-                    "train/sup_con_loss",
-                    torch.stack([x for x in self.train_step_supcon_losses]).mean(),
-                    on_epoch=True,
-                    on_step=False,
-                    prog_bar=False,
-                )
-                self.train_step_supcon_losses.clear()
-        self.log(
-            "val/loss",
-            torch.stack([x for x in self.val_step_losses]).mean(),
-            on_epoch=True,
-            on_step=False,
-            prog_bar=False,
+            tqdm.write(f"Train Projection loss: {mean_supcon_loss.item():.4f}")
+            self.train_step_supcon_losses.clear()
+
+        if self.val_step_losses:
+            self.log(
+                "val/loss",
+                torch.stack(list(self.val_step_losses)).mean(),
+                on_epoch=True,
+                on_step=False,
+                prog_bar=False,
+            )
+            self.val_step_losses.clear()
+
+    def _log_umap_diagnostics(
+        self, embeddings: np.ndarray, labels: np.ndarray, *, ids: Optional[List[str]]
+    ) -> None:
+        if not isinstance(self.logger, WandbLogger):
+            return
+        if hasattr(self, "trainer") and self.trainer is not None:
+            if (
+                hasattr(self.trainer, "is_global_zero")
+                and not self.trainer.is_global_zero
+            ):
+                return
+        if embeddings.ndim != 3:
+            raise ValueError(
+                f"Expected embeddings shaped [N,V,D] for UMAP, got {embeddings.shape}."
+            )
+        if embeddings.shape[1] < 1:
+            raise ValueError(
+                f"Expected at least one view in embeddings [N,V,D], got {embeddings.shape}."
+            )
+        if ids is None:
+            raise ValueError(
+                "UMAP logging requires 'exam_id' in the validation batch to build a stable subset."
+            )
+        if len(ids) != embeddings.shape[0]:
+            raise ValueError(
+                f"Expected ids length {len(ids)} to match embeddings N={embeddings.shape[0]}."
+            )
+
+        labels_int = np.asarray(labels).astype(int).reshape(-1)
+        pos_mask = labels_int == 1
+        neg_mask = labels_int == 0
+        pos_ids = np.asarray(ids, dtype=object)[pos_mask]
+        neg_ids = np.asarray(ids, dtype=object)[neg_mask]
+        n_pos = int(pos_ids.shape[0])
+        n_neg_avail = int(neg_ids.shape[0])
+
+        if n_pos == 0 or n_neg_avail == 0:
+            tqdm.write(
+                f"Skipping UMAP logging (n_pos={n_pos}, n_neg_avail={n_neg_avail})."
+            )
+            return
+
+        # Select all positives and an equal number of negatives.
+        n_neg = min(n_pos, n_neg_avail)
+        if n_neg < n_pos:
+            tqdm.write(
+                f"UMAP subset is not perfectly balanced (requested {n_pos} negatives, "
+                f"but only {n_neg_avail} available). Using n_neg={n_neg}."
+            )
+
+        # Pick a deterministic seed. If umap_seed is None, derive it from the process seed
+        # (typically set by `lightning.seed_everything`).
+        seed = (
+            int(self.umap_seed)
+            if self.umap_seed is not None
+            else int(torch.initial_seed() % (2**32 - 1))
         )
-        self.train_step_losses.clear()
-        self.val_step_losses.clear()
+
+        # Deterministic selection independent of dataloader order: sort IDs then RNG-shuffle.
+        current_neg_ids = set(neg_ids.astype(str).tolist())
+        needs_resample = (
+            self._umap_neg_ids is None
+            or len(self._umap_neg_ids) != n_neg
+            or any(exam_id not in current_neg_ids for exam_id in self._umap_neg_ids)
+        )
+        if needs_resample:
+            neg_ids_sorted = np.sort(neg_ids.astype(str))
+            rng = np.random.default_rng(seed)
+            chosen = rng.permutation(neg_ids_sorted)[:n_neg]
+            self._umap_neg_ids = [str(x) for x in chosen]
+
+        selected_ids = [str(x) for x in pos_ids.astype(str)] + list(self._umap_neg_ids)
+        # Ensure uniqueness; if duplicates exist, keep the first occurrence.
+        selected_ids = list(dict.fromkeys(selected_ids))
+
+        id_to_index: Dict[str, int] = {}
+        for i, exam_id in enumerate(ids):
+            if exam_id not in id_to_index:
+                id_to_index[exam_id] = i
+
+        subset_indices = [id_to_index[i] for i in selected_ids if i in id_to_index]
+        if not subset_indices:
+            tqdm.write(
+                "Skipping UMAP logging (no selected IDs found in current epoch)."
+            )
+            return
+
+        # Always use view 0 as requested: [N,D]
+        x = embeddings[np.asarray(subset_indices), 0, :].astype(np.float32, copy=False)
+        y = labels_int[np.asarray(subset_indices)]
+
+        # L2-normalize for stability (especially with cosine metric).
+        norms = np.linalg.norm(x, axis=1, keepdims=True)
+        x = x / np.clip(norms, a_min=1e-12, a_max=None)
+
+        try:
+            import umap  # type: ignore
+        except Exception as e:
+            tqdm.write(f"UMAP not available ({repr(e)}); skipping UMAP logging.")
+            return
+
+        # Avoid interactive backends (e.g. TkAgg) in training loops / worker threads.
+        # Build the figure without pyplot to prevent tkinter-related shutdown errors.
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas  # type: ignore
+        from matplotlib.figure import Figure  # type: ignore
+
+        reducer = umap.UMAP(
+            n_neighbors=int(self.umap_n_neighbors),
+            min_dist=float(self.umap_min_dist),
+            n_components=2,
+            metric=str(self.umap_metric),
+            n_epochs=int(self.umap_n_epochs),
+            random_state=seed,
+        )
+        u2 = reducer.fit_transform(x)
+
+        fig = Figure(figsize=(6, 6))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        ax.scatter(
+            u2[y == 0, 0],
+            u2[y == 0, 1],
+            s=6,
+            alpha=0.6,
+            c="#4A86C5",
+            label="healthy (0)",
+            linewidths=0,
+        )
+        ax.scatter(
+            u2[y == 1, 0],
+            u2[y == 1, 1],
+            s=10,
+            alpha=0.8,
+            c="#B85450",
+            label="chagas (1)",
+            linewidths=0,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(
+            f"UMAP (view 0) | epoch={self.current_epoch} | track={self.track} | "
+            f"n_pos={int((y == 1).sum())} n_neg={int((y == 0).sum())}",
+            fontsize=10,
+        )
+        ax.legend(loc="best", frameon=False, markerscale=1.5)
+        fig.tight_layout()
+
+        # Render to an RGB array so wandb doesn't need to manage the figure backend.
+        canvas.draw()
+        rgba = np.asarray(canvas.buffer_rgba())  # type: ignore[attr-defined]
+        image = np.asarray(rgba[..., :3], dtype=np.uint8)
+
+        self.logger.experiment.log(  # type: ignore[union-attr]
+            {
+                "val/umap": wandb.Image(image),
+                "epoch": self.current_epoch,
+            },
+            step=int(self.global_step),
+        )
 
     def configure_optimizers(self):
         param_groups = split_optimizer_in_decay_and_no_decay(

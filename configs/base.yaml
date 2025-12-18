@@ -7,8 +7,8 @@ trainer:
   precision: bf16-mixed
   accumulate_grad_batches: 2
   gradient_clip_val: 0.0
-  limit_train_batches: 0.25
-  limit_val_batches: 1.0
+  limit_train_batches: 0.1
+  limit_val_batches: 0.5
   log_every_n_steps: 50
   enable_model_summary: true
   enable_progress_bar: true
@@ -65,8 +65,9 @@ model:
   classifier_weight: 1.0
   use_sup_con: false
   use_prototypes: false
+  ratio_supervised_majority: 0.0
   sup_con_weight: 1.0
-  sup_con_temp: 0.07
+  sup_con_temp: 0.1
   track: 1
   pretrained_encoder_path: null
   freeze_encoder: false
