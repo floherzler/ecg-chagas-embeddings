@@ -1,0 +1,31 @@
+trainer:
+  max_epochs: 20
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val_score
+        mode: max
+        dirpath: /tmp/ckpts
+        filename: best_ep_{epoch}_score_{val_score:.3f}
+        save_top_k: 1
+        save_weights_only: false
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: epoch
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val_score
+        mode: max
+        patience: 10
+        strict: true
+
+model:
+  track: 3
+  init_classifier_bias: true
+  classifier_bias_pos_fraction: null
+  use_sup_con: false
+  use_prototypes: false
+  pretrained_encoder_path: null  # set to track-2 checkpoint path in CLI
+  freeze_encoder: true
+  unfreeze_last_block: false
+  use_linear_probe_head: true

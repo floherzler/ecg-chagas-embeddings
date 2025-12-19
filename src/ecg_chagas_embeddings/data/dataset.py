@@ -191,8 +191,14 @@ class WfdbDataset(Dataset):
         ecg = record.p_signal.T  # Transpose to (n_channels, n_samples)
         label = float(row.chagas)
 
+        key = str(row.get("exam_id", row.get("path", index)))
         if self.transforms:
-            ecg = self.transforms(ecg)
+            try:
+                ecg = self.transforms(ecg, key=key)
+            except TypeError as exc:  # backward compatibility for transforms without key
+                if "unexpected keyword argument 'key'" not in str(exc):
+                    raise
+                ecg = self.transforms(ecg)
 
         return ecg, label
 
@@ -239,6 +245,7 @@ class TorchDataset(Dataset):
 
     def __getitem__(self, index: int):
         row = self.metadata.iloc[index]
+        exam_id = str(getattr(row, "exam_id", ""))
 
         if self.is_submission:
             # training from wfdb
@@ -304,7 +311,12 @@ class TorchDataset(Dataset):
 
         # --- apply transform ONCE ---
         if self.transforms is not None:
-            out = self.transforms(ecg)  # returns [C,T] or [V,C,T] based on n_views
+            try:
+                out = self.transforms(ecg, key=exam_id)  # returns [C,T] or [V,C,T]
+            except TypeError as exc:  # backward compatibility for transforms without key
+                if "unexpected keyword argument 'key'" not in str(exc):
+                    raise
+                out = self.transforms(ecg)
         else:
             out = ecg
 
@@ -326,7 +338,7 @@ class TorchDataset(Dataset):
             "age": torch.tensor([getattr(row, "age", 0.0)], dtype=torch.float32),
             "sex": torch.tensor([sex_value], dtype=torch.float32),
             "source": torch.tensor([source_idx], dtype=torch.float32),
-            "exam_id": getattr(row, "exam_id", ""),
+            "exam_id": exam_id,
         }
 
         # put under the right key
@@ -363,6 +375,8 @@ def get_train_val_loaders(
     wandering_frequency_range: Tuple[float, float] = (0.5, 2.0),
     max_mask_duration: int = 50,
     mask_prob: float = 0.5,
+    val_anchor_clean: bool = True,
+    augmentation_base_seed: int = 42,
     is_submission=False,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
@@ -386,6 +400,8 @@ def get_train_val_loaders(
         wandering_frequency_range: Frequency range of random wandering.
         max_mask_duration: Max duration of zero masking.
         mask_prob: Probability to completely mask a lead (channel).
+        val_anchor_clean: If True, validation view0 is only cropped (no noise/mask).
+        augmentation_base_seed: Base seed used with exam_id to create deterministic validation views.
         Note: this pipeline always produces two augmented views for both train and validation.
 
     Returns:
@@ -453,6 +469,8 @@ def get_train_val_loaders(
         per_view_wandering=bool(
             train_transform_kwargs.get("per_view_wandering", False)
         ),
+        mode="train",
+        base_seed=augmentation_base_seed,
     )
 
     # --- VALIDATION: always two views for metrics ---
@@ -463,6 +481,9 @@ def get_train_val_loaders(
         mask_prob=train_transform_kwargs.get("mask_prob", None),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         n_views=val_n_views,
+        mode="val",
+        base_seed=augmentation_base_seed,
+        val_anchor_clean=val_anchor_clean,
         # Keep val clean/deterministic; typically no masks/noise/warp here.
     )
     train_dataset = TorchDataset(

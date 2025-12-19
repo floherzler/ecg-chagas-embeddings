@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn as nn
@@ -10,13 +11,13 @@ from tqdm import tqdm
 import wandb
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import LightningModule
-from matplotlib.lines import Line2D
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 
 from ecg_chagas_embeddings.helper_code import compute_accuracy, compute_challenge_score
 from ecg_chagas_embeddings.models.losses import SupConLoss, ConSupPrototypeLoss
+from ecg_chagas_embeddings.models.linear_classifier import LinearClassifier
 from ecg_chagas_embeddings.utils import (
     get_optimizer,
     split_optimizer_in_decay_and_no_decay,
@@ -480,6 +481,7 @@ class LitResNet18(LightningModule):
         umap_log_every_n_epochs: int = 1,
         init_classifier_bias: bool = False,
         classifier_bias_pos_fraction: Optional[float] = None,
+        use_linear_probe_head: bool = False,
     ) -> None:
         super().__init__()
 
@@ -560,6 +562,9 @@ class LitResNet18(LightningModule):
         self.freeze_encoder = freeze_encoder  # ty: ignore[unresolved-attribute]
         self.unfreeze_last_block = unfreeze_last_block  # ty: ignore[unresolved-attribute]
         self._encoder_initialized = False  # ty: ignore[unresolved-attribute]
+        self.use_linear_probe_head = bool(use_linear_probe_head)  # ty: ignore[unresolved-attribute]
+        if self.use_linear_probe_head and self.track != 3:
+            raise ValueError("`use_linear_probe_head` is intended for track 3 only.")
 
         self.log_umap = log_umap  # ty: ignore[unresolved-attribute]
         self.umap_n_neighbors = umap_n_neighbors  # ty: ignore[unresolved-attribute]
@@ -672,6 +677,15 @@ class LitResNet18(LightningModule):
         self.fc = nn.Linear(inplanes * 8 * block_cls.expansion, num_classes)
 
         feat_dim = inplanes * 8 * block_cls.expansion
+        self.linear_probe_head = (
+            LinearClassifier(
+                input_size=feat_dim,
+                num_classes=num_classes,
+                p_dropout=dropout_rate,
+            )
+            if self.use_linear_probe_head
+            else None
+        )
 
         if use_sup_con or use_prototypes:
             self.projection_head = nn.Sequential(
@@ -783,7 +797,12 @@ class LitResNet18(LightningModule):
         x = self.avgpool(x)
         feats = torch.flatten(x, 1)
         feats = self.dropout(feats)
-        logits = self.fc(feats)
+        if self.use_linear_probe_head and self.linear_probe_head is not None:
+            logits = self.linear_probe_head(feats)
+            if logits.ndim == 2 and logits.shape[1] == 1:
+                logits = logits.squeeze(1)
+        else:
+            logits = self.fc(feats)
 
         return feats, logits
 
@@ -870,6 +889,16 @@ class LitResNet18(LightningModule):
         for name, param in self.named_parameters():
             if name.startswith(self._encoder_module_prefixes()):
                 param.requires_grad = False
+
+        # Keep encoder BatchNorms frozen as well so running stats do not drift
+        # when the encoder is meant to stay fixed.
+        for name, module in self.named_modules():
+            if not name.startswith(self._encoder_module_prefixes()):
+                continue
+            if self.unfreeze_last_block and name.startswith("layer4"):
+                continue
+            if isinstance(module, nn.BatchNorm1d):
+                module.eval()  # keep running stats fixed
 
         if self.unfreeze_last_block:
             for param in self.layer4.parameters():
@@ -1323,7 +1352,9 @@ class LitResNet18(LightningModule):
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")
 
         try:
-            if self.log_umap and (self.current_epoch % self.umap_log_every_n_epochs == 0):
+            if self.log_umap and (
+                self.current_epoch % self.umap_log_every_n_epochs == 0
+            ):
                 self._log_umap_diagnostics(
                     emb_subset,
                     gts_subset,
@@ -1580,113 +1611,173 @@ class LitResNet18(LightningModule):
                 subset_metrics = {}
                 tqdm.write(f"Failed computing subset metrics for UMAP: {repr(e)}")
 
-        fig = Figure(figsize=(6, 6.5), dpi=200)
-        canvas = FigureCanvas(fig)
-        gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[3.0, 1.0], hspace=0.25)
-        ax_scatter = fig.add_subplot(gs[0, 0])
-        palette = {0: "#4A86C5", 1: "#B85450"}
-        sns.scatterplot(
-            x=[], y=[], hue=[], palette=palette, ax=ax_scatter
-        )  # initialize axes with palette
-        if sources is not None:
-            sources_arr = np.asarray(sources).reshape(-1)
-            marker_map = {0: "o", 1: "+", 2: "^"}
-            source_labels = {0: "CODE-15", 1: "PTB-XL", 2: "SaMi-Trop"}
-            color_map = {0: palette[0], 1: palette[1]}
-            for src_val in np.unique(sources_arr):
-                mask = sources_arr == src_val
-                if not np.any(mask):
-                    continue
-                colors = [color_map[int(lbl)] for lbl in y[mask]]
-                ax_scatter.scatter(
-                    u2[mask, 0],
-                    u2[mask, 1],
-                    s=10,
-                    alpha=0.8,
-                    marker=marker_map.get(int(src_val), "o"),
-                    c=colors,
-                    edgecolor="none",
-                    linewidths=0,
-                )
-            # add source legend
-            src_handles = [
-                Line2D(
-                    [],
-                    [],
-                    color="#555",
-                    marker=marker_map.get(k, "o"),
-                    linestyle="",
-                    markersize=6,
-                    label=source_labels.get(k, f"src {k}"),
-                )
-                for k in sorted(np.unique(sources_arr))
-            ]
-            legend_sources = ax_scatter.legend(
-                handles=src_handles, title="Source", frameon=False, loc="upper right"
+        with (
+            sns.axes_style("whitegrid"),
+            sns.plotting_context("notebook", font_scale=0.9),
+        ):
+            # Increase width to accommodate the legend on the right without overflow.
+            fig = Figure(figsize=(9.5, 8.5), dpi=200)
+            canvas = FigureCanvas(fig)
+            gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[4, 1], hspace=0.35)
+            ax_scatter = fig.add_subplot(gs[0, 0])
+
+            # --- data prep ---
+            label_map = {0: "healthy", 1: "chagas"}
+            source_labels = {0: "CODE-15", 1: "PTB-XL", 2: "SaMi-Trop", -1: "unknown"}
+
+            df = pd.DataFrame(
+                {
+                    "umap_x": u2[:, 0],
+                    "umap_y": u2[:, 1],
+                    "label": y.astype(int),
+                }
             )
-            ax_scatter.add_artist(legend_sources)
-        else:
-            ax_scatter.scatter(
-                u2[:, 0],
-                u2[:, 1],
-                s=10,
-                alpha=0.8,
-                c=[palette[int(lbl)] for lbl in y],
-                marker="o",
-                edgecolor="none",
-                linewidths=0,
+            df["label_name"] = df["label"].map(label_map)
+
+            sources_arr_clean = None
+            if sources is not None:
+                arr = np.asarray(sources).reshape(-1)
+                if arr.dtype.kind in {"f", "c"}:
+                    arr = np.where(np.isnan(arr), -1, arr)
+                sources_arr_clean = arr.astype(int)
+                df["source"] = sources_arr_clean
+                df["source_name"] = df["source"].map(
+                    lambda v: source_labels.get(int(v), f"src {int(v)}")
+                )
+                # Create a combined group for coloring: "Dataset (Label)"
+                df["group"] = df["source_name"] + " (" + df["label_name"] + ")"
+            else:
+                df["group"] = df["label_name"]
+
+            # Define a palette that groups by label using similar shades.
+            # Healthy: Blue/Green shades | Chagas: Red/Purple shades
+            group_palette = {
+                "CODE-15 (healthy)": "#377eb8",  # Blue
+                "PTB-XL (healthy)": "#4daf4a",  # Green
+                "CODE-15 (chagas)": "#e41a1c",  # Red
+                "SaMi-Trop (chagas)": "#984ea3",  # Purple
+                "healthy": "#377eb8",
+                "chagas": "#e41a1c",
+            }
+
+            # Shuffle the dataframe to prevent one group from masking others.
+            df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
+
+            background = "#f7f8fb"
+            ax_scatter.set_facecolor(background)
+
+            scatter_kwargs = {
+                "data": df,
+                "x": "umap_x",
+                "y": "umap_y",
+                "hue": "group",
+                "palette": group_palette,
+                "s": 22,  # Slightly larger since we removed shapes
+                "edgecolor": None,
+                "linewidth": 0,
+                "alpha": 0.5,  # Balanced alpha for density
+                "ax": ax_scatter,
+                "legend": True,
+            }
+            sns.scatterplot(**scatter_kwargs)
+
+            # Legend with framed background for readability.
+            # We move it to the right and center it vertically.
+            legend = ax_scatter.get_legend()
+            if legend is not None:
+                legend_title = "Dataset (Label)" if sources is not None else "Label"
+                # Re-create the legend with the desired styling and position.
+                leg = ax_scatter.legend(
+                    title=legend_title,
+                    loc="center left",
+                    bbox_to_anchor=(1.02, 0.5),
+                    frameon=True,
+                    facecolor="#ffffff",
+                    edgecolor="#d4d4d4",
+                    fontsize=9,
+                    title_fontsize=10,
+                )
+                if leg is not None:
+                    leg.get_title().set_fontweight("bold")
+
+            sns.despine(ax=ax_scatter, left=True, bottom=True)
+            ax_scatter.set_xticks([])
+            ax_scatter.set_yticks([])
+            ax_scatter.set_xlabel("")
+            ax_scatter.set_ylabel("")
+            ax_scatter.set_title(
+                f"UMAP view 0 — epoch {self.current_epoch} | track {self.track}",
+                fontsize=12,
+                weight="semibold",
+                pad=10,
             )
-        ax_scatter.set_xticks([])
-        ax_scatter.set_yticks([])
-        ax_scatter.set_xlabel("")
-        ax_scatter.set_ylabel("")
-        ax_scatter.set_title(
-            f"UMAP (view 0) | epoch={self.current_epoch} | track={self.track} | "
-            f"n_pos={int((y == 1).sum())} n_neg={int((y == 0).sum())}",
-            fontsize=11,
-        )
-        handles, labels = ax_scatter.get_legend_handles_labels()  # type: ignore[assignment]
-        if handles and labels:
-            ax_scatter.legend(
-                handles,
-                ["healthy (0)", "chagas (1)"],
-                title="",
-                frameon=False,
-                loc="lower left",
+            ax_scatter.text(
+                0.01,
+                0.98,
+                f"samples={len(df)}   pos={int((y == 1).sum())}   neg={int((y == 0).sum())}",
+                transform=ax_scatter.transAxes,
+                va="top",
+                fontsize=9.5,
+                color="#1f2937",
+                bbox=dict(
+                    boxstyle="round,pad=0.35",
+                    facecolor="#ffffff",
+                    edgecolor="#d4d4d4",
+                    linewidth=0.6,
+                ),
             )
 
-        ax_metrics = fig.add_subplot(gs[1, 0])
-        ax_metrics.axis("off")
-        lines = []
-        if subset_metrics:
-            metrics_order = ("SAD", "SAA", "CAD", "CAC", "GPU")
-            for cls in (0, 1):
-                parts = []
-                for m in metrics_order:
-                    key = f"{m}_{cls}"
-                    if key in subset_metrics:
-                        val = subset_metrics[key]
-                        if (
-                            np.isnan(val)
-                            and m in ("SAD", "SAA")
-                            and embeddings.shape[1] < 2
-                        ):
-                            parts.append(f"{m}=N/A")
-                        else:
-                            parts.append(f"{m}={val:.3f}")
-                cls_label = "0:" if cls == 0 else "1:"
-                lines.append(f"{cls_label:<3} " + "  ".join(parts))
-        text = "\n".join(lines) if lines else "Metrics unavailable"
-        ax_metrics.text(
-            0.01,
-            0.95,
-            text,
-            va="top",
-            ha="left",
-            fontsize=10,
-            family="monospace",
-        )
-        fig.subplots_adjust(top=0.9, bottom=0.08, left=0.06, right=0.98)
+            # --- metrics panel ---
+            ax_metrics = fig.add_subplot(gs[1, 0])
+            ax_metrics.set_facecolor(background)
+            ax_metrics.set_xticks([])
+            ax_metrics.set_yticks([])
+            sns.despine(ax=ax_metrics, left=True, bottom=True)
+
+            lines = []
+            if subset_metrics:
+                metrics_order = ("SAD", "SAA", "CAD", "CAC", "GPU")
+                # Define fixed widths for values to ensure vertical alignment across classes.
+                # SAD and GPU are in [0,1], while SAA, CAD, and CAC can be larger.
+                val_widths = {"SAD": 5, "SAA": 7, "CAD": 7, "CAC": 7, "GPU": 5}
+
+                for cls in (0, 1):
+                    parts = []
+                    for m in metrics_order:
+                        key = f"{m}_{cls}"
+                        if key in subset_metrics:
+                            val = subset_metrics[key]
+                            w = val_widths.get(m, 7)
+                            if (
+                                np.isnan(val)
+                                and m in ("SAD", "SAA")
+                                and embeddings.shape[1] < 2
+                            ):
+                                parts.append(f"{m}={'N/A':>{w}}")
+                            else:
+                                parts.append(f"{m}={val:>{w}.3f}")
+                    cls_label = "class 0" if cls == 0 else "class 1"
+                    lines.append(f"{cls_label:<8} " + "   ".join(parts))
+
+            metric_text = "\n".join(lines) if lines else "metrics unavailable"
+            ax_metrics.text(
+                0.02,
+                0.5,
+                metric_text,
+                va="center",
+                ha="left",
+                fontsize=9,
+                family="monospace",
+                color="#111827",
+                bbox=dict(
+                    boxstyle="round,pad=0.5",
+                    facecolor="#ffffff",
+                    edgecolor="#d4d4d4",
+                    linewidth=0.6,
+                ),
+            )
+            # Adjust margins to ensure legend and metrics are fully visible.
+            fig.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.78)
 
         # Render to an RGB array so wandb doesn't need to manage the figure backend.
         canvas.draw()
