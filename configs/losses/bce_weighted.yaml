@@ -1,0 +1,5 @@
+model:
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.BCEWithLogitsLossModule
+    init_args:
+      pos_weight: 49.0

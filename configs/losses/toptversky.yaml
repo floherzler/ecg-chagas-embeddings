@@ -1,0 +1,14 @@
+model:
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.TverskyTopLoss
+    init_args:
+      alpha: 0.3
+      beta: 0.7
+      top_percent: 0.05
+      tau: 0.1
+      use_bce: true
+      bce_weight: 0.1
+      use_focal: true
+      focal_weight: 0.2
+      focal_gamma: 2.0
+      reduction: mean

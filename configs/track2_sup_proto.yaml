@@ -1,0 +1,26 @@
+trainer:
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: emb_CAC_1
+        mode: max
+        dirpath: /tmp/ckpts
+        filename: best_ep_{epoch}_embCAC1_{emb_CAC_1:.3f}
+        save_top_k: 1
+        save_weights_only: false
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: epoch
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: emb_CAC_1
+        mode: max
+        patience: 10
+        strict: true
+
+model:
+  track: 2
+  use_sup_con: false
+  use_prototypes: true
+  init_classifier_bias: false
+  classifier_bias_pos_fraction: null

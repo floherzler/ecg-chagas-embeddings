@@ -3,12 +3,12 @@ seed_everything: 42
 trainer:
   accelerator: auto
   devices: 1
-  max_epochs: 25            # matches previous script default
+  max_epochs: 100
   precision: bf16-mixed
-  accumulate_grad_batches: 2
+  accumulate_grad_batches: 1
   gradient_clip_val: 0.0
-  limit_train_batches: 0.1
-  limit_val_batches: 0.5
+  limit_train_batches: 1.0
+  limit_val_batches: 1.0
   log_every_n_steps: 50
   enable_model_summary: true
   enable_progress_bar: true
@@ -17,20 +17,8 @@ trainer:
     init_args:
       project: ecg-chagas-embeddings-cli
       entity: ag-lukassen
-      save_dir: wandb
+      save_dir: /tmp/wandb
       log_model: all           # upload best + last checkpoints
-  callbacks:
-    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
-      init_args:
-        monitor: val_score
-        mode: max
-        dirpath: src/models/outputs
-        filename: best_ep_{epoch}_score_{val_score:.3f}
-        save_top_k: 1
-        save_weights_only: false
-    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
-      init_args:
-        logging_interval: epoch
 
 model:
   block: basic
@@ -51,7 +39,7 @@ model:
   stochastic_depth_prob: 0.0
   lr: 0.0005
   lr_scheduler: one_cycle     # options: none, one_cycle, cosine, step
-  one_cycle_pct_start: 0.1
+  one_cycle_pct_start: 0.3
   one_cycle_div_factor: 25.0
   final_div_factor: 10000.0
   step_size: 10
@@ -62,13 +50,16 @@ model:
   optimizer_eps: 1.0e-08
   classifier_weight_decay: 1.0e-05
   params_weight_decay: 1.0e-05
+  # Track-specific toggles (set in configs/track*.yaml)
+  # track: 1|2|3
+  # use_sup_con / use_prototypes
+  # init_classifier_bias / classifier_bias_pos_fraction
   classifier_weight: 1.0
   use_sup_con: false
   use_prototypes: false
   ratio_supervised_majority: 0.0
   sup_con_weight: 1.0
-  sup_con_temp: 0.1
-  track: 1
+  sup_con_temp: 0.07
   pretrained_encoder_path: null
   freeze_encoder: false
   unfreeze_last_block: false
@@ -84,13 +75,13 @@ model:
 data:
   meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv
   data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc_norm
-  batch_size: 128
+  batch_size: 256
   num_workers: 4
   prefetch_factor: 16
   pos_fraction: 0.05
   oversample: true
-  train_folds: [0]
-  valid_folds: [4]
+  train_folds: [0,1,2]
+  valid_folds: [3]
   neg_weight_code15: 1.0
   neg_weight_ptb_xl: 1.0
   neg_weight_sami_trop: 1.0
@@ -100,7 +91,7 @@ data:
   crop_size: 2500
   max_time_warp: 0.00
   scaling: [1.0, 1.0]
-  gaussian_noise_std: 0.01
+  gaussian_noise_std: 0.02
   mask_prob: 0.1
   max_mask_duration: 250
   wandering_max_amplitude: 0.0

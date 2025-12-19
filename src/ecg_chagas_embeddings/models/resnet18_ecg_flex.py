@@ -1,8 +1,6 @@
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
-
-
-from lightning.pytorch import LightningModule
+import math
 import numpy as np
+import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,6 +9,10 @@ from torchvision.ops import StochasticDepth
 from tqdm import tqdm
 import wandb
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch import LightningModule
+from matplotlib.lines import Line2D
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 
 from ecg_chagas_embeddings.helper_code import compute_accuracy, compute_challenge_score
@@ -475,6 +477,9 @@ class LitResNet18(LightningModule):
         umap_metric: str = "cosine",
         umap_n_epochs: int = 250,
         umap_seed: Optional[int] = None,
+        umap_log_every_n_epochs: int = 1,
+        init_classifier_bias: bool = False,
+        classifier_bias_pos_fraction: Optional[float] = None,
     ) -> None:
         super().__init__()
 
@@ -562,7 +567,12 @@ class LitResNet18(LightningModule):
         self.umap_metric = umap_metric  # ty: ignore[unresolved-attribute]
         self.umap_n_epochs = umap_n_epochs  # ty: ignore[unresolved-attribute]
         self.umap_seed = umap_seed  # ty: ignore[unresolved-attribute]
+        self.umap_log_every_n_epochs = int(max(1, umap_log_every_n_epochs))  # ty: ignore[unresolved-attribute]
         self._umap_neg_ids: Optional[List[str]] = None  # ty: ignore[unresolved-attribute]
+
+        self.init_classifier_bias = init_classifier_bias  # ty: ignore[unresolved-attribute]
+        self.classifier_bias_pos_fraction = classifier_bias_pos_fraction  # ty: ignore[unresolved-attribute]
+        self._classifier_bias_initialized = False  # ty: ignore[unresolved-attribute]
         self.fake_sup_dropout = nn.Dropout(p=0.1)
         self.fake_sup_noise_std = 0.01  # ty: ignore[unresolved-attribute]
         self.sup_con_loss = SupConLoss(
@@ -800,7 +810,8 @@ class LitResNet18(LightningModule):
         return ("conv1", "norm1", "layer1", "layer2", "layer3", "layer4", "avgpool")
 
     def _load_pretrained_encoder(self, path: str) -> None:
-        ckpt = torch.load(path, map_location="cpu")
+        resolved_path = self._resolve_wandb_artifact(path)
+        ckpt = torch.load(resolved_path, map_location="cpu")
         state_dict = ckpt.get("state_dict", ckpt)
         cleaned = {}
         prefixes = self._encoder_module_prefixes()
@@ -820,6 +831,34 @@ class LitResNet18(LightningModule):
                 f"Unexpected keys when loading encoder: {incompatible.unexpected_keys}"
             )
 
+    def _resolve_wandb_artifact(self, path: str) -> str:
+        """
+        Resolve a wandb artifact URI to a local file path. If `path` does not start with
+        'wandb:', it is returned unchanged.
+
+        Supported format: wandb:<entity>/<project>/<artifact-name>:<alias>
+        Example: wandb:ag-lukassen/ecg-chagas-embeddings-cli/model-51nqcxar:v1
+        """
+        if not path.startswith("wandb:"):
+            return path
+
+        uri = path[len("wandb:") :]
+        api = wandb.Api()
+        art = api.artifact(uri, type="model")
+        local_dir = Path(art.download())
+
+        # Prefer common Lightning checkpoint names
+        for fname in ("model.ckpt", "best.ckpt"):
+            candidate = local_dir / fname
+            if candidate.exists():
+                return str(candidate)
+
+        # Fallback: first .ckpt in the artifact
+        ckpts = list(local_dir.rglob("*.ckpt"))
+        if not ckpts:
+            raise FileNotFoundError(f"No .ckpt found in wandb artifact {uri}")
+        return str(ckpts[0])
+
     def _apply_freeze_policy(self) -> None:
         if not self.use_classifier:
             for param in self.fc.parameters():
@@ -838,6 +877,7 @@ class LitResNet18(LightningModule):
 
     def on_fit_start(self):
         if not self.use_prototypes:
+            self._maybe_init_classifier_bias()
             return
         with torch.no_grad():
             # If projection_head is a Sequential with a final Linear, use its out_features,
@@ -868,6 +908,52 @@ class LitResNet18(LightningModule):
             u = u / (u.norm() + 1e-6)
             prototypes = torch.stack([u, -u], dim=0)  # [2, D]
         self.proto_loss.set_prototypes(prototypes)  # required
+        self._maybe_init_classifier_bias()
+
+    def _maybe_init_classifier_bias(self) -> None:
+        if not self.init_classifier_bias or self._classifier_bias_initialized:
+            return
+        if not self.use_classifier:
+            return
+        if getattr(self, "trainer", None) is not None and getattr(
+            self.trainer, "ckpt_path", None
+        ):
+            # Avoid mutating restored weights when resuming from a checkpoint.
+            return
+        if not isinstance(self.fc, nn.Linear) or self.fc.bias is None:
+            return
+        if getattr(self.fc, "out_features", 1) != 1:
+            tqdm.write(
+                "Skipping classifier bias init (only supported for binary num_classes=1)."
+            )
+            return
+
+        pos_fraction = self.classifier_bias_pos_fraction
+        if pos_fraction is None and getattr(self, "trainer", None) is not None:
+            dm = getattr(self.trainer, "datamodule", None)
+            if dm is not None:
+                pos_fraction = getattr(dm, "pos_fraction", None)
+                if (
+                    pos_fraction is None
+                    and hasattr(dm, "cfg")
+                    and isinstance(dm.cfg, dict)
+                ):
+                    pos_fraction = dm.cfg.get("pos_fraction", None)
+
+        if pos_fraction is None:
+            tqdm.write(
+                "Skipping classifier bias init (pos_fraction unavailable). "
+                "Set `model.classifier_bias_pos_fraction` or provide `data.pos_fraction`."
+            )
+            return
+
+        p = float(pos_fraction)
+        p = min(max(p, 1e-6), 1.0 - 1e-6)
+        bias = float(math.log(p / (1.0 - p)))
+        with torch.no_grad():
+            self.fc.bias.fill_(bias)
+        self._classifier_bias_initialized = True
+        tqdm.write(f"Initialized classifier bias to logit(p)={bias:.4f} for p={p:.6f}")
 
     def training_step(self, batch, batch_idx):
         labels = batch["chagas"].view(-1)  # [B]
@@ -1208,17 +1294,43 @@ class LitResNet18(LightningModule):
                 f"Error in computing challenge score: {repr(e)}. Setting score to 0.0"
             )
 
+        # Build a balanced subset (all positives + same number of negatives) for metrics/UMAP.
+        subset_idx = self._select_balanced_subset_indices(gts, ids)
+        if subset_idx.size == 0:
+            tqdm.write("Skipping embedding metrics/UMAP logging (no balanced subset).")
+            emb_metrics = {}
+            emb_subset = embeddings
+            gts_subset = gts
+            sources_subset = sources
+            ids_subset = ids or []
+        else:
+            emb_subset = embeddings[subset_idx]
+            gts_subset = gts[subset_idx]
+            sources_subset = sources[subset_idx] if sources is not None else None
+            ids_subset = [ids[i] for i in subset_idx] if ids is not None else None
         try:
-            emb_metrics = compute_representation_metrics(embeddings, gts)
+            emb_metrics = compute_representation_metrics(
+                emb_subset,
+                gts_subset,
+                max_samples=emb_subset.shape[0],
+                seed=int(self.umap_seed or 12345),
+            )
             for k, v in emb_metrics.items():
                 tqdm.write(f"Embedding metric {k}: {v:.4f}")
                 self.log(f"emb_{k}", v, prog_bar=False, on_epoch=True, on_step=False)
         except Exception as e:
+            emb_metrics = {}
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")
 
         try:
-            if self.log_umap:
-                self._log_umap_diagnostics(embeddings, gts, ids=ids)
+            if self.log_umap and (self.current_epoch % self.umap_log_every_n_epochs == 0):
+                self._log_umap_diagnostics(
+                    emb_subset,
+                    gts_subset,
+                    ids=ids_subset,
+                    sources=sources_subset,
+                    precomputed_metrics=emb_metrics,
+                )
         except Exception as e:
             tqdm.write(f"Error in computing/logging UMAP diagnostics: {repr(e)}")
 
@@ -1341,8 +1453,51 @@ class LitResNet18(LightningModule):
             )
             self.val_step_losses.clear()
 
+    def _select_balanced_subset_indices(
+        self, labels: np.ndarray, ids: Optional[List[str]]
+    ):
+        labels_int = np.asarray(labels).astype(int).reshape(-1)
+        pos_idx = np.where(labels_int == 1)[0]
+        neg_idx = np.where(labels_int == 0)[0]
+        if pos_idx.size == 0 or neg_idx.size == 0:
+            return np.array([], dtype=int)
+
+        n_pos = pos_idx.size
+        n_neg = min(n_pos, neg_idx.size)
+        seed = (
+            int(self.umap_seed)
+            if self.umap_seed is not None
+            else int(torch.initial_seed() % (2**32 - 1))
+        )
+
+        if ids is not None:
+            neg_ids = np.asarray(ids, dtype=object)[neg_idx]
+            neg_ids_sorted = np.sort(neg_ids.astype(str))
+            rng = np.random.default_rng(seed)
+            chosen_neg_ids = rng.permutation(neg_ids_sorted)[:n_neg]
+            id_to_index: Dict[str, int] = {}
+            for i, exam_id in enumerate(ids):
+                if exam_id not in id_to_index:
+                    id_to_index[exam_id] = i
+            chosen_neg_idx = [
+                id_to_index[i] for i in chosen_neg_ids if i in id_to_index
+            ]
+            chosen_neg_idx = np.asarray(chosen_neg_idx, dtype=int)
+        else:
+            rng = np.random.default_rng(seed)
+            chosen_neg_idx = rng.permutation(neg_idx)[:n_neg]
+
+        subset_idx = np.concatenate([pos_idx, chosen_neg_idx])
+        return subset_idx
+
     def _log_umap_diagnostics(
-        self, embeddings: np.ndarray, labels: np.ndarray, *, ids: Optional[List[str]]
+        self,
+        embeddings: np.ndarray,
+        labels: np.ndarray,
+        *,
+        ids: Optional[List[str]],
+        sources: Optional[np.ndarray] = None,
+        precomputed_metrics: Optional[Dict[str, float]] = None,
     ) -> None:
         if not isinstance(self.logger, WandbLogger):
             return
@@ -1369,63 +1524,17 @@ class LitResNet18(LightningModule):
                 f"Expected ids length {len(ids)} to match embeddings N={embeddings.shape[0]}."
             )
 
-        labels_int = np.asarray(labels).astype(int).reshape(-1)
-        pos_mask = labels_int == 1
-        neg_mask = labels_int == 0
-        pos_ids = np.asarray(ids, dtype=object)[pos_mask]
-        neg_ids = np.asarray(ids, dtype=object)[neg_mask]
-        n_pos = int(pos_ids.shape[0])
-        n_neg_avail = int(neg_ids.shape[0])
-
-        if n_pos == 0 or n_neg_avail == 0:
-            tqdm.write(
-                f"Skipping UMAP logging (n_pos={n_pos}, n_neg_avail={n_neg_avail})."
-            )
-            return
-
-        # Select all positives and an equal number of negatives.
-        n_neg = min(n_pos, n_neg_avail)
-        if n_neg < n_pos:
-            tqdm.write(
-                f"UMAP subset is not perfectly balanced (requested {n_pos} negatives, "
-                f"but only {n_neg_avail} available). Using n_neg={n_neg}."
-            )
-
-        # Pick a deterministic seed. If umap_seed is None, derive it from the process seed
-        # (typically set by `lightning.seed_everything`).
+        # Pick a deterministic seed. If umap_seed is None, derive it from process seed.
         seed = (
             int(self.umap_seed)
             if self.umap_seed is not None
             else int(torch.initial_seed() % (2**32 - 1))
         )
 
-        # Deterministic selection independent of dataloader order: sort IDs then RNG-shuffle.
-        current_neg_ids = set(neg_ids.astype(str).tolist())
-        needs_resample = (
-            self._umap_neg_ids is None
-            or len(self._umap_neg_ids) != n_neg
-            or any(exam_id not in current_neg_ids for exam_id in self._umap_neg_ids)
-        )
-        if needs_resample:
-            neg_ids_sorted = np.sort(neg_ids.astype(str))
-            rng = np.random.default_rng(seed)
-            chosen = rng.permutation(neg_ids_sorted)[:n_neg]
-            self._umap_neg_ids = [str(x) for x in chosen]
-
-        selected_ids = [str(x) for x in pos_ids.astype(str)] + list(self._umap_neg_ids)
-        # Ensure uniqueness; if duplicates exist, keep the first occurrence.
-        selected_ids = list(dict.fromkeys(selected_ids))
-
-        id_to_index: Dict[str, int] = {}
-        for i, exam_id in enumerate(ids):
-            if exam_id not in id_to_index:
-                id_to_index[exam_id] = i
-
-        subset_indices = [id_to_index[i] for i in selected_ids if i in id_to_index]
-        if not subset_indices:
-            tqdm.write(
-                "Skipping UMAP logging (no selected IDs found in current epoch)."
-            )
+        labels_int = np.asarray(labels).astype(int).reshape(-1)
+        subset_indices = self._select_balanced_subset_indices(labels_int, ids)
+        if subset_indices.size == 0:
+            tqdm.write("Skipping UMAP logging (no balanced subset).")
             return
 
         # Always use view 0 as requested: [N,D]
@@ -1454,43 +1563,134 @@ class LitResNet18(LightningModule):
             metric=str(self.umap_metric),
             n_epochs=int(self.umap_n_epochs),
             random_state=seed,
+            n_jobs=1,
         )
         u2 = reducer.fit_transform(x)
 
-        fig = Figure(figsize=(6, 6))
+        # Compute metrics on the exact subset being plotted if not provided.
+        if precomputed_metrics is not None:
+            subset_metrics = precomputed_metrics
+        else:
+            emb_subset = x.reshape(x.shape[0], 1, x.shape[1])
+            try:
+                subset_metrics = compute_representation_metrics(
+                    emb_subset, y, max_samples=emb_subset.shape[0], seed=seed
+                )
+            except Exception as e:
+                subset_metrics = {}
+                tqdm.write(f"Failed computing subset metrics for UMAP: {repr(e)}")
+
+        fig = Figure(figsize=(6, 6.5), dpi=200)
         canvas = FigureCanvas(fig)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.scatter(
-            u2[y == 0, 0],
-            u2[y == 0, 1],
-            s=6,
-            alpha=0.6,
-            c="#4A86C5",
-            label="healthy (0)",
-            linewidths=0,
-        )
-        ax.scatter(
-            u2[y == 1, 0],
-            u2[y == 1, 1],
-            s=10,
-            alpha=0.8,
-            c="#B85450",
-            label="chagas (1)",
-            linewidths=0,
-        )
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_title(
+        gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[3.0, 1.0], hspace=0.25)
+        ax_scatter = fig.add_subplot(gs[0, 0])
+        palette = {0: "#4A86C5", 1: "#B85450"}
+        sns.scatterplot(
+            x=[], y=[], hue=[], palette=palette, ax=ax_scatter
+        )  # initialize axes with palette
+        if sources is not None:
+            sources_arr = np.asarray(sources).reshape(-1)
+            marker_map = {0: "o", 1: "+", 2: "^"}
+            source_labels = {0: "CODE-15", 1: "PTB-XL", 2: "SaMi-Trop"}
+            color_map = {0: palette[0], 1: palette[1]}
+            for src_val in np.unique(sources_arr):
+                mask = sources_arr == src_val
+                if not np.any(mask):
+                    continue
+                colors = [color_map[int(lbl)] for lbl in y[mask]]
+                ax_scatter.scatter(
+                    u2[mask, 0],
+                    u2[mask, 1],
+                    s=10,
+                    alpha=0.8,
+                    marker=marker_map.get(int(src_val), "o"),
+                    c=colors,
+                    edgecolor="none",
+                    linewidths=0,
+                )
+            # add source legend
+            src_handles = [
+                Line2D(
+                    [],
+                    [],
+                    color="#555",
+                    marker=marker_map.get(k, "o"),
+                    linestyle="",
+                    markersize=6,
+                    label=source_labels.get(k, f"src {k}"),
+                )
+                for k in sorted(np.unique(sources_arr))
+            ]
+            legend_sources = ax_scatter.legend(
+                handles=src_handles, title="Source", frameon=False, loc="upper right"
+            )
+            ax_scatter.add_artist(legend_sources)
+        else:
+            ax_scatter.scatter(
+                u2[:, 0],
+                u2[:, 1],
+                s=10,
+                alpha=0.8,
+                c=[palette[int(lbl)] for lbl in y],
+                marker="o",
+                edgecolor="none",
+                linewidths=0,
+            )
+        ax_scatter.set_xticks([])
+        ax_scatter.set_yticks([])
+        ax_scatter.set_xlabel("")
+        ax_scatter.set_ylabel("")
+        ax_scatter.set_title(
             f"UMAP (view 0) | epoch={self.current_epoch} | track={self.track} | "
             f"n_pos={int((y == 1).sum())} n_neg={int((y == 0).sum())}",
-            fontsize=10,
+            fontsize=11,
         )
-        ax.legend(loc="best", frameon=False, markerscale=1.5)
-        fig.tight_layout()
+        handles, labels = ax_scatter.get_legend_handles_labels()  # type: ignore[assignment]
+        if handles and labels:
+            ax_scatter.legend(
+                handles,
+                ["healthy (0)", "chagas (1)"],
+                title="",
+                frameon=False,
+                loc="lower left",
+            )
+
+        ax_metrics = fig.add_subplot(gs[1, 0])
+        ax_metrics.axis("off")
+        lines = []
+        if subset_metrics:
+            metrics_order = ("SAD", "SAA", "CAD", "CAC", "GPU")
+            for cls in (0, 1):
+                parts = []
+                for m in metrics_order:
+                    key = f"{m}_{cls}"
+                    if key in subset_metrics:
+                        val = subset_metrics[key]
+                        if (
+                            np.isnan(val)
+                            and m in ("SAD", "SAA")
+                            and embeddings.shape[1] < 2
+                        ):
+                            parts.append(f"{m}=N/A")
+                        else:
+                            parts.append(f"{m}={val:.3f}")
+                cls_label = "0:" if cls == 0 else "1:"
+                lines.append(f"{cls_label:<3} " + "  ".join(parts))
+        text = "\n".join(lines) if lines else "Metrics unavailable"
+        ax_metrics.text(
+            0.01,
+            0.95,
+            text,
+            va="top",
+            ha="left",
+            fontsize=10,
+            family="monospace",
+        )
+        fig.subplots_adjust(top=0.9, bottom=0.08, left=0.06, right=0.98)
 
         # Render to an RGB array so wandb doesn't need to manage the figure backend.
         canvas.draw()
-        rgba = np.asarray(canvas.buffer_rgba())  # type: ignore[attr-defined]
+        rgba = np.array(canvas.buffer_rgba(), copy=True)  # type: ignore[attr-defined]
         image = np.asarray(rgba[..., :3], dtype=np.uint8)
 
         self.logger.experiment.log(  # type: ignore[union-attr]
