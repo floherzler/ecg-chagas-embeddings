@@ -25,6 +25,6 @@ for i in "${!TRAIN_SPLITS[@]}"; do
   VAL=${VAL_SPLITS[$i]}
   echo "Submitting CV split $i: train=$TRAIN val=$VAL"
   sbatch --array=0-1 \
-    --export=TRAIN_FOLDS_SINGLE="$TRAIN",VAL_FOLDS_SINGLE="$VAL" \
+    --export=ALL,TRAIN_FOLDS_SINGLE="$TRAIN",VAL_FOLDS_SINGLE="$VAL" \
     "$SCRIPT"
 done
