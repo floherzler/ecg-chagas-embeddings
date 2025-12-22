@@ -3,6 +3,7 @@
 # Usage: sbatch --array=0-1 scripts/slurm_track1_cv.sh
 # Adjust TRAIN_SPLITS/VAL_SPLITS below as needed.
 #SBATCH --job-name=track1-cv
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --time=1:00:00
 #SBATCH --cpus-per-task=8
@@ -56,7 +57,7 @@ echo "Running split $IDX train=$TRAIN val=$VAL with $LOSS_CFG"
 GROUP_NAME="track1-${BASE_NAME}"
 RUN_NAME="track1-${BASE_NAME}-train${TRAIN}-val${VAL}"
 
-srun python main.py fit \
+python main.py fit \
   --config "$BASE" \
   --config "$TRACK" \
   --config "$LOSS_CFG" \
@@ -65,6 +66,6 @@ srun python main.py fit \
   --data.data_dir "/sc-scratch/sc-scratch-dh-face/physionet2025/processedMaster/bp" \
   --data.train_folds "$TRAIN" \
   --data.valid_folds "$VAL" \
-  --logger.init_args.group "$GROUP_NAME" \
-  --logger.init_args.name "$RUN_NAME" \
+  --trainer.logger.init_args.group "$GROUP_NAME" \
+  --trainer.logger.init_args.name "$RUN_NAME" \
   --trainer.default_root_dir "/tmp/$RUN_NAME"
