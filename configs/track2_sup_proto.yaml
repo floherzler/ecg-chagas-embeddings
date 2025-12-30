@@ -22,5 +22,7 @@ model:
   track: 2
   use_sup_con: false
   use_prototypes: true
+  # This still wires up SupConLoss internally; keep the baseline setting explicit.
+  ratio_supervised_majority: 0.0
   init_classifier_bias: false
   classifier_bias_pos_fraction: null

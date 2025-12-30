@@ -1,0 +1,15 @@
+model:
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.FocalTverskyLoss
+    init_args:
+      # RAT (Ranking-Aware Tversky): soft top-k + focal-Tversky + entropy regularizer + BCE anchor
+      alpha: 0.6          # weight false positives
+      beta: 0.4           # weight false negatives
+      gamma: 1.0          # focal exponent on (1 - Tversky); consider {1.0, 2.0}
+      smooth: 0.1
+      k: 0.05             # top-k fraction (5% of batch)
+      tau: 0.1            # soft threshold temperature
+      entropy_weight: 0.005
+      bce_weight: 0.1
+      # Optional: stabilizes early training for heavy imbalance (≈2% positives => ~49)
+      pos_weight: 49.0

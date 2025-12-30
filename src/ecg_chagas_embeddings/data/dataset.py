@@ -368,13 +368,18 @@ def get_train_val_loaders(
     pos_weight_sami_trop: float = 1.0,
     *,
     crop_size: int = 2500,
+    axis_rotation_max_deg: float = 0.0,
+    axis_rotation_prob: float = 1.0,
+    per_view_axis_rotation: bool = True,
     max_time_warp: float = 0.2,
     scaling: Tuple[float, float] = (0.8, 1.2),
     gaussian_noise_std: float = 0.01,
     wandering_max_amplitude: float = 1.0,
     wandering_frequency_range: Tuple[float, float] = (0.5, 2.0),
     max_mask_duration: int = 50,
+    time_mask_apply_prob: float = 1.0,
     mask_prob: float = 0.5,
+    channel_mask_apply_prob: float = 1.0,
     val_anchor_clean: bool = True,
     augmentation_base_seed: int = 42,
     is_submission=False,
@@ -414,11 +419,19 @@ def get_train_val_loaders(
         "n_views": 2,  # always two views for metrics/consistency
     }
 
+    # (shared) physiological axis rotation (VCG-based) — best used on bandpassed (linear) signals
+    if axis_rotation_max_deg and axis_rotation_max_deg > 0 and axis_rotation_prob and axis_rotation_prob > 0:
+        train_transform_kwargs["axis_rotation_max_deg"] = axis_rotation_max_deg
+        train_transform_kwargs["axis_rotation_prob"] = axis_rotation_prob
+        train_transform_kwargs["per_view_axis_rotation"] = per_view_axis_rotation
+
     # (shared, light) masks
     if max_mask_duration and max_mask_duration > 0:
         train_transform_kwargs["max_mask_duration"] = max_mask_duration
+        train_transform_kwargs["time_mask_apply_prob"] = time_mask_apply_prob
     if mask_prob and mask_prob > 0:
         train_transform_kwargs["mask_prob"] = mask_prob
+        train_transform_kwargs["channel_mask_apply_prob"] = channel_mask_apply_prob
 
     # (per-view) appearance tweaks
     if gaussian_noise_std and gaussian_noise_std > 0:
@@ -449,8 +462,13 @@ def get_train_val_loaders(
     train_transform = ECGAugmentation(
         crop_size=train_transform_kwargs.get("crop_size", crop_size),
         n_views=train_transform_kwargs.get("n_views", 2),
+        axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
+        axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
+        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
+        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         per_view_noise=bool(train_transform_kwargs.get("per_view_noise", True)),
         scaling=cast(
@@ -477,8 +495,13 @@ def get_train_val_loaders(
     val_n_views = 2
     valid_transform = ECGAugmentation(
         crop_size=crop_size,
+        axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
+        axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
+        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
+        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         n_views=val_n_views,
         mode="val",

@@ -408,8 +408,8 @@ class FocalTverskyLoss(nn.Module):
         beta (float): weight of false negatives
         gamma (float): focal exponent
         smooth (float): smoothing constant
-        k (int|float|None): if float∈(0,1), fraction for top‐k; if int>1, absolute top‐k; if None, no selection
-        tau (float): temperature for soft‐mask (higher → softer)
+        k (int|float|None): if float∈(0,1), fraction for top-k; if int>1, absolute top-k; if None, no selection
+        tau (float): temperature for soft-mask (higher → softer)
         entropy_weight (float): weight for the entropy regularizer
         bce_weight (float): weight for the auxiliary BCE-with-logits loss
         pos_weight (float|None): positive-class weight for BCE-with-logits (e.g. (1-p)/p for p=0.1 → 9.0)

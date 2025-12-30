@@ -54,11 +54,9 @@ model:
   # track: 1|2|3
   # use_sup_con / use_prototypes
   # init_classifier_bias / classifier_bias_pos_fraction
-  classifier_weight: 1.0
   use_sup_con: false
   use_prototypes: false
   ratio_supervised_majority: 0.0
-  sup_con_weight: 1.0
   sup_con_temp: 0.07
   pretrained_encoder_path: null
   freeze_encoder: false
@@ -74,12 +72,12 @@ model:
 
 data:
   meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv
-  data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc_norm
+  data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc
   batch_size: 256
   num_workers: 4
   prefetch_factor: 16
   pos_fraction: 0.05
-  oversample: true
+  oversample: false
   train_folds: [0,1,2]
   valid_folds: [3]
   neg_weight_code15: 1.0
@@ -89,11 +87,21 @@ data:
   pos_weight_ptb_xl: 1.0
   pos_weight_sami_trop: 1.0
   crop_size: 2500
-  max_time_warp: 0.00
-  scaling: [1.0, 1.0]
-  gaussian_noise_std: 0.02
-  mask_prob: 0.1
-  max_mask_duration: 250
+  # --- Mild default augmentations (shared across tracks unless overridden) ---
+  # Enable axis rotation only when training from *bp* (linear signals).
+  axis_rotation_max_deg: 0.0
+  axis_rotation_prob: 0.0
+  per_view_axis_rotation: true
+  max_time_warp: 0.0
+  scaling: [0.98, 1.02]
+  gaussian_noise_std: 0.005
+  # These are strong in this codebase because they always apply when >0:
+  # - max_mask_duration always masks a segment each call
+  # - mask_prob masks channels independently each call
+  mask_prob: 0.0
+  channel_mask_apply_prob: 1.0
+  max_mask_duration: 0
+  time_mask_apply_prob: 1.0
   wandering_max_amplitude: 0.0
   wandering_frequency_range: [0.0, 0.0]
   is_submission: false

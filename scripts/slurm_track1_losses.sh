@@ -64,6 +64,6 @@ srun python main.py fit \
   --data.data_dir "/sc-scratch/sc-scratch-dh-face/physionet2025/processedMaster/bp" \
   --data.train_folds "$TRAIN_FOLDS_SINGLE" \
   --data.valid_folds "$VAL_FOLDS_SINGLE" \
-  --logger.init_args.group "$GROUP_NAME" \
-  --logger.init_args.name "$RUN_NAME" \
+  --trainer.logger.init_args.group "$GROUP_NAME" \
+  --trainer.logger.init_args.name "$RUN_NAME" \
   --trainer.default_root_dir "/tmp/$RUN_NAME"

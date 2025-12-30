@@ -52,6 +52,72 @@ def draw_quantile_bar(
     return "|" + "".join(bar) + "|"
 
 
+def compute_binary_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """
+    Compute AUROC for binary labels without external deps.
+
+    Returns NaN if only one class is present.
+    """
+    y_true = np.asarray(y_true).astype(int).reshape(-1)
+    y_score = np.asarray(y_score).astype(float).reshape(-1)
+
+    # drop non-finite scores
+    m = np.isfinite(y_score)
+    y_true = y_true[m]
+    y_score = y_score[m]
+
+    pos = (y_true == 1)
+    neg = (y_true == 0)
+    P = int(pos.sum())
+    N = int(neg.sum())
+    if P == 0 or N == 0:
+        return float("nan")
+
+    order = np.argsort(-y_score, kind="mergesort")
+    y_sorted = y_true[order]
+
+    tps = np.cumsum(y_sorted == 1)
+    fps = np.cumsum(y_sorted == 0)
+
+    tpr = tps / float(P)
+    fpr = fps / float(N)
+
+    # add endpoints
+    fpr = np.concatenate([[0.0], fpr, [1.0]])
+    tpr = np.concatenate([[0.0], tpr, [1.0]])
+
+    return float(np.trapz(tpr, fpr))
+
+
+def compute_binary_average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """
+    Compute Average Precision (AP) for binary labels without external deps.
+
+    This matches sklearn's average_precision_score definition:
+    average over precision at each positive when sorting by score descending.
+    Returns NaN if no positives are present.
+    """
+    y_true = np.asarray(y_true).astype(int).reshape(-1)
+    y_score = np.asarray(y_score).astype(float).reshape(-1)
+
+    m = np.isfinite(y_score)
+    y_true = y_true[m]
+    y_score = y_score[m]
+
+    P = int((y_true == 1).sum())
+    if P == 0:
+        return float("nan")
+
+    order = np.argsort(-y_score, kind="mergesort")
+    y_sorted = y_true[order]
+
+    tps = np.cumsum(y_sorted == 1)
+    fps = np.cumsum(y_sorted == 0)
+    precision = tps / np.maximum(tps + fps, 1)
+
+    return float(precision[y_sorted == 1].sum() / float(P))
+
+
 def compute_representation_metrics(
     embeddings: np.ndarray,
     labels: np.ndarray,
@@ -463,8 +529,6 @@ class LitResNet18(LightningModule):
         use_sup_con=False,
         ratio_supervised_majority=0.0,
         use_prototypes=False,
-        classifier_weight=1.0,
-        sup_con_weight=0.05,
         sup_con_temp=0.07,
         dropout_rate=0.1,
         se_reduction=None,
@@ -555,8 +619,6 @@ class LitResNet18(LightningModule):
         self.ratio_supervised_majority = ratio_supervised_majority
         self.use_prototypes = use_prototypes
         self.use_classifier = self.track in (1, 3)
-        self.classifier_weight = classifier_weight  # ty: ignore[unresolved-attribute]
-        self.sup_con_weight = sup_con_weight  # ty: ignore[unresolved-attribute]
         self.sup_con_temp = sup_con_temp  # ty: ignore[unresolved-attribute]
         self.pretrained_encoder_path = pretrained_encoder_path  # ty: ignore[unresolved-attribute]
         self.freeze_encoder = freeze_encoder  # ty: ignore[unresolved-attribute]
@@ -1416,6 +1478,43 @@ class LitResNet18(LightningModule):
         self.log("val/acc", acc, prog_bar=False, on_epoch=True, on_step=False)
         self.log("val/score", score, prog_bar=True, on_epoch=True, on_step=False)
         self.log("val_score", score, prog_bar=False, on_epoch=True, on_step=False)
+
+        # Standard, more interpretable metrics alongside challenge score.
+        auroc = compute_binary_auroc(gts, probs)
+        ap = compute_binary_average_precision(gts, probs)
+        self.log("val/auroc", auroc, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val/ap", ap, prog_bar=False, on_epoch=True, on_step=False)
+
+        if sources is not None:
+            # Per-source subsets (may be NaN if a subset has a single class)
+            self.log(
+                "val/code15_auroc",
+                compute_binary_auroc(gts[sources == 0], probs[sources == 0]),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "val/code15_ap",
+                compute_binary_average_precision(gts[sources == 0], probs[sources == 0]),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "val/strong_auroc",
+                compute_binary_auroc(gts[sources != 0], probs[sources != 0]),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "val/strong_ap",
+                compute_binary_average_precision(gts[sources != 0], probs[sources != 0]),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
         # epoch = self.current_epoch
         cls0 = probs[gts == 0]
         cls1 = probs[gts == 1]
@@ -1494,7 +1593,9 @@ class LitResNet18(LightningModule):
             return np.array([], dtype=int)
 
         n_pos = pos_idx.size
-        n_neg = min(n_pos, neg_idx.size)
+        # keep all positives and sample up to 2× negatives for better imbalance visibility
+        desired_negs = int(2 * n_pos)
+        n_neg = min(desired_negs, neg_idx.size)
         seed = (
             int(self.umap_seed)
             if self.umap_seed is not None
@@ -1644,20 +1745,20 @@ class LitResNet18(LightningModule):
                 df["source_name"] = df["source"].map(
                     lambda v: source_labels.get(int(v), f"src {int(v)}")
                 )
-                # Create a combined group for coloring: "Dataset (Label)"
-                df["group"] = df["source_name"] + " (" + df["label_name"] + ")"
             else:
-                df["group"] = df["label_name"]
+                df["source_name"] = "unknown"
 
-            # Define a palette that groups by label using similar shades.
-            # Healthy: Blue/Green shades | Chagas: Red/Purple shades
-            group_palette = {
-                "CODE-15 (healthy)": "#377eb8",  # Blue
-                "PTB-XL (healthy)": "#4daf4a",  # Green
-                "CODE-15 (chagas)": "#e41a1c",  # Red
-                "SaMi-Trop (chagas)": "#984ea3",  # Purple
-                "healthy": "#377eb8",
-                "chagas": "#e41a1c",
+            # Color = dataset, Marker = condition (label).
+            # This makes 4 conditions (dataset×label) easier to distinguish without adding edgecolors.
+            dataset_palette = {
+                "CODE-15": "#377eb8",  # blue
+                "PTB-XL": "#4daf4a",  # green
+                "SaMi-Trop": "#ff7f00",  # orange
+                "unknown": "#9aa0a6",  # gray
+            }
+            marker_map = {
+                "healthy": "o",
+                "chagas": "X",
             }
 
             # Shuffle the dataframe to prevent one group from masking others.
@@ -1670,35 +1771,81 @@ class LitResNet18(LightningModule):
                 "data": df,
                 "x": "umap_x",
                 "y": "umap_y",
-                "hue": "group",
-                "palette": group_palette,
-                "s": 22,  # Slightly larger since we removed shapes
+                "hue": "source_name",
+                "palette": dataset_palette,
+                "style": "label_name",
+                "markers": marker_map,
+                "s": 22,
                 "edgecolor": None,
                 "linewidth": 0,
                 "alpha": 0.5,  # Balanced alpha for density
                 "ax": ax_scatter,
-                "legend": True,
+                "legend": False,
             }
             sns.scatterplot(**scatter_kwargs)
 
-            # Legend with framed background for readability.
-            # We move it to the right and center it vertically.
-            legend = ax_scatter.get_legend()
-            if legend is not None:
-                legend_title = "Dataset (Label)" if sources is not None else "Label"
-                # Re-create the legend with the desired styling and position.
-                leg = ax_scatter.legend(
-                    title=legend_title,
-                    loc="center left",
-                    bbox_to_anchor=(1.02, 0.5),
-                    frameon=True,
-                    facecolor="#ffffff",
-                    edgecolor="#d4d4d4",
-                    fontsize=9,
-                    title_fontsize=10,
+            # Two compact legends: dataset colors and label markers.
+            from matplotlib.lines import Line2D  # type: ignore
+
+            dataset_order = [k for k in ("CODE-15", "PTB-XL", "SaMi-Trop") if k in set(df["source_name"])]
+            if "unknown" in set(df["source_name"]):
+                dataset_order.append("unknown")
+            handles_ds = [
+                Line2D(
+                    [],
+                    [],
+                    marker="o",
+                    linestyle="",
+                    markersize=6,
+                    markerfacecolor=dataset_palette[name],
+                    markeredgecolor="none",
+                    alpha=0.9,
+                    label=name,
                 )
-                if leg is not None:
-                    leg.get_title().set_fontweight("bold")
+                for name in dataset_order
+            ]
+            leg1 = ax_scatter.legend(
+                handles=handles_ds,
+                title="Dataset",
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.62),
+                frameon=True,
+                facecolor="#ffffff",
+                edgecolor="#d4d4d4",
+                fontsize=9,
+                title_fontsize=10,
+            )
+            if leg1 is not None:
+                leg1.get_title().set_fontweight("bold")
+                ax_scatter.add_artist(leg1)
+
+            handles_lbl = [
+                Line2D(
+                    [],
+                    [],
+                    marker=marker_map[name],
+                    linestyle="",
+                    markersize=7,
+                    markerfacecolor="#111827" if marker_map[name] != "X" else "none",
+                    markeredgecolor="#111827",
+                    alpha=0.9,
+                    label=name,
+                )
+                for name in ("healthy", "chagas")
+            ]
+            leg2 = ax_scatter.legend(
+                handles=handles_lbl,
+                title="Label",
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.40),
+                frameon=True,
+                facecolor="#ffffff",
+                edgecolor="#d4d4d4",
+                fontsize=9,
+                title_fontsize=10,
+            )
+            if leg2 is not None:
+                leg2.get_title().set_fontweight("bold")
 
             sns.despine(ax=ax_scatter, left=True, bottom=True)
             ax_scatter.set_xticks([])

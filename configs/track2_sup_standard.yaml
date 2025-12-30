@@ -22,8 +22,9 @@ model:
   track: 2
   use_sup_con: true
   use_prototypes: false
-  # Imbalance-aware SupCon tweak (see Mildenberger et al. framing in thesis notes):
-  # Default from base.yaml is 0.0; set explicitly here for clarity/reproducibility.
-  ratio_supervised_majority: 0.0
+  # "Standard" SupCon baseline: disable imbalance-specific tweaks inspired by Mildenberger et al.
+  # In this codebase, those are gated by `ratio_supervised_majority` (default in base.yaml is 0.0).
+  ratio_supervised_majority: -1.0
   init_classifier_bias: false
   classifier_bias_pos_fraction: null
+
