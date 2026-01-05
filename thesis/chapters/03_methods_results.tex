@@ -63,15 +63,32 @@ Track~2 optimizes representation geometry. We run three variants:
   \item \textbf{SupCon (imbalance-aware)}: a variant that applies imbalance-handling logic in the supervised contrastive objective.
   \item \textbf{Prototype-based}: class prototypes provide additional structure in the embedding space.
 \end{itemize}
-Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) to quantify how different objectives and preprocessing regimes shape representation geometry.
+Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) to quantify how different objectives, loss functions, and preprocessing regimes shape representation geometry.
+In Track~2, these diagnostics are used to compare embedding structure across objectives and to justify when representation learning translates into improved downstream classification in Track~3.
 Early stopping for Track~2 monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
 
 \subsection{Track 3: classification with pretrained encoder}
 Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (linear probe by default). This isolates representation quality from end-to-end supervised optimization and connects embedding-space improvements to downstream performance.
 
-\section{Data splits and evaluation}
-Due to computational constraints, we run the main ablation study on a single fixed train/validation split (train folds 0--2, validation fold 3) to efficiently screen configurations.
-Full 4-fold cross-validation is planned for the final selected models and is left as future work where resources permit.
+\section{Dataset Usage and Data Splits}
+Ideally, model selection would be guided by an \emph{external} Chagas-labeled dataset for evaluation.
+Since such a dataset was not available within the scope of this thesis, we instead created a single unified dataset and split it into five folds (0--4).
+Folds 0--3 are used for training and validation (including cross-validation), while fold 4 is reserved as a held-out test set.
+
+\subsection{Fold construction (patient-wise, label--source stratified)}
+Fold assignment is performed during dataset preparation (see \texttt{prepare\_dataset.py}) using a stratified splitting scheme.
+To avoid leakage across train/validation/test, folds are grouped by patient identifier when available (patient-wise splitting).
+To keep both \emph{label} distribution and \emph{dataset/source} composition stable across folds, the stratification target is constructed from the combination of the Chagas label and the source indicator:
+\begin{itemize}
+  \item \textbf{Group}: \texttt{patient\_id} (all records of a patient are assigned to the same fold).
+  \item \textbf{Strata}: \texttt{(chagas, source)} (implemented by concatenating label and a categorical source code).
+  \item \textbf{Randomization}: shuffling with a fixed random seed for reproducibility.
+\end{itemize}
+This design yields folds that are comparable with respect to overall source distribution and (within sources that contain both labels) class imbalance.
+
+\subsection{Screening split and cross-validation}
+Due to computational constraints, the main ablation study is run on a single fixed split for efficient screening (train folds 0--2, validation fold 3), while keeping the held-out test fold 4 untouched.
+Full 4-fold cross-validation over folds 0--3 is planned for selected configurations, and final reporting should include a single evaluation on fold 4 as an unbiased test.
 
 \section{Experiment Execution}
 Experiments are launched via SLURM scripts in \texttt{scripts/experiments/}. Each script composes the relevant configs and sets consistent run naming for W\&B.
