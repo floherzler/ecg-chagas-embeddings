@@ -1,6 +1,36 @@
 \chapter{Introduction}
 
-\todo{Replace this scaffold with your actual introduction.}
+\section{Clinical Motivation}
+Chagas disease is a neglected tropical disease caused by \textit{Trypanosoma cruzi} infection and can progress to chronic Chagas cardiomyopathy, which is associated with conduction abnormalities, arrhythmias, and heart failure.
+Early identification of infected individuals enables confirmatory serological testing and timely follow-up, but population-wide screening is challenging in resource-constrained settings.
 
-This thesis investigates \dots
+\section{Why the ECG?}
+The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
+Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
+Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
 
+\section{Task Origin: PhysioNet/Computing in Cardiology Challenge 2025}
+The experimental classification task in this thesis is derived from the George B.~Moody PhysioNet Challenge 2025, which focuses on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
+We therefore interpret the task as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
+The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
+
+\section{Why Deep Learning?}
+ECG-based detection requires modeling subtle, distributed waveform patterns across leads and time.
+Deep learning methods, particularly convolutional architectures, can learn such representations directly from raw waveforms and have shown strong performance for ECG interpretation tasks \parencite{jidling_screening_2023}.
+
+\section{Key Challenges: Dataset Composition}
+Two properties of the training data complicate optimization and interpretation:
+\begin{itemize}
+  \item \textbf{Class imbalance}: positives are rare, so standard objectives can be dominated by easy negatives.
+  \item \textbf{Dataset bias and label noise}: the pooled dataset combines multiple sources with different acquisition pipelines and population characteristics, and some labels (e.g., in large-scale cohorts such as CODE-15\%) may be less reliable than clinically adjudicated endpoints \parencite{ribeiro_code-15_2021,jidling_screening_2023}.
+\end{itemize}
+These issues can lead to inflated apparent performance on in-distribution validation while degrading generalization across sources.
+
+\section{Contributions and Thesis Structure}
+This thesis studies practical strategies to improve robustness and embedding quality under the above constraints:
+\begin{itemize}
+  \item \textbf{Track 1}: supervised classification with metric-aligned loss functions and controlled augmentations.
+  \item \textbf{Track 2}: supervised contrastive / prototype-based training to shape the embedding space and quantify representation quality.
+  \item \textbf{Track 3}: downstream probing of pretrained encoders to connect embedding quality to classification performance.
+\end{itemize}
+Chapter~\ref{ch:methods-results} details the configuration system and experimental variables used in these tracks.
