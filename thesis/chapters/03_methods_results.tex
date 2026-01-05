@@ -1,5 +1,65 @@
 \chapter{Methods and Results}
+\label{ch:methods-results}
 
-\paragraph{Data splits and evaluation.}
+\section{Configuration System}
+Experiments are implemented in PyTorch \parencite{pytorch_2019} and organized using PyTorch Lightning \parencite{pytorch_lightning_2025}.
+All runs are configured through composable YAML files using a base configuration plus a track-specific configuration:
+\begin{itemize}
+  \item \texttt{configs/base.yaml}: shared defaults (data loading, model backbone, optimizer/scheduler, default augmentations, W\&B logger).
+  \item \texttt{configs/track1.yaml}: Track~1 callbacks and model toggles for classification.
+  \item \texttt{configs/track2\_sup\_standard.yaml}, \texttt{configs/track2\_sup\_min.yaml}, \texttt{configs/track2\_sup\_proto.yaml}: Track~2 variants for embedding learning.
+  \item \texttt{configs/track3\_probe.yaml}: Track~3 configuration for probing a pretrained encoder.
+\end{itemize}
+An individual run typically combines \texttt{base.yaml} + one track config + an optional loss config (e.g., \texttt{configs/losses/*.yaml}) and then overrides a small number of parameters on the command line for the specific experiment.
+
+\section{Data Regimes}
+We run the same training recipe on different preprocessed data folders to isolate the effect of harmonization:
+\begin{itemize}
+  \item \textbf{bp}: band-pass filtered signals.
+  \item \textbf{bp\_sc}: band-pass + soft clipping.
+  \item \textbf{bp\_sc\_norm}: band-pass + soft clipping + z-score normalization.
+\end{itemize}
+For computational efficiency, experiments are executed from disk using the preprocessed folders.
+
+\section{Augmentations}
+\subsection{Default ``mild'' augmentations}
+Unless a track-specific config overrides them, both Track~1 and Track~2 use the same mild augmentations defined in \texttt{configs/base.yaml}. These include small amplitude scaling and low-variance additive noise, while masking and strong temporal warps are disabled by default.
+
+\subsection{Physiological augmentation: frontal axis rotation}
+We optionally apply a physiologically motivated augmentation that rotates the ECG's frontal electrical axis by a small random angle. This augmentation is only enabled for \textbf{bp} signals because later preprocessing steps (soft clipping and normalization) are nonlinear and can break the assumptions required for a physically meaningful rotation.
+The augmentation is controlled by:
+\begin{itemize}
+  \item \texttt{data.axis\_rotation\_max\_deg}: maximum rotation magnitude (degrees).
+  \item \texttt{data.axis\_rotation\_prob}: probability of applying the rotation per sample.
+  \item \texttt{data.per\_view\_axis\_rotation}: whether two contrastive views receive independent rotations.
+\end{itemize}
+
+\section{Track Definitions and Experiment Variables}
+\subsection{Track 1: supervised classification}
+Track~1 trains a binary classifier on top of the backbone encoder. The main experimental variables are:
+\begin{itemize}
+  \item \textbf{Loss function}: weighted BCE, focal loss, and RAT.
+  \item \textbf{Preprocessing regime}: \texttt{bp}, \texttt{bp\_sc}, \texttt{bp\_sc\_norm}.
+  \item \textbf{Augmentation scheme}: baseline mild augmentations, optionally with axis rotation for \texttt{bp}.
+\end{itemize}
+We log a challenge-aligned score (TPR@5\%), and additionally AUROC and average precision (AP) for more interpretable reporting.
+
+\subsection{Track 2: projection / embedding learning}
+Track~2 optimizes representation geometry. We run three variants:
+\begin{itemize}
+  \item \textbf{SupCon (standard)}: baseline supervised contrastive loss.
+  \item \textbf{SupCon (imbalance-aware)}: a variant that applies imbalance-handling logic in the supervised contrastive objective.
+  \item \textbf{Prototype-based}: class prototypes provide additional structure in the embedding space.
+\end{itemize}
+Early stopping monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
+
+\subsection{Track 3: classification with pretrained encoder}
+Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (linear probe by default). This isolates representation quality from end-to-end supervised optimization and connects embedding-space improvements to downstream performance.
+
+\section{Data splits and evaluation}
 Due to computational constraints, we run the main ablation study on a single fixed train/validation split (train folds 0--2, validation fold 3) to efficiently screen configurations.
 Full 4-fold cross-validation is planned for the final selected models and is left as future work where resources permit.
+
+\section{Experiment Execution}
+Experiments are launched via SLURM scripts in \texttt{scripts/experiments/}. Each script composes the relevant configs and sets consistent run naming for W\&B.
+Most hyperparameters are kept constant across runs (e.g., batch size), while the script selects the loss config and data regime and optionally enables axis rotation.
