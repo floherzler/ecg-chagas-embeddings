@@ -8,6 +8,32 @@ import torch.distributed as dist
 import torch.distributed.nn.functional as dist_f
 
 
+class BCEWithLogitsLossModule(nn.Module):
+    def __init__(self, pos_weight: float | torch.Tensor | None = None, **kwargs):
+        super().__init__()
+        if pos_weight is not None and not isinstance(pos_weight, torch.Tensor):
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight, **kwargs)
+
+    def forward(self, inputs, targets):
+        return self.loss(inputs, targets)
+
+    def as_config(self) -> dict[str, Optional[Union[float, list[float], str]]]:
+        """Return a serialisable view of the wrapped loss for logging."""
+        cfg: dict[str, Optional[Union[float, list[float], str]]] = {
+            "reduction": getattr(self.loss, "reduction", None)
+        }
+        pos_weight = getattr(self.loss, "pos_weight", None)
+        if isinstance(pos_weight, torch.Tensor):
+            if pos_weight.numel() == 1:
+                cfg["pos_weight"] = float(pos_weight.item())
+            else:
+                cfg["pos_weight"] = pos_weight.detach().cpu().tolist()
+        elif pos_weight is not None:
+            cfg["pos_weight"] = float(pos_weight)
+        return cfg
+
+
 class RankingBCELoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -69,17 +95,26 @@ class SourceWeightedBCE(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.75, gamma=2.0, reduction="mean"):
+    alpha: float
+    initial_gamma: float
+    gamma: float
+    reduction: str
+
+    def __init__(
+        self, alpha: float = 0.75, gamma: float = 2.0, reduction: str = "mean"
+    ) -> None:
         super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.initial_gamma = gamma
-        self.gamma = gamma
-        self.reduction = reduction
+        # Ensure attributes have the expected concrete types for static checkers
+        # Use object.__setattr__ to bypass nn.Module's custom __setattr__ and satisfy type checkers
+        object.__setattr__(self, "alpha", float(alpha))
+        object.__setattr__(self, "initial_gamma", float(gamma))
+        object.__setattr__(self, "gamma", float(gamma))
+        object.__setattr__(self, "reduction", reduction)
 
-    def update_gamma(self, new_gamma):
-        self.gamma = new_gamma
+    def update_gamma(self, new_gamma: float) -> None:
+        object.__setattr__(self, "gamma", float(new_gamma))
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
         probs = torch.sigmoid(inputs)
         pt = torch.where(targets == 1, probs, 1 - probs)
@@ -373,8 +408,8 @@ class FocalTverskyLoss(nn.Module):
         beta (float): weight of false negatives
         gamma (float): focal exponent
         smooth (float): smoothing constant
-        k (int|float|None): if float∈(0,1), fraction for top‐k; if int>1, absolute top‐k; if None, no selection
-        tau (float): temperature for soft‐mask (higher → softer)
+        k (int|float|None): if float∈(0,1), fraction for top-k; if int>1, absolute top-k; if None, no selection
+        tau (float): temperature for soft-mask (higher → softer)
         entropy_weight (float): weight for the entropy regularizer
         bce_weight (float): weight for the auxiliary BCE-with-logits loss
         pos_weight (float|None): positive-class weight for BCE-with-logits (e.g. (1-p)/p for p=0.1 → 9.0)
@@ -1284,7 +1319,11 @@ class SupConLossDDP(nn.Module):
         device = features.device
 
         # Gather features and labels from all devices if using DDP
-        if dist.is_available() and dist.is_initialized():
+        if (
+            dist.is_available()
+            and hasattr(dist, "is_initialized")
+            and dist.is_initialized()
+        ):
             gathered_features = dist_f.all_gather(features)
             features = torch.cat(gathered_features, dim=0)
 
@@ -1571,7 +1610,11 @@ class ConSupPrototypeLossDDP(nn.Module):
         device = features.device
 
         # Gather features and labels from all devices if using DDP
-        if dist.is_available() and dist.is_initialized():
+        if (
+            dist.is_available()
+            and hasattr(dist, "is_initialized")
+            and dist.is_initialized()
+        ):
             gathered_features = dist_f.all_gather(features)
             features = torch.cat(gathered_features, dim=0)
 

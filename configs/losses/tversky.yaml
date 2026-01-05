@@ -1,0 +1,7 @@
+model:
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.TverskyLoss
+    init_args:
+      alpha: 0.5
+      beta: 0.5
+      smooth: 1.0

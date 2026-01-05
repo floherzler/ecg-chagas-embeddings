@@ -1,0 +1,6 @@
+model:
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.FocalLoss
+    init_args:
+      alpha: 0.75
+      gamma: 1.5

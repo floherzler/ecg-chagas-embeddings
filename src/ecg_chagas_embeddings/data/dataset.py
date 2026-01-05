@@ -191,8 +191,14 @@ class WfdbDataset(Dataset):
         ecg = record.p_signal.T  # Transpose to (n_channels, n_samples)
         label = float(row.chagas)
 
+        key = str(row.get("exam_id", row.get("path", index)))
         if self.transforms:
-            ecg = self.transforms(ecg)
+            try:
+                ecg = self.transforms(ecg, key=key)
+            except TypeError as exc:  # backward compatibility for transforms without key
+                if "unexpected keyword argument 'key'" not in str(exc):
+                    raise
+                ecg = self.transforms(ecg)
 
         return ecg, label
 
@@ -239,6 +245,7 @@ class TorchDataset(Dataset):
 
     def __getitem__(self, index: int):
         row = self.metadata.iloc[index]
+        exam_id = str(getattr(row, "exam_id", ""))
 
         if self.is_submission:
             # training from wfdb
@@ -304,7 +311,12 @@ class TorchDataset(Dataset):
 
         # --- apply transform ONCE ---
         if self.transforms is not None:
-            out = self.transforms(ecg)  # returns [C,T] or [V,C,T] based on n_views
+            try:
+                out = self.transforms(ecg, key=exam_id)  # returns [C,T] or [V,C,T]
+            except TypeError as exc:  # backward compatibility for transforms without key
+                if "unexpected keyword argument 'key'" not in str(exc):
+                    raise
+                out = self.transforms(ecg)
         else:
             out = ecg
 
@@ -326,7 +338,7 @@ class TorchDataset(Dataset):
             "age": torch.tensor([getattr(row, "age", 0.0)], dtype=torch.float32),
             "sex": torch.tensor([sex_value], dtype=torch.float32),
             "source": torch.tensor([source_idx], dtype=torch.float32),
-            "exam_id": getattr(row, "exam_id", ""),
+            "exam_id": exam_id,
         }
 
         # put under the right key
@@ -356,15 +368,21 @@ def get_train_val_loaders(
     pos_weight_sami_trop: float = 1.0,
     *,
     crop_size: int = 2500,
+    axis_rotation_max_deg: float = 0.0,
+    axis_rotation_prob: float = 1.0,
+    per_view_axis_rotation: bool = True,
     max_time_warp: float = 0.2,
     scaling: Tuple[float, float] = (0.8, 1.2),
     gaussian_noise_std: float = 0.01,
     wandering_max_amplitude: float = 1.0,
     wandering_frequency_range: Tuple[float, float] = (0.5, 2.0),
     max_mask_duration: int = 50,
+    time_mask_apply_prob: float = 1.0,
     mask_prob: float = 0.5,
+    channel_mask_apply_prob: float = 1.0,
+    val_anchor_clean: bool = True,
+    augmentation_base_seed: int = 42,
     is_submission=False,
-    use_sup_con=False,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
     Creates and returns PyTorch DataLoaders for training and validation. Keyword arguments are used to configure the
@@ -387,6 +405,9 @@ def get_train_val_loaders(
         wandering_frequency_range: Frequency range of random wandering.
         max_mask_duration: Max duration of zero masking.
         mask_prob: Probability to completely mask a lead (channel).
+        val_anchor_clean: If True, validation view0 is only cropped (no noise/mask).
+        augmentation_base_seed: Base seed used with exam_id to create deterministic validation views.
+        Note: this pipeline always produces two augmented views for both train and validation.
 
     Returns:
         Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
@@ -395,14 +416,22 @@ def get_train_val_loaders(
 
     train_transform_kwargs = {
         "crop_size": crop_size,
-        "n_views": 2 if use_sup_con else 1,  # << two views for SupCon
+        "n_views": 2,  # always two views for metrics/consistency
     }
+
+    # (shared) physiological axis rotation (VCG-based) — best used on bandpassed (linear) signals
+    if axis_rotation_max_deg and axis_rotation_max_deg > 0 and axis_rotation_prob and axis_rotation_prob > 0:
+        train_transform_kwargs["axis_rotation_max_deg"] = axis_rotation_max_deg
+        train_transform_kwargs["axis_rotation_prob"] = axis_rotation_prob
+        train_transform_kwargs["per_view_axis_rotation"] = per_view_axis_rotation
 
     # (shared, light) masks
     if max_mask_duration and max_mask_duration > 0:
         train_transform_kwargs["max_mask_duration"] = max_mask_duration
+        train_transform_kwargs["time_mask_apply_prob"] = time_mask_apply_prob
     if mask_prob and mask_prob > 0:
         train_transform_kwargs["mask_prob"] = mask_prob
+        train_transform_kwargs["channel_mask_apply_prob"] = channel_mask_apply_prob
 
     # (per-view) appearance tweaks
     if gaussian_noise_std and gaussian_noise_std > 0:
@@ -432,9 +461,14 @@ def get_train_val_loaders(
     print("Train Transform kwargs:", train_transform_kwargs)
     train_transform = ECGAugmentation(
         crop_size=train_transform_kwargs.get("crop_size", crop_size),
-        n_views=train_transform_kwargs.get("n_views", 2 if use_sup_con else 1),
+        n_views=train_transform_kwargs.get("n_views", 2),
+        axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
+        axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
+        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
+        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         per_view_noise=bool(train_transform_kwargs.get("per_view_noise", True)),
         scaling=cast(
@@ -453,12 +487,26 @@ def get_train_val_loaders(
         per_view_wandering=bool(
             train_transform_kwargs.get("per_view_wandering", False)
         ),
+        mode="train",
+        base_seed=augmentation_base_seed,
     )
 
-    # --- VALIDATION: single, clean view ---
+    # --- VALIDATION: always two views for metrics ---
+    val_n_views = 2
     valid_transform = ECGAugmentation(
         crop_size=crop_size,
-        n_views=1,  # << single view
+        axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
+        axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
+        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
+        max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
+        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
+        mask_prob=train_transform_kwargs.get("mask_prob", None),
+        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
+        gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
+        n_views=val_n_views,
+        mode="val",
+        base_seed=augmentation_base_seed,
+        val_anchor_clean=val_anchor_clean,
         # Keep val clean/deterministic; typically no masks/noise/warp here.
     )
     train_dataset = TorchDataset(
@@ -472,6 +520,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
+        use_sup_con_views=2,
     )
     valid_dataset = TorchDataset(
         meta_path,
@@ -483,6 +532,7 @@ def get_train_val_loaders(
         use_ptb_xl=pos_weight_ptb_xl > 0 or neg_weight_ptb_xl > 0,
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
+        use_sup_con_views=2,
     )
 
     if oversample:
@@ -513,7 +563,7 @@ def get_train_val_loaders(
         batch_size=batch_size,
         num_workers=num_workers,
         persistent_workers=num_workers > 0,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=True,
         shuffle=sampler is None,
         sampler=sampler,
@@ -525,7 +575,7 @@ def get_train_val_loaders(
         valid_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=False,
         shuffle=False,
         collate_fn=collate_dict_batch,

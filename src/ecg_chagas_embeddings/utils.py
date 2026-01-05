@@ -40,7 +40,9 @@ def get_optimizer(
     elif name == "adam":
         return torch.optim.Adam(params, lr=lr, betas=betas, eps=eps, **kwargs)
     elif name in ("adamw", "adam_w", "adam-w"):
-        return torch.optim.AdamW(params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, **kwargs)
+        return torch.optim.AdamW(
+            params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, **kwargs
+        )
     else:
         raise ValueError(
             f"Unsupported optimizer: {name}. Choose one of 'sgd', 'adam', 'adamw'."
