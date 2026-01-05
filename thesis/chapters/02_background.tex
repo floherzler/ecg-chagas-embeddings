@@ -60,9 +60,13 @@ For Track~1, we monitor a task metric aligned with the challenge objective (TPR@
 For Track~2, we rely on embedding-space diagnostics such as class alignment consistency (CAC) and qualitative visualization (e.g., UMAP) to judge whether representations improve.
 
 \section{Embedding-Space Metrics for Binary Imbalance (TTC)}
+\label{sec:ttc-metrics}
 Standard supervised contrastive learning can degrade as class imbalance increases.
 Mildenberger et al.\ study this effect in \emph{A Tale of Two Classes (TTC)} and introduce metrics that better diagnose representation quality in binary imbalanced settings \parencite{ttc_2025}.
 Figure~\ref{fig:ttc-imbalance} provides the overall motivation.
+In this thesis, TTC provides the \emph{foundation} of our embedding analysis: the metrics quantify local neighborhood structure in the learned representation space and are therefore largely model- and modality-agnostic.
+Although TTC evaluates multiple 2D image datasets, we apply the same diagnostics to embeddings produced by a 1D CNN encoder for ECGs.
+This assumes that the geometric failure modes TTC targets (e.g., partial collapse and misleading distance-based alignment) also arise in time-series encoders; we assess this by monitoring TTC metrics across all tracks and objectives.
 
 \begin{figure}[t]
   \centering

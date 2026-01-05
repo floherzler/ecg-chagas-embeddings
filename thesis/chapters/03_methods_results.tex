@@ -12,6 +12,17 @@ All runs are configured through composable YAML files using a base configuration
 \end{itemize}
 An individual run typically combines \texttt{base.yaml} + one track config + an optional loss config (e.g., \texttt{configs/losses/*.yaml}) and then overrides a small number of parameters on the command line for the specific experiment.
 
+\section{Model Architecture}
+All tracks share the same backbone encoder for fair comparison.
+We use a 1D adaptation of the ResNet family \parencite{resnet_2015} that operates directly on multi-lead ECG waveforms:
+\begin{itemize}
+  \item \textbf{Input}: 12 channels (standard 12-lead ECG), cropped to a fixed-length segment.
+  \item \textbf{Backbone}: ResNet-18 style configuration with four residual stages (basic blocks, two blocks per stage), implemented with 1D convolutions, downsampling via strided convolutions and max-pooling, and global average pooling.
+  \item \textbf{Normalization}: batch normalization by default, with optional group normalization for small-batch robustness \parencite{group_norm_2018}.
+  \item \textbf{Heads}: a classification head (Track~1/3) and a projection head for supervised contrastive objectives (Track~2).
+\end{itemize}
+This architecture provides a strong and stable baseline while keeping the experimental focus on preprocessing, augmentations, and loss/objective choices rather than model capacity.
+
 \section{Data Regimes}
 We run the same training recipe on different preprocessed data folders to isolate the effect of harmonization:
 \begin{itemize}
@@ -52,7 +63,7 @@ Track~2 optimizes representation geometry. We run three variants:
   \item \textbf{SupCon (imbalance-aware)}: a variant that applies imbalance-handling logic in the supervised contrastive objective.
   \item \textbf{Prototype-based}: class prototypes provide additional structure in the embedding space.
 \end{itemize}
-Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU) to quantify how different objectives and preprocessing regimes shape representation geometry.
+Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) to quantify how different objectives and preprocessing regimes shape representation geometry.
 Early stopping for Track~2 monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
 
 \subsection{Track 3: classification with pretrained encoder}
