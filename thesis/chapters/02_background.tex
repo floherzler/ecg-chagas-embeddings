@@ -1,4 +1,42 @@
 \chapter{Background}
 
-Add background and related work here.
+This chapter introduces the core concepts needed to understand the experimental design in Chapter~\ref{ch:methods-results}.
+The work is conducted in the context of the PhysioNet/Computing in Cardiology Challenge 2025 on Chagas disease detection from ECGs \parencite{2025ChallengePreprint,2025ChallengeCinC}, building on prior deep-learning approaches for ECG-based screening \parencite{jidling_screening_2023}.
 
+\section{ECGs, Leads, and Preprocessing}
+We work with standard 12-lead resting ECGs. The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb-xl_nodate}, distributed via PhysioNet \parencite{goldberger2000physiobank}.
+The dataset is preprocessed into multiple variants to study the trade-off between signal standardization and potential loss of physiologically meaningful variation:
+\begin{itemize}
+  \item \textbf{bp}: band-pass filtered signals (approximately linear processing).
+  \item \textbf{bp\_sc}: additional soft clipping (nonlinear amplitude transform).
+  \item \textbf{bp\_sc\_norm}: additional z-score normalization (per-record standardization).
+\end{itemize}
+These variants are treated as different experimental regimes rather than interchangeable inputs.
+
+\section{Learning Tracks}
+The thesis is organized into three learning tracks:
+\begin{enumerate}
+  \item \textbf{Track 1 (classification)}: supervised training to predict the target label.
+  \item \textbf{Track 2 (projection/embeddings)}: supervised contrastive learning to shape the embedding space.
+  \item \textbf{Track 3 (classification with pretrained encoder)}: linear probing (or partial fine-tuning) on an encoder pretrained in Track~2.
+\end{enumerate}
+
+\section{Imbalanced Binary Classification and Loss Functions}
+The label distribution is highly imbalanced. We therefore focus on losses that emphasize the minority class and/or ranking quality:
+\begin{itemize}
+  \item \textbf{Weighted BCE}: binary cross entropy with a positive class weight to counter imbalance.
+  \item \textbf{Focal loss}: down-weights easy examples and focuses gradients on hard examples (controlled by $\gamma$) \parencite{focal_2018}.
+  \item \textbf{Ranking-aware Tversky (RAT)}: a Tversky-style objective \parencite{tversky_2017} computed on a soft top-$k$ region of the batch (motivated by the challenge metric), with auxiliary regularizers for stability \parencite{rat2025}.
+\end{itemize}
+
+\section{Representation Learning: Supervised Contrastive Learning and Prototypes}
+Track~2 uses a projection head and contrastive objectives to encourage embeddings of the same class to cluster and different classes to separate. We consider:
+\begin{itemize}
+  \item \textbf{Standard SupCon}: supervised contrastive loss over augmented views.
+  \item \textbf{SupCon with imbalance-aware sampling/weighting}: optional modifications intended to reduce dominance of the majority class in binary imbalanced settings \parencite{ttc_2025}.
+  \item \textbf{Prototype-based supervision}: class prototypes that act as anchors in representation space.
+\end{itemize}
+
+\section{Embedding Diagnostics and Early Stopping}
+For Track~1, we monitor a task metric aligned with the challenge objective (TPR@5\% thresholding).
+For Track~2, we rely on embedding-space diagnostics such as class alignment consistency (CAC) and qualitative visualization (e.g., UMAP) to judge whether representations improve.
