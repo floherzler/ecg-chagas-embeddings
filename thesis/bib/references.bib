@@ -1,2 +1,358 @@
-% Add your BibLaTeX entries here.
+
+@article{jidling_screening_2023,
+  title    = {Screening for {Chagas} disease from the electrocardiogram using a deep neural network},
+  volume   = {17},
+  issn     = {1935-2735},
+  doi      = {10.1371/journal.pntd.0011118},
+  abstract = {Background Worldwide, it is estimated that over 6 million people are infected with Chagas disease (ChD). It is a neglected disease that can lead to severe heart conditions in its chronic phase. While early treatment can avoid complications, the early-stage detection rate is low. We explore the use of deep neural networks to detect ChD from electrocardiograms (ECGs) to aid in the early detection of the disease. Methods We employ a convolutional neural network model that uses 12-lead ECG data to compute the probability of a ChD diagnosis. Our model is developed using two datasets which jointly comprise over two million entries from Brazilian patients: The SaMi-Trop study focusing on ChD patients, enriched with data from the CODE study from the general population. The model’s performance is evaluated on two external datasets: the REDS-II, a study focused on ChD with 631 patients, and the ELSA-Brasil study, with 13,739 civil servant patients. Findings Evaluating our model, we obtain an AUC-ROC of 0.80 (CI 95\% 0.79-0.82) for the validation set (samples from CODE and SaMi-Trop), and in external validation datasets: 0.68 (CI 95\% 0.63-0.71) for REDS-II and 0.59 (CI 95\% 0.56-0.63) for ELSA-Brasil. In the latter, we report a sensitivity of 0.52 (CI 95\% 0.47-0.57) and 0.36 (CI 95\% 0.30-0.42) and a specificity of 0.77 (CI 95\% 0.72-0.81) and 0.76 (CI 95\% 0.75-0.77), respectively. Additionally, when considering only patients with Chagas cardiomyopathy as positive, the model achieved an AUC-ROC of 0.82 (CI 95\% 0.77-0.86) for REDS-II and 0.77 (CI 95\% 0.68-0.85) for ELSA-Brasil. Interpretation The neural network detects chronic Chagas cardiomyopathy (CCC) from ECG—with weaker performance for early-stage cases. Future work should focus on curating large higher-quality datasets. The CODE dataset, our largest development dataset includes self-reported and therefore less reliable labels, limiting performance for non-CCC patients. Our findings can improve ChD detection and treatment, particularly in high-prevalence areas.},
+  language = {en},
+  number   = {7},
+  urldate  = {2025-10-07},
+  journal  = {PLOS Neglected Tropical Diseases},
+  author   = {Jidling, Carl and Gedon, Daniel and Schön, Thomas B. and Oliveira, Claudia Di Lorenzo and Cardoso, Clareci Silva and Ferreira, Ariela Mota and Giatti, Luana and Barreto, Sandhi Maria and Sabino, Ester C. and Ribeiro, Antonio L. P. and Ribeiro, Antônio H.},
+  month    = jul,
+  year     = {2023},
+  note     = {Publisher: Public Library of Science},
+  keywords = {Brazil, Cardiomyopathies, Chagas disease, Electrocardiography, Myocardial infarction, Neural networks, Patients, Serology},
+  pages    = {e0011118},
+  file     = {Full Text PDF:C\:\\Users\\Flo\\Zotero\\storage\\38HCSJLW\\Jidling et al. - 2023 - Screening for Chagas disease from the electrocardiogram using a deep neural network.pdf:application/pdf}
+}
+
+
+@misc{focal_2018,
+  title     = {Focal {Loss} for {Dense} {Object} {Detection}},
+  url       = {http://arxiv.org/abs/1708.02002},
+  doi       = {10.48550/arXiv.1708.02002},
+  abstract  = {The highest accuracy object detectors to date are based on a two-stage approach popularized by R-CNN, where a classifier is applied to a sparse set of candidate object locations. In contrast, one-stage detectors that are applied over a regular, dense sampling of possible object locations have the potential to be faster and simpler, but have trailed the accuracy of two-stage detectors thus far. In this paper, we investigate why this is the case. We discover that the extreme foreground-background class imbalance encountered during training of dense detectors is the central cause. We propose to address this class imbalance by reshaping the standard cross entropy loss such that it down-weights the loss assigned to well-classified examples. Our novel Focal Loss focuses training on a sparse set of hard examples and prevents the vast number of easy negatives from overwhelming the detector during training. To evaluate the effectiveness of our loss, we design and train a simple dense detector we call RetinaNet. Our results show that when trained with the focal loss, RetinaNet is able to match the speed of previous one-stage detectors while surpassing the accuracy of all existing state-of-the-art two-stage detectors. Code is at: https://github.com/facebookresearch/Detectron.},
+  urldate   = {2025-08-25},
+  publisher = {arXiv},
+  author    = {Lin, Tsung-Yi and Goyal, Priya and Girshick, Ross and He, Kaiming and Dollár, Piotr},
+  month     = feb,
+  year      = {2018},
+  note      = {arXiv:1708.02002 [cs]
+               version: 2},
+  keywords  = {Computer Science - Computer Vision and Pattern Recognition},
+  file      = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\F7RPU6UW\\Lin et al. - 2018 - Focal Loss for Dense Object Detection.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\HB4E6M2C\\1708.html:text/html}
+}
+
+@misc{ttc_2025,
+  title      = {A {Tale} of {Two} {Classes}: {Adapting} {Supervised} {Contrastive} {Learning} to {Binary} {Imbalanced} {Datasets}},
+  shorttitle = {A {Tale} of {Two} {Classes}},
+  url        = {http://arxiv.org/abs/2503.17024},
+  doi        = {10.48550/arXiv.2503.17024},
+  abstract   = {Supervised contrastive learning (SupCon) has proven to be a powerful alternative to the standard cross-entropy loss for classification of multi-class balanced datasets. However, it struggles to learn well-conditioned representations of datasets with long-tailed class distributions. This problem is potentially exacerbated for binary imbalanced distributions, which are commonly encountered during many real-world problems such as medical diagnosis. In experiments on seven binary datasets of natural and medical images, we show that the performance of SupCon decreases with increasing class imbalance. To substantiate these findings, we introduce two novel metrics that evaluate the quality of the learned representation space. By measuring the class distribution in local neighborhoods, we are able to uncover structural deficiencies of the representation space that classical metrics cannot detect. Informed by these insights, we propose two new supervised contrastive learning strategies tailored to binary imbalanced datasets that improve the structure of the representation space and increase downstream classification accuracy over standard SupCon by up to 35\%. We make our code available.},
+  urldate    = {2025-08-25},
+  publisher  = {arXiv},
+  author     = {Mildenberger, David and Hager, Paul and Rueckert, Daniel and Menten, Martin J.},
+  month      = mar,
+  year       = {2025},
+  note       = {arXiv:2503.17024 [cs]
+                version: 1},
+  keywords   = {Computer Science - Computer Vision and Pattern Recognition, Computer Science - Machine Learning},
+  file       = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\K7N3YXFU\\Mildenberger et al. - 2025 - A Tale of Two Classes Adapting Supervised Contrastive Learning to Binary Imbalanced Datasets.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\HY2CB8L6\\2503.html:text/html}
+}
+
+@misc{resnet_2015,
+  title     = {Deep {Residual} {Learning} for {Image} {Recognition}},
+  url       = {http://arxiv.org/abs/1512.03385},
+  doi       = {10.48550/arXiv.1512.03385},
+  abstract  = {Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions. We provide comprehensive empirical evidence showing that these residual networks are easier to optimize, and can gain accuracy from considerably increased depth. On the ImageNet dataset we evaluate residual nets with a depth of up to 152 layers---8x deeper than VGG nets but still having lower complexity. An ensemble of these residual nets achieves 3.57\% error on the ImageNet test set. This result won the 1st place on the ILSVRC 2015 classification task. We also present analysis on CIFAR-10 with 100 and 1000 layers. The depth of representations is of central importance for many visual recognition tasks. Solely due to our extremely deep representations, we obtain a 28\% relative improvement on the COCO object detection dataset. Deep residual nets are foundations of our submissions to ILSVRC \& COCO 2015 competitions, where we also won the 1st places on the tasks of ImageNet detection, ImageNet localization, COCO detection, and COCO segmentation.},
+  urldate   = {2025-08-25},
+  publisher = {arXiv},
+  author    = {He, Kaiming and Zhang, Xiangyu and Ren, Shaoqing and Sun, Jian},
+  month     = dec,
+  year      = {2015},
+  note      = {arXiv:1512.03385 [cs]},
+  keywords  = {Computer Science - Computer Vision and Pattern Recognition},
+  file      = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\JU3RJ6RN\\He et al. - 2015 - Deep Residual Learning for Image Recognition.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\J6YL853B\\1512.html:text/html}
+}
+
+@misc{tversky_2017,
+  title     = {Tversky loss function for image segmentation using {3D} fully convolutional deep networks},
+  url       = {http://arxiv.org/abs/1706.05721},
+  doi       = {10.48550/arXiv.1706.05721},
+  abstract  = {Fully convolutional deep neural networks carry out excellent potential for fast and accurate image segmentation. One of the main challenges in training these networks is data imbalance, which is particularly problematic in medical imaging applications such as lesion segmentation where the number of lesion voxels is often much lower than the number of non-lesion voxels. Training with unbalanced data can lead to predictions that are severely biased towards high precision but low recall (sensitivity), which is undesired especially in medical applications where false negatives are much less tolerable than false positives. Several methods have been proposed to deal with this problem including balanced sampling, two step training, sample re-weighting, and similarity loss functions. In this paper, we propose a generalized loss function based on the Tversky index to address the issue of data imbalance and achieve much better trade-off between precision and recall in training 3D fully convolutional deep neural networks. Experimental results in multiple sclerosis lesion segmentation on magnetic resonance images show improved F2 score, Dice coefficient, and the area under the precision-recall curve in test data. Based on these results we suggest Tversky loss function as a generalized framework to effectively train deep neural networks.},
+  urldate   = {2025-08-25},
+  publisher = {arXiv},
+  author    = {Salehi, Seyed Sadegh Mohseni and Erdogmus, Deniz and Gholipour, Ali},
+  month     = jun,
+  year      = {2017},
+  note      = {arXiv:1706.05721 [cs]},
+  keywords  = {Computer Science - Computer Vision and Pattern Recognition},
+  file      = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\BJPQDHRD\\Salehi et al. - 2017 - Tversky loss function for image segmentation using 3D fully convolutional deep networks.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\XPZEDLTZ\\1706.html:text/html}
+}
+
+@misc{pytorch_2019,
+  title      = {{PyTorch}: {An} {Imperative} {Style}, {High}-{Performance} {Deep} {Learning} {Library}},
+  shorttitle = {{PyTorch}},
+  url        = {http://arxiv.org/abs/1912.01703},
+  doi        = {10.48550/arXiv.1912.01703},
+  abstract   = {Deep learning frameworks have often focused on either usability or speed, but not both. PyTorch is a machine learning library that shows that these two goals are in fact compatible: it provides an imperative and Pythonic programming style that supports code as a model, makes debugging easy and is consistent with other popular scientific computing libraries, while remaining efficient and supporting hardware accelerators such as GPUs. In this paper, we detail the principles that drove the implementation of PyTorch and how they are reflected in its architecture. We emphasize that every aspect of PyTorch is a regular Python program under the full control of its user. We also explain how the careful and pragmatic implementation of the key components of its runtime enables them to work together to achieve compelling performance. We demonstrate the efficiency of individual subsystems, as well as the overall speed of PyTorch on several common benchmarks.},
+  urldate    = {2025-08-25},
+  publisher  = {arXiv},
+  author     = {Paszke, Adam and Gross, Sam and Massa, Francisco and Lerer, Adam and Bradbury, James and Chanan, Gregory and Killeen, Trevor and Lin, Zeming and Gimelshein, Natalia and Antiga, Luca and Desmaison, Alban and Köpf, Andreas and Yang, Edward and DeVito, Zach and Raison, Martin and Tejani, Alykhan and Chilamkurthy, Sasank and Steiner, Benoit and Fang, Lu and Bai, Junjie and Chintala, Soumith},
+  month      = dec,
+  year       = {2019},
+  note       = {arXiv:1912.01703 [cs]},
+  keywords   = {Computer Science - Machine Learning, Computer Science - Mathematical Software, Statistics - Machine Learning},
+  file       = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\7Z9VMUWD\\Paszke et al. - 2019 - PyTorch An Imperative Style, High-Performance Deep Learning Library.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\A7CFJX64\\1912.html:text/html}
+}
+
+@misc{pytorch_lightning_2025,
+  title     = {{PyTorch} {Lightning}},
+  url       = {https://zenodo.org/records/15284694},
+  abstract  = {The lightweight PyTorch wrapper for high-performance AI research. Scale your models, not the boilerplate.},
+  urldate   = {2025-08-25},
+  publisher = {Zenodo},
+  author    = {Falcon, William and team, The PyTorch Lightning},
+  month     = apr,
+  year      = {2025},
+  doi       = {10.5281/zenodo.15284694},
+  keywords  = {artificial intelligence, deep learning, machine learning},
+  file      = {Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\AVMD32AZ\\15284694.html:text/html}
+}
+
+@misc{group_norm_2018,
+  title      = {Group {Normalization}},
+  shorttitle = {group\_norm},
+  url        = {http://arxiv.org/abs/1803.08494},
+  doi        = {10.48550/arXiv.1803.08494},
+  abstract   = {Batch Normalization (BN) is a milestone technique in the development of deep learning, enabling various networks to train. However, normalizing along the batch dimension introduces problems --- BN's error increases rapidly when the batch size becomes smaller, caused by inaccurate batch statistics estimation. This limits BN's usage for training larger models and transferring features to computer vision tasks including detection, segmentation, and video, which require small batches constrained by memory consumption. In this paper, we present Group Normalization (GN) as a simple alternative to BN. GN divides the channels into groups and computes within each group the mean and variance for normalization. GN's computation is independent of batch sizes, and its accuracy is stable in a wide range of batch sizes. On ResNet-50 trained in ImageNet, GN has 10.6\% lower error than its BN counterpart when using a batch size of 2; when using typical batch sizes, GN is comparably good with BN and outperforms other normalization variants. Moreover, GN can be naturally transferred from pre-training to fine-tuning. GN can outperform its BN-based counterparts for object detection and segmentation in COCO, and for video classification in Kinetics, showing that GN can effectively replace the powerful BN in a variety of tasks. GN can be easily implemented by a few lines of code in modern libraries.},
+  urldate    = {2025-08-25},
+  publisher  = {arXiv},
+  author     = {Wu, Yuxin and He, Kaiming},
+  month      = jun,
+  year       = {2018},
+  note       = {arXiv:1803.08494 [cs]},
+  keywords   = {Computer Science - Computer Vision and Pattern Recognition, Computer Science - Machine Learning},
+  file       = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\F55DTGMM\\Wu und He - 2018 - Group Normalization.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\KZZHS7AU\\1803.html:text/html}
+}
+
+@misc{se_blocks_2019,
+  title      = {Squeeze-and-{Excitation} {Networks}},
+  shorttitle = {se\_blocks},
+  url        = {http://arxiv.org/abs/1709.01507},
+  doi        = {10.48550/arXiv.1709.01507},
+  abstract   = {The central building block of convolutional neural networks (CNNs) is the convolution operator, which enables networks to construct informative features by fusing both spatial and channel-wise information within local receptive fields at each layer. A broad range of prior research has investigated the spatial component of this relationship, seeking to strengthen the representational power of a CNN by enhancing the quality of spatial encodings throughout its feature hierarchy. In this work, we focus instead on the channel relationship and propose a novel architectural unit, which we term the "Squeeze-and-Excitation" (SE) block, that adaptively recalibrates channel-wise feature responses by explicitly modelling interdependencies between channels. We show that these blocks can be stacked together to form SENet architectures that generalise extremely effectively across different datasets. We further demonstrate that SE blocks bring significant improvements in performance for existing state-of-the-art CNNs at slight additional computational cost. Squeeze-and-Excitation Networks formed the foundation of our ILSVRC 2017 classification submission which won first place and reduced the top-5 error to 2.251\%, surpassing the winning entry of 2016 by a relative improvement of {\textasciitilde}25\%. Models and code are available at https://github.com/hujie-frank/SENet.},
+  urldate    = {2025-08-25},
+  publisher  = {arXiv},
+  author     = {Hu, Jie and Shen, Li and Albanie, Samuel and Sun, Gang and Wu, Enhua},
+  month      = may,
+  year       = {2019},
+  note       = {arXiv:1709.01507 [cs]},
+  keywords   = {Computer Science - Computer Vision and Pattern Recognition},
+  file       = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\GPRM6J7W\\Hu et al. - 2019 - Squeeze-and-Excitation Networks.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\JIC8LBGL\\1709.html:text/html}
+}
+
+@misc{adamw_2019,
+  title      = {Decoupled {Weight} {Decay} {Regularization}},
+  shorttitle = {adamw},
+  url        = {http://arxiv.org/abs/1711.05101},
+  doi        = {10.48550/arXiv.1711.05101},
+  abstract   = {L\$\_2\$ regularization and weight decay regularization are equivalent for standard stochastic gradient descent (when rescaled by the learning rate), but as we demonstrate this is {\textbackslash}emph\{not\} the case for adaptive gradient algorithms, such as Adam. While common implementations of these algorithms employ L\$\_2\$ regularization (often calling it "weight decay" in what may be misleading due to the inequivalence we expose), we propose a simple modification to recover the original formulation of weight decay regularization by {\textbackslash}emph\{decoupling\} the weight decay from the optimization steps taken w.r.t. the loss function. We provide empirical evidence that our proposed modification (i) decouples the optimal choice of weight decay factor from the setting of the learning rate for both standard SGD and Adam and (ii) substantially improves Adam's generalization performance, allowing it to compete with SGD with momentum on image classification datasets (on which it was previously typically outperformed by the latter). Our proposed decoupled weight decay has already been adopted by many researchers, and the community has implemented it in TensorFlow and PyTorch; the complete source code for our experiments is available at https://github.com/loshchil/AdamW-and-SGDW},
+  urldate    = {2025-08-25},
+  publisher  = {arXiv},
+  author     = {Loshchilov, Ilya and Hutter, Frank},
+  month      = jan,
+  year       = {2019},
+  note       = {arXiv:1711.05101 [cs]},
+  keywords   = {Computer Science - Machine Learning, Computer Science - Neural and Evolutionary Computing, Mathematics - Optimization and Control},
+  file       = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\VJ4CB8N7\\Loshchilov und Hutter - 2019 - Decoupled Weight Decay Regularization.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\2J52D37L\\1711.html:text/html}
+}
+
+@misc{focal_tversky_2018,
+  title     = {A {Novel} {Focal} {Tversky} loss function with improved {Attention} {U}-{Net} for lesion segmentation},
+  url       = {http://arxiv.org/abs/1810.07842},
+  doi       = {10.48550/arXiv.1810.07842},
+  abstract  = {We propose a generalized focal loss function based on the Tversky index to address the issue of data imbalance in medical image segmentation. Compared to the commonly used Dice loss, our loss function achieves a better trade off between precision and recall when training on small structures such as lesions. To evaluate our loss function, we improve the attention U-Net model by incorporating an image pyramid to preserve contextual features. We experiment on the BUS 2017 dataset and ISIC 2018 dataset where lesions occupy 4.84\% and 21.4\% of the images area and improve segmentation accuracy when compared to the standard U-Net by 25.7\% and 3.6\%, respectively.},
+  urldate   = {2025-08-25},
+  publisher = {arXiv},
+  author    = {Abraham, Nabila and Khan, Naimul Mefraz},
+  month     = oct,
+  year      = {2018},
+  note      = {arXiv:1810.07842 [cs]},
+  keywords  = {Computer Science - Computer Vision and Pattern Recognition},
+  file      = {Preprint PDF:C\:\\Users\\Flo\\Zotero\\storage\\R8VGH36J\\Abraham und Khan - 2018 - A Novel Focal Tversky loss function with improved Attention U-Net for lesion segmentation.pdf:application/pdf;Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\YBU2N3FV\\1810.html:text/html}
+}
+
+@article{goldberger2000physiobank,
+  title     = {PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals},
+  author    = {Goldberger, AL and Amaral, LA and Glass, L and Hausdorff, JM and Ivanov, PC and Mark, RG and Mietus, JE and Moody, GB and Peng, CK and Stanley, HE},
+  journal   = {Circulation},
+  volume    = {101},
+  number    = {23},
+  pages     = {e215--e220},
+  year      = {2000},
+  publisher = {Am Heart Assoc}
+}
+
+@inproceedings{2025ChallengeCinC,
+  author    = {Reyna, Matthew A. and Koscova, Zuzana and Pavlus, Jan and Weigle, James and Saghafi, Soheil and Gomes, Paulo and Elola, Andoni and Hassannia, Mohammad Sina and Campbell, Kiersten and Bahrami Rad, Ali and Ribeiro, Antônio H and Ribeiro, Antonio LP and Sameni, Reza and Clifford, Gari D},
+  title     = {{Detection of Chagas Disease from the ECG: The George B. Moody PhysioNet Challenge 2025}},
+  booktitle = {Computing in Cardiology 2025},
+  volume    = {52},
+  pages     = {1--4},
+  year      = {2025}
+}
+
+@misc{2025ChallengePreprint,
+  author        = {Reyna, Matthew A. and Koscova, Zuzana and Pavlus, Jan and Saghafi, Soheil and Weigle, James and Elola, Andoni and Seyedi, Salman and Campbell, Kiersten and Li, Qiao and Bahrami Rad, Ali and Ribeiro, Antônio and Ribeiro, Antonio Luiz P. and Sameni, Reza and Clifford, Gari D.},
+  title         = {{Detection of Chagas Disease from the ECG: The George B. Moody PhysioNet Challenge 2025}},
+  year          = {2025},
+  eprint        = {2510.02202},
+  archiveprefix = {arXiv},
+  primaryclass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2510.02202},
+  doi           = {10.48550/arXiv.2510.02202}
+}
+
+@misc{ribeiro_code-15_2021,
+  title      = {{CODE}-15\%: a large scale annotated dataset of 12-lead {ECGs}},
+  shorttitle = {{CODE}-15\%},
+  url        = {https://zenodo.org/records/4916206},
+  abstract   = {A dataset of 12-lead ECGs with annotations. The dataset contains 345 779 exams from 233 770 patients. It was obtained through stratified sampling from the CODE dataset ( 15\% of the patients). The data was collected by the Telehealth Network of Minas Gerais in the period between 2010 and 2016.
+                
+                This repository contains the files `exams.csv` and the files `exams\_part\{i\}.zip` for i = 0, 1, 2, ... 17. 
+                
+                
+                
+                "exams.csv": is a comma-separated values (csv) file containing the columns
+                
+                
+                
+                "exam\_id": id used for identifying the exam;
+                
+                "age": patient age in years at the moment of the exam;
+                
+                "is\_male": true if the patient is male;
+                
+                "nn\_predicted\_age": age predicted by a neural network to the patient. As described in the paper "Deep neural network estimated electrocardiographic-age as a mortality predictor" bellow.
+                
+                "1dAVb": Whether or not the patient has 1st degree AV block;
+                
+                "RBBB": Whether or not the patient has right bundle branch block;
+                
+                "LBBB": Whether or not the patient has left bundle branch block;
+                
+                "SB": Whether or not the patient has sinus bradycardia;
+                
+                "AF": Whether or not the patient has atrial fibrillation;
+                
+                "ST": Whether or not the patient has sinus tachycardia;
+                
+                "patient\_id": id used for identifying the patient;
+                
+                "normal\_ecg": True if automatic annotation system say it is a normal ECG;
+                
+                "death": true if the patient dies in the follow-up time. This data is available only in the first exam of the patient. Other exams will have this as an empty field;
+                
+                "timey": if the patient dies it is the time to the death of the patient. If not, it is the follow-up time. This data is available only in the first exam of the patient. Other exams will have this as an empty field;
+                
+                "trace\_file": identify in which hdf5 file the file corresponding to this patient is located.
+                
+                
+                
+                "exams\_part\{i\}.hdf5": The HDF5 file containing two datasets named `tracings` and other named `exam\_id`. The `exam\_id` is a tensor of dimension `(N,)` containing the exam id (the same as in the csv file) and the dataset `tracings` is a `(N, 4096, 12)` tensor containing the ECG tracings in the same order. The first dimension corresponds to the different exams; the second dimension corresponds to the 4096 signal samples; the third dimension to the 12 different leads of the ECG exams in the following order: `\{DI, DII, DIII, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6\}`. The signals are sampled at 400 Hz. Some signals originally have a duration of 10 seconds (10 * 400 = 4000 samples) and others of 7 seconds (7 * 400 = 2800 samples). In order to make them all have the same size (4096 samples), we fill them with zeros on both sizes. For instance, for a 7 seconds ECG signal with 2800 samples we include 648 samples at the beginning and 648 samples at the end, yielding 4096 samples that are then saved in the hdf5 dataset. 
+                
+                In python, one can read this file using h5py.```pythonimport h5py
+                
+                f = h5py.File(path\_to\_file, 'r')\# Get idstraces\_ids = np.array(self.f['id\_exam'])x = f['signal']```The `signal` dataset is too large to fit in memory, so don't convert it to a numpy array all at once.It is possible to access a chunk of it using: ``x[start:end, :, :]``.
+                
+                
+                
+                The CODE dataset was collected by the Telehealth Network of Minas Gerais (TNMG) in the period between 2010 and 2016. TNMG is a public telehealth system assisting 811 out of the 853 municipalities in the state of Minas Gerais, Brazil. The dataset is described
+                
+                Ribeiro, Antônio H., Manoel Horta Ribeiro, Gabriela M. M. Paixão, Derick M. Oliveira, Paulo R. Gomes, Jéssica A. Canazart, Milton P. S. Ferreira, et al. “Automatic Diagnosis of the 12-Lead ECG Using a Deep Neural Network.” Nature Communications 11, no. 1 (2020): 1760. https://doi.org/10.1038/s41467-020-15432-4
+                
+                The CODE 15\% dataset is obtained from stratified sampling from the CODE dataset. This subset of the code dataset is described in and used for assessing model performance:"Deep neural network estimated electrocardiographic-age as a mortality predictor"Emilly M Lima, Antônio H Ribeiro, Gabriela MM Paixão, Manoel Horta Ribeiro, Marcelo M Pinto Filho, Paulo R Gomes, Derick M Oliveira, Ester C Sabino, Bruce B Duncan, Luana Giatti, Sandhi M Barreto, Wagner Meira Jr, Thomas B Schön, Antonio Luiz P Ribeiro. MedRXiv (2021) https://www.doi.org/10.1101/2021.02.19.21251232The companion code for reproducing the experiments in the two papers described above can be found, respectively, in:- https://github.com/antonior92/automatic-ecg-diagnosis; and in,- https://github.com/antonior92/ecg-age-prediction.Note about authorship: Antônio H. Ribeiro, Emilly M. Lima and Gabriela M.M. Paixão contributed equally to this work.},
+  urldate    = {2025-08-27},
+  publisher  = {Zenodo},
+  author     = {Ribeiro, Antônio H. and Paixao, Gabriela M.M. and Lima, Emilly M. and Horta Ribeiro, Manoel and Pinto Filho, Marcelo M. and Gomes, Paulo R. and Oliveira, Derick M. and Meira Jr, Wagner and Schon, Thömas B and Ribeiro, Antonio Luiz P.},
+  month      = jun,
+  year       = {2021},
+  file       = {Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\8FPIAAPM\\4916206.html:text/html}
+}
+
+@misc{ribeiro_sami-trop_2021,
+  title      = {Sami-{Trop}: 12-lead {ECG} traces with age and mortality annotations},
+  shorttitle = {Sami-{Trop}},
+  url        = {https://zenodo.org/records/4905618},
+  abstract   = {SaMi-Trop is an NIH-funded prospective cohort of 1959 patients with chronic Chagas cardiomyopathy to evaluate whether a clinical prediction rule based on ECG, brain natriuretic peptide (BNP) levels, and other biomarkers can be useful in clinical practice. A subset of the SaMi-Trop dataset with annotations of age and mortality and the correspondent ECG traces is openly available here.
+                
+                
+                Contain two files `exams.csv` and `exams.hdf5`. The files contain information about the first ECG exam taken by 1631 patients.
+                
+                
+                
+                
+                "exams.csv": is a comma-separated values (csv) file containing the columns
+                
+                
+                
+                "exam\_id": id used for internal usages;
+                
+                "age": patient age in years at the moment the of the exam;
+                
+                "is\_male": true if the patient is male, false if the patient is female;
+                
+                "normal\_ecg": True if the patient has a normal ECG;
+                
+                "death": true if the patient dies in the follow-up time
+                
+                "timey": if the patient dies it is the time to the death of the patient. If not, it is the follow-up time
+                
+                
+                
+                "exams.hdf5": The HDF5 file containing a single dataset named `tracings`. This dataset is a `(1631, 4096, 12)` tensor. The first dimension corresponds to the 1631 different exams; the second dimension corresponds to the 4096 signal samples; the third dimension to the 12 different leads of the ECG exams in the following order: `\{DI, DII, DIII, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6\}`. The signals are sampled at 400 Hz. Some signals originally have a duration of 10 seconds (10 * 400 = 4000 samples) and others of 7 seconds (7 * 400 = 2800 samples). In order to make them all have the same size (4096 samples), we fill them with zeros on both sizes. For instance, for a 7 seconds ECG signal with 2800 samples we include 648 samples at the beginning and 648 samples at the end, yielding 4096 samples that are then saved in the hdf5 dataset. 
+                
+                
+                
+                
+                The relation between neural-network predicted age and mortality is established in:
+                "Deep neural network estimated electrocardiographic-age as a mortality predictor"
+                Emilly M Lima, Antônio H Ribeiro, Gabriela MM Paixão, Manoel Horta Ribeiro, Marcelo M Pinto Filho, Paulo R Gomes, Derick M Oliveira, Ester C Sabino, Bruce B Duncan, Luana Giatti, Sandhi M Barreto, Wagner Meira Jr, Thomas B Schön, Antonio Luiz P Ribeiro. MedRXiv (2021) https://www.doi.org/10.1101/2021.02.19.21251232
+                
+                The companion code can be found in: https://github.com/antonior92/ecg-age-prediction
+                
+                
+                The SaMi-Trop dataset is described in:
+                
+                
+                "Longitudinal study of patients with chronic Chagas cardiomyopathy in Brazil (SaMi-Trop project): a cohort profile" Clareci Silva Cardoso, Ester Cerdeira Sabino, Claudia Di Lorenzo Oliveira, Lea Campos de Oliveira, Ariela Mota Ferreira, Edécio Cunha-Neto, Ana Luiza Bierrenbach, João Eduardo Ferreira, Desirée Sant'Ana Haikal, Arthur L Reingold, Antonio Luiz P Ribeiro. BMJ Open (2016);6:e011181. doi: 10.1136/bmjopen-2016-011181},
+  urldate    = {2025-08-27},
+  publisher  = {Zenodo},
+  author     = {Ribeiro, Antonio Luiz P. and Ribeiro, Antônio H. and Paixao, Gabriela M.M. and Lima, Emilly M. and Horta Ribeiro, Manoel and Pinto Filho, Marcelo M. and Gomes, Paulo R. and Oliveira, Derick M. and Meira Jr, Wagner and Schon, Thömas B and Sabino, Ester C},
+  month      = jun,
+  year       = {2021},
+  file       = {Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\FDD9GBHK\\4905618.html:text/html}
+}
+
+@misc{wagner_ptb-xl_nodate,
+  title     = {{PTB}-{XL}, a large publicly available electrocardiography dataset},
+  doi       = {10.13026/KFZX-AW45},
+  abstract  = {Electrocardiography (ECG) is a key diagnostic tool to assess the cardiac
+               condition of a patient. Automatic ECG interpretation algorithms as diagnosis
+               support systems promise large reliefs for the medical personnel - only on the
+               basis of the number of ECGs that are routinely taken. However, the development
+               of such algorithms requires large training datasets and clear benchmark
+               procedures. In our opinion, both aspects are not covered satisfactorily by
+               existing freely accessible ECG datasets.
+               
+               The PTB-XL ECG dataset is a large dataset of 21799 clinical 12-lead ECGs from
+               18869 patients of 10 second length. The raw waveform data was annotated by up
+               to two cardiologists, who assigned potentially multiple ECG statements to each
+               record. The in total 71 different ECG statements conform to the SCP-ECG
+               standard and cover diagnostic, form, and rhythm statements. To ensure
+               comparability of machine learning algorithms trained on the dataset, we
+               provide recommended splits into training and test sets. In combination with
+               the extensive annotation, this turns the dataset into a rich resource for the
+               training and the evaluation of automatic ECG interpretation algorithms. The
+               dataset is complemented by extensive metadata on demographics, infarction
+               characteristics, likelihoods for diagnostic ECG statements as well as
+               annotated signal properties.},
+  urldate   = {2025-08-27},
+  publisher = {PhysioNet},
+  author    = {Wagner, Patrick and Strodthoff, Nils and Bousseljot, Ralf-Dieter and Samek, Wojciech and Schaeffter, Tobias}
+}
+
 

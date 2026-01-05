@@ -37,8 +37,9 @@
 % KOMA-friendly headers/footers
 \usepackage[automark,headsepline]{scrlayer-scrpage}
 \clearpairofpagestyles
-\ihead{\headmark}
-\ohead{\pagemark}
+\ihead*{\headmark}
+\ofoot*{\pagemark}
+\renewcommand*{\chapterpagestyle}{scrheadings}
 
 % References
 \usepackage[
@@ -50,4 +51,3 @@
 
 % Links (load late)
 \usepackage[colorlinks=true,urlcolor=NavyBlue,linkcolor=black,citecolor=BlueViolet]{hyperref}
-
