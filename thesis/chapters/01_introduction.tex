@@ -27,10 +27,18 @@ Two properties of the training data complicate optimization and interpretation:
 These issues can lead to inflated apparent performance on in-distribution validation while degrading generalization across sources.
 
 \section{Contributions and Thesis Structure}
-This thesis studies practical strategies to improve robustness and embedding quality under the above constraints:
+This thesis studies practical strategies to improve robustness under the above constraints, using embedding-space analysis as a diagnostic tool to motivate data harmonization and loss-function choices:
 \begin{itemize}
   \item \textbf{Track 1}: supervised classification with metric-aligned loss functions and controlled augmentations.
   \item \textbf{Track 2}: supervised contrastive / prototype-based training to shape the embedding space and quantify representation quality.
   \item \textbf{Track 3}: downstream probing of pretrained encoders to connect embedding quality to classification performance.
 \end{itemize}
 Chapter~\ref{ch:methods-results} details the configuration system and experimental variables used in these tracks.
+
+\section{Open-Source Resources}
+To support reproducibility, the codebase, experiment tracking, and project planning are publicly accessible:
+\begin{itemize}
+  \item Code repository: \url{https://github.com/floherzler/ecg-chagas-embeddings}
+  \item Project board: \url{https://github.com/users/floherzler/projects/1}
+  \item W\&B project: \url{https://wandb.ai/ag-lukassen/ecg-chagas-embeddings-cli}
+\end{itemize}
