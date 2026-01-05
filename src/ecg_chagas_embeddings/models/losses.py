@@ -1319,7 +1319,11 @@ class SupConLossDDP(nn.Module):
         device = features.device
 
         # Gather features and labels from all devices if using DDP
-        if dist.is_available() and dist.is_initialized():
+        if (
+            dist.is_available()
+            and hasattr(dist, "is_initialized")
+            and dist.is_initialized()
+        ):
             gathered_features = dist_f.all_gather(features)
             features = torch.cat(gathered_features, dim=0)
 
@@ -1606,7 +1610,11 @@ class ConSupPrototypeLossDDP(nn.Module):
         device = features.device
 
         # Gather features and labels from all devices if using DDP
-        if dist.is_available() and dist.is_initialized():
+        if (
+            dist.is_available()
+            and hasattr(dist, "is_initialized")
+            and dist.is_initialized()
+        ):
             gathered_features = dist_f.all_gather(features)
             features = torch.cat(gathered_features, dim=0)
 

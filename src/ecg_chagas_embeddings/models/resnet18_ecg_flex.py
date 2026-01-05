@@ -66,8 +66,8 @@ def compute_binary_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     y_true = y_true[m]
     y_score = y_score[m]
 
-    pos = (y_true == 1)
-    neg = (y_true == 0)
+    pos = y_true == 1
+    neg = y_true == 0
     P = int(pos.sum())
     N = int(neg.sum())
     if P == 0 or N == 0:
@@ -86,7 +86,7 @@ def compute_binary_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     fpr = np.concatenate([[0.0], fpr, [1.0]])
     tpr = np.concatenate([[0.0], tpr, [1.0]])
 
-    return float(np.trapz(tpr, fpr))
+    return float(np.trapezoid(tpr, fpr))
 
 
 def compute_binary_average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -1496,7 +1496,9 @@ class LitResNet18(LightningModule):
             )
             self.log(
                 "val/code15_ap",
-                compute_binary_average_precision(gts[sources == 0], probs[sources == 0]),
+                compute_binary_average_precision(
+                    gts[sources == 0], probs[sources == 0]
+                ),
                 prog_bar=False,
                 on_epoch=True,
                 on_step=False,
@@ -1510,7 +1512,9 @@ class LitResNet18(LightningModule):
             )
             self.log(
                 "val/strong_ap",
-                compute_binary_average_precision(gts[sources != 0], probs[sources != 0]),
+                compute_binary_average_precision(
+                    gts[sources != 0], probs[sources != 0]
+                ),
                 prog_bar=False,
                 on_epoch=True,
                 on_step=False,
@@ -1787,7 +1791,11 @@ class LitResNet18(LightningModule):
             # Two compact legends: dataset colors and label markers.
             from matplotlib.lines import Line2D  # type: ignore
 
-            dataset_order = [k for k in ("CODE-15", "PTB-XL", "SaMi-Trop") if k in set(df["source_name"])]
+            dataset_order = [
+                k
+                for k in ("CODE-15", "PTB-XL", "SaMi-Trop")
+                if k in set(df["source_name"])
+            ]
             if "unknown" in set(df["source_name"]):
                 dataset_order.append("unknown")
             handles_ds = [
