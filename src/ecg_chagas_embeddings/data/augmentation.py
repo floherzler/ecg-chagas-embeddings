@@ -184,7 +184,7 @@ class VCGFrontalAxisRotation(RandomAugmentation):
         A = self._A.to(device=x.device, dtype=x.dtype)
         A_pinv = self._A_pinv.to(device=x.device, dtype=x.dtype)
 
-        I = x[:, self._I, :]
+        I = x[:, self._I, :]  # noqa: E741
         II = x[:, self._II, :]
         V1 = x[:, self._V1, :]
         V2 = x[:, self._V2, :]
@@ -257,7 +257,10 @@ class RandomMaskChannels(RandomAugmentation):
         rng = self._resolve_generator(generator)
         if self.apply_prob <= 0.0:
             return signal
-        if self.apply_prob < 1.0 and torch.rand((), generator=rng).item() > self.apply_prob:
+        if (
+            self.apply_prob < 1.0
+            and torch.rand((), generator=rng).item() > self.apply_prob
+        ):
             return signal
         if signal.dim() == 2:
             # [C, N]
@@ -389,7 +392,10 @@ class TimeMasking(RandomAugmentation):
         rng = self._resolve_generator(generator)
         if self.apply_prob <= 0.0:
             return signal
-        if self.apply_prob < 1.0 and torch.rand((), generator=rng).item() > self.apply_prob:
+        if (
+            self.apply_prob < 1.0
+            and torch.rand((), generator=rng).item() > self.apply_prob
+        ):
             return signal
         if signal.dim() == 2:
             # [C, N]
@@ -701,7 +707,11 @@ class ECGAugmentation:
 
         post_crop_augs: List[Callable[[torch.Tensor], torch.Tensor]] = []
 
-        if axis_rotation_max_deg is not None and axis_rotation_max_deg > 0 and axis_rotation_prob > 0:
+        if (
+            axis_rotation_max_deg is not None
+            and axis_rotation_max_deg > 0
+            and axis_rotation_prob > 0
+        ):
             post_crop_augs.append(
                 VCGFrontalAxisRotation(
                     max_abs_deg=float(axis_rotation_max_deg),
@@ -738,7 +748,9 @@ class ECGAugmentation:
             )
 
         if max_time_warp is not None:
-            post_crop_augs.append(TimeWarping(max_warp=max_time_warp, per_view=per_view_warp))
+            post_crop_augs.append(
+                TimeWarping(max_warp=max_time_warp, per_view=per_view_warp)
+            )
 
         if (wandering_max_amplitude is not None) and (
             wandering_frequency_range is not None
@@ -759,7 +771,9 @@ class ECGAugmentation:
         )
 
         # Validation transforms: deterministic per-view seeds.
-        anchor_augs = [self.crop] if self.val_anchor_clean else [self.crop, *self.post_crop_augs]
+        anchor_augs = (
+            [self.crop] if self.val_anchor_clean else [self.crop, *self.post_crop_augs]
+        )
         self.anchor_transform = Compose(*anchor_augs, n_views=1)
         self.val_view_transform = Compose(self.crop, *self.post_crop_augs, n_views=1)
 
@@ -773,7 +787,9 @@ class ECGAugmentation:
         gen.manual_seed(int(seed))
         return gen
 
-    def __call__(self, signal: torch.Tensor, *, key: Optional[str] = None) -> torch.Tensor:
+    def __call__(
+        self, signal: torch.Tensor, *, key: Optional[str] = None
+    ) -> torch.Tensor:
         """
         Args:
             signal: [C, N]

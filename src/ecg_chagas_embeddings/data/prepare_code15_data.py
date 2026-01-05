@@ -11,6 +11,9 @@ import sys
 import wfdb
 from tqdm import tqdm
 
+# Suppress stdout for noisy commands.
+from contextlib import contextmanager
+
 from .helper_code import is_integer, is_boolean, sanitize_boolean_value
 
 
@@ -48,10 +51,6 @@ def get_parser():
     )
     parser.add_argument("-o", "--output_paths", type=str, required=True, nargs="*")
     return parser
-
-
-# Suppress stdout for noisy commands.
-from contextlib import contextmanager
 
 
 @contextmanager
@@ -114,14 +113,14 @@ def fix_checksums(record, checksums=None):
     header_filename = os.path.join(record + ".hea")
     string = ""
     with open(header_filename, "r") as f:
-        for i, l in enumerate(f):
+        for i, l in enumerate(f):  # noqa: E741
             if i == 0:
                 arrs = l.split(" ")
                 num_leads = int(arrs[1])
             if 0 < i <= num_leads and not l.startswith("#"):
                 arrs = l.split(" ")
                 arrs[6] = str(checksums[i - 1])
-                l = " ".join(arrs)
+                l = " ".join(arrs)  # noqa: E741
             string += l
 
     with open(header_filename, "w") as f:

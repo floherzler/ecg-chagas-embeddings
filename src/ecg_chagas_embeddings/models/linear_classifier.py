@@ -121,7 +121,9 @@ class FineTuneClassifier(LightningModule):
             ckpt = torch.load(base_model_path, map_location="cpu")
             state_dict = ckpt["state_dict"] if "state_dict" in ckpt else ckpt
             if self.base_model is None:
-                raise ValueError("`base_model_path` was given but `base_model` is None.")
+                raise ValueError(
+                    "`base_model_path` was given but `base_model` is None."
+                )
             self.base_model.load_state_dict(state_dict, strict=False)
 
         # Initialize classifier
@@ -247,7 +249,7 @@ class FineTuneClassifier(LightningModule):
 
         preds = self.forward(x)
         loss = self.criterion(preds, y)
-        probs = preds.softmax(-1)
+        probs = preds.softmax(-1)  # noqa: F841
 
         # Log metrics
         self.log("val.loss", loss, on_step=False, on_epoch=True)
@@ -258,7 +260,7 @@ class FineTuneClassifier(LightningModule):
 
         preds = self.forward(x)
         loss = self.criterion(preds, y)
-        probs = preds.softmax(-1)
+        probs = preds.softmax(-1)  # noqa: F841
 
         # Log metrics
         self.log("test.loss", loss)

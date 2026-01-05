@@ -11,10 +11,9 @@ import numpy as np
 import pandas as pd
 import torch
 import wfdb
-from scipy.signal import butter, resample, resample_poly, sosfiltfilt, firwin, filtfilt
+from scipy.signal import resample, resample_poly, firwin, filtfilt
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from tqdm import tqdm
-import neurokit2 as nk
 
 TOTAL_EXPECTED_FILES = 430_766
 

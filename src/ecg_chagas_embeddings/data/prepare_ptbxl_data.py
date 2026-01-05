@@ -11,6 +11,9 @@ import sys
 import wfdb
 from tqdm import tqdm
 
+# Suppress stdout for noisy commands.
+from contextlib import contextmanager
+
 from .helper_code import find_records, get_signal_files, is_integer
 
 
@@ -36,10 +39,6 @@ def get_parser():
     return parser
 
 
-# Suppress stdout for noisy commands.
-from contextlib import contextmanager
-
-
 @contextmanager
 def suppress_stdout():
     with open(os.devnull, "w") as devnull:
@@ -53,8 +52,6 @@ def suppress_stdout():
 
 # Convert .dat files to .mat files (optional).
 def convert_dat_to_mat(record, write_dir=None):
-    import wfdb.io.convert
-
     # Change the current working directory; wfdb.io.convert.matlab.wfdb_to_matlab places files in the current working directory.
     cwd = os.getcwd()
     if write_dir:
@@ -75,11 +72,11 @@ def convert_dat_to_mat(record, write_dir=None):
     # Update the header file with the renamed record and .mat file.
     with open(record + ".hea", "r") as f:
         output_string = ""
-        for l in f:
+        for l in f:  # noqa: E741
             if l.startswith("#Creator") or l.startswith("#Source"):
                 pass
             else:
-                l = l.replace(record + "m", record)
+                l = l.replace(record + "m", record)  # noqa: E741
                 output_string += l
 
     with open(record + ".hea", "w") as f:
@@ -100,14 +97,14 @@ def fix_checksums(record, checksums=None):
     header_filename = os.path.join(record + ".hea")
     string = ""
     with open(header_filename, "r") as f:
-        for i, l in enumerate(f):
+        for i, l in enumerate(f):  # noqa: E741
             if i == 0:
                 arrs = l.split(" ")
                 num_leads = int(arrs[1])
             if 0 < i <= num_leads and not l.startswith("#"):
                 arrs = l.split(" ")
                 arrs[6] = str(checksums[i - 1])
-                l = " ".join(arrs)
+                l = " ".join(arrs)  # noqa: E741
             string += l
 
     with open(header_filename, "w") as f:
@@ -156,7 +153,7 @@ def run(args):
         input_header_file = os.path.join(args.input_folder, record + ".hea")
         output_header_file = os.path.join(args.output_folder, record + ".hea")
 
-        input_path = os.path.join(args.input_folder, record_path)
+        # input_path = os.path.join(args.input_folder, record_path)
         output_path = os.path.join(args.output_folder, record_path)
 
         os.makedirs(output_path, exist_ok=True)
@@ -168,14 +165,16 @@ def run(args):
         record_line = " ".join(lines[0].strip().split(" ")[:4]) + "\n"
         signal_lines = (
             "\n".join(
-                l.strip() for l in lines[1:] if l.strip() and not l.startswith("#")
+                l.strip()
+                for l in lines[1:]  # noqa: E741
+                if l.strip() and not l.startswith("#")
             )
             + "\n"
         )
         comment_lines = (
             "\n".join(
                 l.strip()
-                for l in lines[1:]
+                for l in lines[1:]  # noqa: E741
                 if l.startswith("#")
                 and not any(
                     (

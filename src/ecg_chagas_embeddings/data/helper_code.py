@@ -4,15 +4,11 @@
 # These are helper functions that you can use with your code.
 # Check the example code to see how to use these functions in your code.
 
-import hashlib
 import numpy as np
 import os
-import scipy as sp
-import sklearn
 import sys
 import wfdb
 
-from collections import defaultdict
 from tqdm import tqdm
 
 disable_tqdm = not sys.stdout.isatty()
@@ -97,7 +93,7 @@ def save_text(filename, string):
 def get_variable(string, variable_name):
     variable = ""
     has_variable = False
-    for l in string.split("\n"):
+    for l in string.split("\n"):  # noqa: E741
         if l.startswith(variable_name):
             variable = l[len(variable_name) :].strip()
             has_variable = True
@@ -127,7 +123,7 @@ def get_signal_files(record):
 def get_signal_files_from_header(string):
     signal_files = list()
     num_channels = 0  # flod: added this line to prevent error
-    for i, l in enumerate(string.split("\n")):
+    for i, l in enumerate(string.split("\n")):  # noqa: E741
         arrs = [arr.strip() for arr in l.split(" ")]
         if i == 0 and not l.startswith("#"):
             num_channels = int(arrs[1])
@@ -223,7 +219,7 @@ def get_num_samples(string):
 def get_signal_names(string):
     num_signals = get_num_signals(string)
     values = list()
-    for i, l in enumerate(string.split("\n")):
+    for i, l in enumerate(string.split("\n")):  # noqa: E741
         if 1 <= i <= num_signals:
             value = l.split(" ")[8]
             values.append(value)
@@ -405,7 +401,7 @@ def compute_f_measure(labels, outputs):
     # Compute the confusion matrix.
     A = compute_confusion_matrix(labels, outputs)
 
-    tp, fp, fn, tn = A[0, 0], A[0, 1], A[1, 0], A[1, 1]
+    tp, fp, fn, tn = A[0, 0], A[0, 1], A[1, 0], A[1, 1]  # noqa: F841
     if 2 * tp + fp + fn > 0:
         f_measure = float(2 * tp) / float(2 * tp + fp + fn)
     else:
