@@ -27,6 +27,7 @@ Unless a track-specific config overrides them, both Track~1 and Track~2 use the 
 
 \subsection{Physiological augmentation: frontal axis rotation}
 We optionally apply a physiologically motivated augmentation that rotates the ECG's frontal electrical axis by a small random angle. This augmentation is only enabled for \textbf{bp} signals because later preprocessing steps (soft clipping and normalization) are nonlinear and can break the assumptions required for a physically meaningful rotation.
+Conceptually, this corresponds to changing the projection of the cardiac dipole onto the limb-lead axes in the frontal plane (often visualized via the Cabrera circle / hexaxial reference system), which induces coordinated amplitude and polarity changes across the limb leads.
 The augmentation is controlled by:
 \begin{itemize}
   \item \texttt{data.axis\_rotation\_max\_deg}: maximum rotation magnitude (degrees).
@@ -51,7 +52,8 @@ Track~2 optimizes representation geometry. We run three variants:
   \item \textbf{SupCon (imbalance-aware)}: a variant that applies imbalance-handling logic in the supervised contrastive objective.
   \item \textbf{Prototype-based}: class prototypes provide additional structure in the embedding space.
 \end{itemize}
-Early stopping monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
+Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU) to quantify how different objectives and preprocessing regimes shape representation geometry.
+Early stopping for Track~2 monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
 
 \subsection{Track 3: classification with pretrained encoder}
 Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (linear probe by default). This isolates representation quality from end-to-end supervised optimization and connects embedding-space improvements to downstream performance.

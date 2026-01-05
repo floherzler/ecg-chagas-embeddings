@@ -13,6 +13,24 @@ The dataset is preprocessed into multiple variants to study the trade-off betwee
 \end{itemize}
 These variants are treated as different experimental regimes rather than interchangeable inputs.
 
+\paragraph{Why study multiple preprocessing regimes?}
+In multi-source ECG collections, preprocessing serves two partially competing goals: (i) removing nuisance variation such as baseline wander and high-frequency noise, and (ii) preserving diagnostically relevant morphology.
+Nonlinear transforms (e.g., clipping and per-record normalization) can reduce amplitude-related source differences, but may also suppress physiologically meaningful variation (e.g., global axis-dependent amplitude patterns) and can interact with downstream augmentations.
+
+\section{Augmentations for Deep Learning}
+Data augmentation is used for two distinct reasons in deep learning pipelines:
+\begin{enumerate}
+  \item \textbf{Teach the model what \emph{not} to learn (invariances).} Augmentations inject realistic nuisance factors (noise, small gain changes, minor timing perturbations), encouraging the representation to be indifferent to acquisition artefacts and non-diagnostic variability.
+  \item \textbf{Teach the model what to learn (effective dataset expansion).} Augmentations can also represent plausible physiological variation that is underrepresented in the data, increasing coverage of the target distribution and improving generalization.
+\end{enumerate}
+This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while others are designed to mimic specific physiological variability.
+
+\subsection{Physiological motivation for frontal axis rotation}
+One example of physiologically plausible augmentation is variation in the heart's frontal electrical axis.
+Clinically, the limb leads can be viewed as projections of the cardiac dipole onto different axes in the frontal plane; the \emph{Cabrera circle} (hexaxial reference system) provides a convenient visualization of these lead axes as angles around the frontal plane.
+Rotating the frontal axis therefore produces systematic changes in the limb-lead amplitudes and apparent morphology (e.g., relative QRS polarity and magnitude across leads I, II, III, aVR, aVL, aVF), while precordial leads are less directly affected because they primarily capture the horizontal plane and local chest projections.
+In our experiments, the axis-rotation augmentation is treated as dataset expansion: different individuals can have different physiological axis orientations, so moderate rotations can improve robustness without corrupting ECG semantics.
+
 \section{Learning Tracks}
 The thesis is organized into three learning tracks:
 \begin{enumerate}
@@ -40,3 +58,53 @@ Track~2 uses a projection head and contrastive objectives to encourage embedding
 \section{Embedding Diagnostics and Early Stopping}
 For Track~1, we monitor a task metric aligned with the challenge objective (TPR@5\% thresholding).
 For Track~2, we rely on embedding-space diagnostics such as class alignment consistency (CAC) and qualitative visualization (e.g., UMAP) to judge whether representations improve.
+
+\section{Embedding-Space Metrics for Binary Imbalance (TTC)}
+Standard supervised contrastive learning can degrade as class imbalance increases.
+Mildenberger et al.\ study this effect in \emph{A Tale of Two Classes (TTC)} and introduce metrics that better diagnose representation quality in binary imbalanced settings \parencite{ttc_2025}.
+Figure~\ref{fig:ttc-imbalance} provides the overall motivation.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_imbalance.png}
+  \caption{Overview from TTC: standard SupCon performance degrades with increasing binary imbalance, motivating imbalance-aware objectives and embedding diagnostics \parencite{ttc_2025}.}
+  \label{fig:ttc-imbalance}
+\end{figure}
+
+\subsection{Traditional diagnostics: SAD and CAD}
+TTC discusses two intuitive diagnostics that are commonly used to summarize contrastive representation quality:
+\begin{itemize}
+  \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
+  \item \textbf{Class Alignment Distance (CAD)}: how close embeddings are within the \emph{same class} (smaller suggests class-wise clustering).
+\end{itemize}
+However, these distances can be misleading under partial collapse: distances may look ``good'' even when the embedding space is poorly structured for downstream separation.
+
+\subsection{Improved diagnostics: SAA and CAC}
+To better detect collapse and capture separability, TTC introduces metrics based on local-neighborhood structure:
+\begin{itemize}
+  \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
+  \item \textbf{Class Alignment Consistency (CAC)}: measures how label-pure local neighborhoods are while still reflecting proximity to the opposite class; it correlates more directly with downstream classification performance in TTC.
+\end{itemize}
+Figure~\ref{fig:ttc-metrics} summarizes why SAD/CAD can be overly optimistic and how SAA/CAC address this failure mode \parencite{ttc_2025}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_metrics.png}
+  \caption{Embedding-space diagnostics from TTC: SAD/CAD can appear favorable even for representations with undesirable structure, while SAA/CAC are more robust to collapse and better reflect neighborhood quality \parencite{ttc_2025}.}
+  \label{fig:ttc-metrics}
+\end{figure}
+
+\subsection{Uniformity: Gaussian Potential Uniformity (GPU)}
+In addition to alignment, representation learning benefits from \emph{uniformity}: embeddings should not collapse into a small region of the space.
+TTC uses Gaussian potential uniformity (GPU), which penalizes high potential under a Gaussian kernel (lower indicates a more uniformly spread set of embeddings) \parencite{ttc_2025}.
+
+\subsection{Imbalance-aware SupCon methods}
+Finally, TTC proposes two strategies to adapt supervised contrastive learning to binary imbalance.
+We treat these as baselines for Track~2 and compare them to standard SupCon; Figure~\ref{fig:ttc-methods} provides the conceptual overview \parencite{ttc_2025}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_methods.png}
+  \caption{Methods overview from TTC: two modifications intended to improve supervised contrastive learning under binary class imbalance \parencite{ttc_2025}.}
+  \label{fig:ttc-methods}
+\end{figure}
