@@ -15,7 +15,9 @@ dist/
 build/
 
 # IDEs / editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 
 # Logs
@@ -34,3 +36,17 @@ wandb/
 # Local run outputs / notebooks
 artifacts/
 **/artifacts/
+# LaTeX (thesis/)
+thesis/.out/
+thesis/**/*.aux
+thesis/**/*.bbl
+thesis/**/*.bcf
+thesis/**/*.blg
+thesis/**/*.fdb_latexmk
+thesis/**/*.fls
+thesis/**/*.lof
+thesis/**/*.lot
+thesis/**/*.out
+thesis/**/*.run.xml
+thesis/**/*.synctex.gz
+thesis/**/*.toc

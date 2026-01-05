@@ -1,0 +1,53 @@
+% Compile with LuaLaTeX (recommended) or XeLaTeX.
+% Keep this file stable; put chapter-specific macros into the chapter file.
+
+\usepackage[onehalfspacing]{setspace}
+
+% Language / typography
+\usepackage[main=english,ngerman]{babel}
+\usepackage{csquotes}
+\usepackage{microtype}
+
+% Graphics / tables
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+% Code (fast, no shell-escape)
+\usepackage{listings}
+\usepackage[dvipsnames]{xcolor}
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  frame=single,
+  breaklines=true,
+  keywordstyle=\color{NavyBlue},
+  commentstyle=\color{Gray},
+  stringstyle=\color{OliveGreen},
+}
+\lstset{style=code}
+
+% Algorithms (optional; remove if you don't use it)
+\usepackage[noend]{algorithm2e}
+
+% TODO notes (disable in final by switching to \usepackage[disable]{todonotes})
+\usepackage[colorinlistoftodos,prependcaption,textsize=small]{todonotes}
+
+% KOMA-friendly headers/footers
+\usepackage[automark,headsepline]{scrlayer-scrpage}
+\clearpairofpagestyles
+\ihead{\headmark}
+\ohead{\pagemark}
+
+% References
+\usepackage[
+  backend=biber,
+  style=apa,
+  sorting=ynt
+]{biblatex}
+\addbibresource{bib/references.bib}
+
+% Links (load late)
+\usepackage[colorlinks=true,urlcolor=NavyBlue,linkcolor=black,citecolor=BlueViolet]{hyperref}
+

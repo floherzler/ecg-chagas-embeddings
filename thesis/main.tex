@@ -1,0 +1,33 @@
+\documentclass[
+  12pt,
+  twoside,
+  paper=a4,
+  DIV=15,
+  BCOR=12mm,
+  abstract=true,
+  headsepline,
+  headings=normal
+]{scrreprt}
+
+\input{preamble}
+
+\begin{document}
+
+\pagenumbering{roman}
+\input{chapters/00_title}
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+\input{chapters/01_introduction}
+\input{chapters/02_background}
+\input{chapters/03_methods_results}
+\input{chapters/04_discussion}
+
+\appendix
+\input{chapters/90_appendix}
+
+\clearpage
+\printbibliography
+
+\end{document}
