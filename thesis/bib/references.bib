@@ -210,61 +210,7 @@
   title      = {{CODE}-15\%: a large scale annotated dataset of 12-lead {ECGs}},
   shorttitle = {{CODE}-15\%},
   url        = {https://zenodo.org/records/4916206},
-  abstract   = {A dataset of 12-lead ECGs with annotations. The dataset contains 345 779 exams from 233 770 patients. It was obtained through stratified sampling from the CODE dataset ( 15\% of the patients). The data was collected by the Telehealth Network of Minas Gerais in the period between 2010 and 2016.
-                
-                This repository contains the files `exams.csv` and the files `exams\_part\{i\}.zip` for i = 0, 1, 2, ... 17. 
-                
-                
-                
-                "exams.csv": is a comma-separated values (csv) file containing the columns
-                
-                
-                
-                "exam\_id": id used for identifying the exam;
-                
-                "age": patient age in years at the moment of the exam;
-                
-                "is\_male": true if the patient is male;
-                
-                "nn\_predicted\_age": age predicted by a neural network to the patient. As described in the paper "Deep neural network estimated electrocardiographic-age as a mortality predictor" bellow.
-                
-                "1dAVb": Whether or not the patient has 1st degree AV block;
-                
-                "RBBB": Whether or not the patient has right bundle branch block;
-                
-                "LBBB": Whether or not the patient has left bundle branch block;
-                
-                "SB": Whether or not the patient has sinus bradycardia;
-                
-                "AF": Whether or not the patient has atrial fibrillation;
-                
-                "ST": Whether or not the patient has sinus tachycardia;
-                
-                "patient\_id": id used for identifying the patient;
-                
-                "normal\_ecg": True if automatic annotation system say it is a normal ECG;
-                
-                "death": true if the patient dies in the follow-up time. This data is available only in the first exam of the patient. Other exams will have this as an empty field;
-                
-                "timey": if the patient dies it is the time to the death of the patient. If not, it is the follow-up time. This data is available only in the first exam of the patient. Other exams will have this as an empty field;
-                
-                "trace\_file": identify in which hdf5 file the file corresponding to this patient is located.
-                
-                
-                
-                "exams\_part\{i\}.hdf5": The HDF5 file containing two datasets named `tracings` and other named `exam\_id`. The `exam\_id` is a tensor of dimension `(N,)` containing the exam id (the same as in the csv file) and the dataset `tracings` is a `(N, 4096, 12)` tensor containing the ECG tracings in the same order. The first dimension corresponds to the different exams; the second dimension corresponds to the 4096 signal samples; the third dimension to the 12 different leads of the ECG exams in the following order: `\{DI, DII, DIII, AVR, AVL, AVF, V1, V2, V3, V4, V5, V6\}`. The signals are sampled at 400 Hz. Some signals originally have a duration of 10 seconds (10 * 400 = 4000 samples) and others of 7 seconds (7 * 400 = 2800 samples). In order to make them all have the same size (4096 samples), we fill them with zeros on both sizes. For instance, for a 7 seconds ECG signal with 2800 samples we include 648 samples at the beginning and 648 samples at the end, yielding 4096 samples that are then saved in the hdf5 dataset. 
-                
-                In python, one can read this file using h5py.```pythonimport h5py
-                
-                f = h5py.File(path\_to\_file, 'r')\# Get idstraces\_ids = np.array(self.f['id\_exam'])x = f['signal']```The `signal` dataset is too large to fit in memory, so don't convert it to a numpy array all at once.It is possible to access a chunk of it using: ``x[start:end, :, :]``.
-                
-                
-                
-                The CODE dataset was collected by the Telehealth Network of Minas Gerais (TNMG) in the period between 2010 and 2016. TNMG is a public telehealth system assisting 811 out of the 853 municipalities in the state of Minas Gerais, Brazil. The dataset is described
-                
-                Ribeiro, Antônio H., Manoel Horta Ribeiro, Gabriela M. M. Paixão, Derick M. Oliveira, Paulo R. Gomes, Jéssica A. Canazart, Milton P. S. Ferreira, et al. “Automatic Diagnosis of the 12-Lead ECG Using a Deep Neural Network.” Nature Communications 11, no. 1 (2020): 1760. https://doi.org/10.1038/s41467-020-15432-4
-                
-                The CODE 15\% dataset is obtained from stratified sampling from the CODE dataset. This subset of the code dataset is described in and used for assessing model performance:"Deep neural network estimated electrocardiographic-age as a mortality predictor"Emilly M Lima, Antônio H Ribeiro, Gabriela MM Paixão, Manoel Horta Ribeiro, Marcelo M Pinto Filho, Paulo R Gomes, Derick M Oliveira, Ester C Sabino, Bruce B Duncan, Luana Giatti, Sandhi M Barreto, Wagner Meira Jr, Thomas B Schön, Antonio Luiz P Ribeiro. MedRXiv (2021) https://www.doi.org/10.1101/2021.02.19.21251232The companion code for reproducing the experiments in the two papers described above can be found, respectively, in:- https://github.com/antonior92/automatic-ecg-diagnosis; and in,- https://github.com/antonior92/ecg-age-prediction.Note about authorship: Antônio H. Ribeiro, Emilly M. Lima and Gabriela M.M. Paixão contributed equally to this work.},
+  abstract   = {A large-scale dataset of 12-lead ECGs (CODE-15\%) released on Zenodo, derived from the CODE cohort via stratified sampling.},
   urldate    = {2025-08-27},
   publisher  = {Zenodo},
   author     = {Ribeiro, Antônio H. and Paixao, Gabriela M.M. and Lima, Emilly M. and Horta Ribeiro, Manoel and Pinto Filho, Marcelo M. and Gomes, Paulo R. and Oliveira, Derick M. and Meira Jr, Wagner and Schon, Thömas B and Ribeiro, Antonio Luiz P.},
@@ -355,4 +301,21 @@
   author    = {Wagner, Patrick and Strodthoff, Nils and Bousseljot, Ralf-Dieter and Samek, Wojciech and Schaeffter, Tobias}
 }
 
+@inproceedings{herzler_rat2025,
+  author = {Herzler, Florian and Jabareen, Nabil and Lukassen, Soeren},
+  year   = {2025},
+  month  = {12},
+  pages  = {},
+  title  = {Ranking Aware Loss for CNN-Based Chagas Disease Detection from ECGs},
+  doi    = {10.22489/CinC.2025.243}
+}
 
+% Alias for convenience in the thesis text.
+@inproceedings{rat2025,
+  author = {Herzler, Florian and Jabareen, Nabil and Lukassen, Soeren},
+  year   = {2025},
+  month  = {12},
+  pages  = {},
+  title  = {Ranking Aware Loss for CNN-Based Chagas Disease Detection from ECGs},
+  doi    = {10.22489/CinC.2025.243}
+}
