@@ -967,6 +967,14 @@ class LitResNet18(LightningModule):
                 param.requires_grad = True
 
     def on_fit_start(self):
+        # Ensure nested loss modules pick up the correct device.
+        # They are implemented as LightningModules and rely on their internal `.device`
+        # property when creating tensors.
+        if self.use_sup_con:
+            self.sup_con_loss = self.sup_con_loss.to(self.device)
+        if self.use_prototypes:
+            self.proto_loss = self.proto_loss.to(self.device)
+
         if not self.use_prototypes:
             self._maybe_init_classifier_bias()
             return
