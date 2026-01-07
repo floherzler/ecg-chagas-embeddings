@@ -30,3 +30,7 @@ build/
 # Models
 lightning_logs/
 wandb/
+
+# Local run outputs / notebooks
+artifacts/
+**/artifacts/
