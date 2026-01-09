@@ -1,0 +1,3 @@
+data:
+  # Bandpassed signals still have realistic gain variation; allow mild scaling.
+  scaling: [0.95, 1.05]

@@ -28,6 +28,7 @@ TRACK=configs/track2_sup_min.yaml
 
 VARIANT="supmin"
 PREPROC="bp"
+PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
 AUG="norot"
 MAX_EPOCHS="${MAX_EPOCHS:-100}"
 
@@ -58,6 +59,7 @@ RUN_NAME="t2-${VARIANT}-${PREPROC}-${AUG}-fold${IDX}-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \
+  --config "$PREPROC_CFG" \
   --config "$TRACK" \
   --trainer.max_epochs "$MAX_EPOCHS" \
   --data.meta_path "$META_PATH" \

@@ -29,6 +29,7 @@ TRACK=configs/track1.yaml
 LOSS_CFG="configs/losses/rat.yaml"
 LOSS_TAG="rat"
 PREPROC="bp"
+PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
 
 MAX_EPOCHS="${MAX_EPOCHS:-2}"
 
@@ -71,6 +72,7 @@ RUN_NAME="t1-${PREPROC}-${LOSS_TAG}-norot-fold${IDX}-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \
+  --config "$PREPROC_CFG" \
   --config "$TRACK" \
   --config "$LOSS_CFG" \
   --trainer.max_epochs "$MAX_EPOCHS" \

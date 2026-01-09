@@ -28,6 +28,7 @@ TRACK=configs/track2_sup_proto.yaml
 
 VARIANT="proto"
 PREPROC="bp"
+PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
 AUG="rot"
 MAX_EPOCHS="${MAX_EPOCHS:-100}"
 ROT_DEG="${ROT_DEG:-10}"
@@ -59,6 +60,7 @@ RUN_NAME="t2-${VARIANT}-${PREPROC}-${AUG}${ROT_DEG}-fold${IDX}-train${TRAIN}-val
 
 python main.py fit \
   --config "$BASE" \
+  --config "$PREPROC_CFG" \
   --config "$TRACK" \
   --trainer.max_epochs "$MAX_EPOCHS" \
   --data.meta_path "$META_PATH" \

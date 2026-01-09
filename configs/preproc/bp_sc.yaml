@@ -1,0 +1,3 @@
+data:
+  # Softclipped+scaled signals are already amplitude-stabilized; keep scaling tighter.
+  scaling: [0.975, 1.025]

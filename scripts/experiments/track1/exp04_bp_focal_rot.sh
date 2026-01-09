@@ -29,6 +29,7 @@ TRACK=configs/track1.yaml
 LOSS_CFG="configs/losses/focal_gamma15.yaml"
 LOSS_TAG="focal-g15"
 PREPROC="bp"
+PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
 
 MAX_EPOCHS="${MAX_EPOCHS:-2}"
 ROT_DEG="${ROT_DEG:-10}"
@@ -72,6 +73,7 @@ RUN_NAME="t1-${PREPROC}-${LOSS_TAG}-rot${ROT_DEG}-fold${IDX}-train${TRAIN}-val${
 
 python main.py fit \
   --config "$BASE" \
+  --config "$PREPROC_CFG" \
   --config "$TRACK" \
   --config "$LOSS_CFG" \
   --trainer.max_epochs "$MAX_EPOCHS" \
