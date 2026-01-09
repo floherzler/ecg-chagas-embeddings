@@ -3,6 +3,11 @@ trainer:
     - class_path: ecg_chagas_embeddings.callbacks.throughput.ThroughputMonitor
       init_args:
         log_every_n_steps: 100
+    - class_path: ecg_chagas_embeddings.callbacks.rolling_mean_metric.RollingMeanMetric
+      init_args:
+        source: val/ap
+        target: val/ap_mean3
+        k: 3
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: val_score
@@ -16,7 +21,7 @@ trainer:
         logging_interval: epoch
     - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
-        monitor: val_score
+        monitor: val/ap_mean3
         mode: max
         patience: 10
         strict: true
