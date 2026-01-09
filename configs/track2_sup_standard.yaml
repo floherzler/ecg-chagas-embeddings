@@ -1,8 +1,5 @@
 trainer:
   callbacks:
-    - class_path: ecg_chagas_embeddings.callbacks.throughput.ThroughputMonitor
-      init_args:
-        log_every_n_steps: 100
     - class_path: ecg_chagas_embeddings.callbacks.rolling_mean_metric.RollingMeanMetric
       init_args:
         source: emb_CAC_mean
