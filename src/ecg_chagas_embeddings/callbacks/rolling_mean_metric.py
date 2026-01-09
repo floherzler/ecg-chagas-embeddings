@@ -31,7 +31,7 @@ class RollingMeanMetric(Callback):
     def on_fit_start(self, trainer, pl_module) -> None:
         self._buf.clear()
 
-    def on_validation_end(self, trainer, pl_module) -> None:
+    def on_validation_epoch_end(self, trainer, pl_module) -> None:
         current = trainer.callback_metrics.get(self.source)
         current_f: Optional[float]
         if current is None:
@@ -52,15 +52,14 @@ class RollingMeanMetric(Callback):
         else:
             mean = float("nan")
 
-        pl_module.log(
-            self.target,
-            mean,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            logger=True,
-            sync_dist=bool(getattr(trainer, "world_size", 1) > 1),
-        )
+        # Lightning disallows `pl_module.log()` inside certain hooks (e.g. `on_validation_end`).
+        # Use the logger directly and also inject into `callback_metrics` so ModelCheckpoint /
+        # EarlyStopping can monitor this value.
+        if getattr(trainer, "logger", None) is not None:
+            try:
+                trainer.logger.log_metrics({self.target: mean}, step=trainer.global_step)
+            except Exception:
+                pass
         try:
             trainer.callback_metrics[self.target] = torch.tensor(
                 mean, device=getattr(pl_module, "device", None)
