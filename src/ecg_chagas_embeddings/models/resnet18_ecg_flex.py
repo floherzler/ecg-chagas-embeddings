@@ -1760,65 +1760,136 @@ class LitResNet18(LightningModule):
             else:
                 df["source_name"] = "unknown"
 
-            # Color = dataset, Marker = condition (label).
-            # This makes 4 conditions (dataset×label) easier to distinguish without adding edgecolors.
-            dataset_palette = {
-                "CODE-15": "#377eb8",  # blue
-                "PTB-XL": "#4daf4a",  # green
-                "SaMi-Trop": "#ff7f00",  # orange
+            # Color: 4 groups (CODE-15 split by condition; smaller datasets each get 1 color).
+            # Marker: dataset.
+            group_palette = {
+                "CODE-15 (healthy)": "#2563eb",  # blue
+                "CODE-15 (chagas)": "#dc2626",  # red
+                "PTB-XL": "#7c3aed",  # purple
+                "SaMi-Trop": "#f59e0b",  # amber
                 "unknown": "#9aa0a6",  # gray
             }
-            marker_map = {
-                "healthy": "o",
-                "chagas": "X",
+            dataset_marker_map = {
+                "CODE-15": "o",
+                "PTB-XL": "^",
+                "SaMi-Trop": "x",
+                "unknown": "s",
+            }
+            # CODE-15 is the largest dataset; use smaller points and slightly higher opacity.
+            dataset_point_size = {
+                "CODE-15": 8,
+                "PTB-XL": 24,
+                "SaMi-Trop": 30,
+                "unknown": 18,
+            }
+            dataset_alpha = {
+                "CODE-15": 0.65,
+                "PTB-XL": 0.8,
+                "SaMi-Trop": 0.8,
+                "unknown": 0.55,
             }
 
-            # Shuffle the dataframe to prevent one group from masking others.
-            df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
+            present_sources = set(df["source_name"])
+            dataset_plot_order: List[str] = [
+                name for name in ("CODE-15", "PTB-XL") if name in present_sources
+            ]
+            dataset_plot_order.extend(
+                sorted(
+                    present_sources
+                    - set(dataset_plot_order)
+                    - {"SaMi-Trop", "unknown"}
+                )
+            )
+            if "unknown" in present_sources:
+                dataset_plot_order.append("unknown")
+            if "SaMi-Trop" in present_sources:
+                dataset_plot_order.append("SaMi-Trop")
 
             background = "#f7f8fb"
             ax_scatter.set_facecolor(background)
 
-            scatter_kwargs = {
-                "data": df,
-                "x": "umap_x",
-                "y": "umap_y",
-                "hue": "source_name",
-                "palette": dataset_palette,
-                "style": "label_name",
-                "markers": marker_map,
-                "s": 22,
-                "edgecolor": None,
-                "linewidth": 0,
-                "alpha": 0.5,  # Balanced alpha for density
-                "ax": ax_scatter,
-                "legend": False,
-            }
-            sns.scatterplot(**scatter_kwargs)
+            for dataset_name in dataset_plot_order:
+                dataset_df = df[df["source_name"] == dataset_name]
+                if dataset_df.empty:
+                    continue
 
-            # Two compact legends: dataset colors and label markers.
+                marker = dataset_marker_map.get(dataset_name, "s")
+                point_size = dataset_point_size.get(dataset_name, 18)
+                alpha = dataset_alpha.get(dataset_name, 0.65)
+                linewidths = 0.9 if marker in {"x", "X", "+", "|", "_"} else 0.0
+
+                if dataset_name == "CODE-15":
+                    for label_name in ("healthy", "chagas"):
+                        label_df = dataset_df[dataset_df["label_name"] == label_name]
+                        if label_df.empty:
+                            continue
+                        group_name = f"CODE-15 ({label_name})"
+                        color = group_palette.get(group_name, "#111827")
+                        if linewidths == 0.0:
+                            ax_scatter.scatter(
+                                label_df["umap_x"].to_numpy(),
+                                label_df["umap_y"].to_numpy(),
+                                c=color,
+                                marker=marker,
+                                s=point_size,
+                                alpha=alpha,
+                                linewidths=linewidths,
+                                edgecolors="none",
+                            )
+                        else:
+                            ax_scatter.scatter(
+                                label_df["umap_x"].to_numpy(),
+                                label_df["umap_y"].to_numpy(),
+                                c=color,
+                                marker=marker,
+                                s=point_size,
+                                alpha=alpha,
+                                linewidths=linewidths,
+                            )
+                else:
+                    color = group_palette.get(dataset_name, "#111827")
+                    if linewidths == 0.0:
+                        ax_scatter.scatter(
+                            dataset_df["umap_x"].to_numpy(),
+                            dataset_df["umap_y"].to_numpy(),
+                            c=color,
+                            marker=marker,
+                            s=point_size,
+                            alpha=alpha,
+                            linewidths=linewidths,
+                            edgecolors="none",
+                        )
+                    else:
+                        ax_scatter.scatter(
+                            dataset_df["umap_x"].to_numpy(),
+                            dataset_df["umap_y"].to_numpy(),
+                            c=color,
+                            marker=marker,
+                            s=point_size,
+                            alpha=alpha,
+                            linewidths=linewidths,
+                        )
+
+            # Two compact legends: dataset markers and group colors.
             from matplotlib.lines import Line2D  # type: ignore
 
-            dataset_order = [
-                k
-                for k in ("CODE-15", "PTB-XL", "SaMi-Trop")
-                if k in set(df["source_name"])
-            ]
-            if "unknown" in set(df["source_name"]):
-                dataset_order.append("unknown")
             handles_ds = [
                 Line2D(
                     [],
                     [],
-                    marker="o",
+                    marker=dataset_marker_map.get(name, "s"),
                     linestyle="",
                     markersize=6,
-                    markerfacecolor=dataset_palette[name],
-                    markeredgecolor="none",
+                    markerfacecolor=(
+                        "none"
+                        if dataset_marker_map.get(name, "s") in {"x", "X", "+", "|", "_"}
+                        else "#111827"
+                    ),
+                    markeredgecolor="#111827",
                     alpha=0.9,
                     label=name,
                 )
-                for name in dataset_order
+                for name in dataset_plot_order
             ]
             leg1 = ax_scatter.legend(
                 handles=handles_ds,
@@ -1835,23 +1906,35 @@ class LitResNet18(LightningModule):
                 leg1.get_title().set_fontweight("bold")
                 ax_scatter.add_artist(leg1)
 
+            group_order = [
+                name
+                for name in (
+                    "CODE-15 (healthy)",
+                    "CODE-15 (chagas)",
+                    "PTB-XL",
+                    "SaMi-Trop",
+                )
+                if name in group_palette
+            ]
+            if "unknown" in set(df["source_name"]):
+                group_order.append("unknown")
             handles_lbl = [
                 Line2D(
                     [],
                     [],
-                    marker=marker_map[name],
+                    marker="o",
                     linestyle="",
                     markersize=7,
-                    markerfacecolor="#111827" if marker_map[name] != "X" else "none",
-                    markeredgecolor="#111827",
+                    markerfacecolor=group_palette[name],
+                    markeredgecolor="none",
                     alpha=0.9,
                     label=name,
                 )
-                for name in ("healthy", "chagas")
+                for name in group_order
             ]
             leg2 = ax_scatter.legend(
                 handles=handles_lbl,
-                title="Label",
+                title="Color",
                 loc="center left",
                 bbox_to_anchor=(1.02, 0.40),
                 frameon=True,
