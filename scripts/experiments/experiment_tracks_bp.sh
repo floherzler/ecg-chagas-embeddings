@@ -15,6 +15,12 @@
 
 set -euo pipefail
 
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
+export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-1}"
+
 if [[ -f .venv/bin/activate ]]; then
   # shellcheck disable=SC1091
   source .venv/bin/activate
@@ -34,6 +40,7 @@ TRAIN_FOLDS="${TRAIN_FOLDS:-[0,1,2,3]}"
 VAL_FOLDS="${VAL_FOLDS:-[4]}"
 MAX_EPOCHS="${MAX_EPOCHS:-50}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
+
 
 # VCG frontal-axis rotation augmentation (best used on bp signals; keep 0 to disable)
 AXIS_ROT_MAX_DEG="${AXIS_ROT_MAX_DEG:-0}"
@@ -130,4 +137,3 @@ case "$MODE" in
     exit 2
     ;;
 esac
-

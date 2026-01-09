@@ -5,11 +5,13 @@ trainer:
   devices: 1
   max_epochs: 100
   precision: bf16-mixed
+  benchmark: true
+  num_sanity_val_steps: 0
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   limit_train_batches: 1.0
   limit_val_batches: 1.0
-  log_every_n_steps: 50
+  log_every_n_steps: 100
   enable_model_summary: true
   enable_progress_bar: true
   logger:
@@ -74,8 +76,13 @@ data:
   meta_path: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv
   data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc
   batch_size: 256
-  num_workers: 4
-  prefetch_factor: 32
+  # Throughput defaults for A100 nodes with ample CPU/RAM.
+  num_workers: 64
+  prefetch_factor: 8
+  worker_torch_threads: 1
+  torch_load_weights_only: true
+  torch_load_mmap: true
+  train_in_order: false
   pos_fraction: 0.05
   oversample: false
   train_folds: [0,1,2]
