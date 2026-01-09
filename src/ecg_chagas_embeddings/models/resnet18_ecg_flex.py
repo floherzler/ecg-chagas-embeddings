@@ -89,6 +89,69 @@ def compute_binary_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     return float(np.trapezoid(tpr, fpr))
 
 
+def compute_binary_pauc(
+    y_true: np.ndarray, y_score: np.ndarray, *, max_fpr: float = 0.05, normalize: bool = True
+) -> float:
+    """
+    Compute partial AUC under the ROC curve for FPR in [0, max_fpr].
+
+    If normalize=True, divides by max_fpr so the result is in [0,1].
+    Returns NaN if only one class is present.
+    """
+    y_true = np.asarray(y_true).astype(int).reshape(-1)
+    y_score = np.asarray(y_score).astype(float).reshape(-1)
+
+    m = np.isfinite(y_score)
+    y_true = y_true[m]
+    y_score = y_score[m]
+
+    pos = y_true == 1
+    neg = y_true == 0
+    P = int(pos.sum())
+    N = int(neg.sum())
+    if P == 0 or N == 0:
+        return float("nan")
+
+    max_fpr = float(max_fpr)
+    if not (0.0 < max_fpr <= 1.0):
+        raise ValueError(f"max_fpr must be in (0,1], got {max_fpr}.")
+
+    order = np.argsort(-y_score, kind="mergesort")
+    y_sorted = y_true[order]
+
+    tps = np.cumsum(y_sorted == 1)
+    fps = np.cumsum(y_sorted == 0)
+
+    tpr = tps / float(P)
+    fpr = fps / float(N)
+
+    # add endpoints
+    fpr = np.concatenate([[0.0], fpr, [1.0]])
+    tpr = np.concatenate([[0.0], tpr, [1.0]])
+
+    if max_fpr >= 1.0:
+        area = float(np.trapezoid(tpr, fpr))
+        return float(area) if not normalize else float(area)
+
+    # Slice curve up to max_fpr and linearly interpolate endpoint at max_fpr.
+    idx = np.searchsorted(fpr, max_fpr, side="right") - 1
+    idx = int(np.clip(idx, 0, len(fpr) - 2))
+
+    fpr_lo, fpr_hi = float(fpr[idx]), float(fpr[idx + 1])
+    tpr_lo, tpr_hi = float(tpr[idx]), float(tpr[idx + 1])
+    if fpr_hi > fpr_lo:
+        alpha = (max_fpr - fpr_lo) / (fpr_hi - fpr_lo)
+        tpr_at = tpr_lo + alpha * (tpr_hi - tpr_lo)
+    else:
+        tpr_at = tpr_lo
+
+    fpr_seg = np.concatenate([fpr[: idx + 1], np.array([max_fpr])])
+    tpr_seg = np.concatenate([tpr[: idx + 1], np.array([tpr_at])])
+
+    area = float(np.trapezoid(tpr_seg, fpr_seg))
+    return float(area / max_fpr) if normalize else float(area)
+
+
 def compute_binary_average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
     """
     Compute Average Precision (AP) for binary labels without external deps.
@@ -1503,8 +1566,10 @@ class LitResNet18(LightningModule):
         # Standard, more interpretable metrics alongside challenge score.
         auroc = compute_binary_auroc(gts, probs)
         ap = compute_binary_average_precision(gts, probs)
+        pauc5 = compute_binary_pauc(gts, probs, max_fpr=0.05, normalize=True)
         self.log("val/auroc", auroc, prog_bar=False, on_epoch=True, on_step=False)
         self.log("val/ap", ap, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val/pauc5", pauc5, prog_bar=False, on_epoch=True, on_step=False)
 
         if sources is not None:
             # Per-source subsets (may be NaN if a subset has a single class)
@@ -1525,6 +1590,15 @@ class LitResNet18(LightningModule):
                 on_step=False,
             )
             self.log(
+                "val/code15_pauc5",
+                compute_binary_pauc(
+                    gts[sources == 0], probs[sources == 0], max_fpr=0.05, normalize=True
+                ),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
                 "val/strong_auroc",
                 compute_binary_auroc(gts[sources != 0], probs[sources != 0]),
                 prog_bar=False,
@@ -1535,6 +1609,15 @@ class LitResNet18(LightningModule):
                 "val/strong_ap",
                 compute_binary_average_precision(
                     gts[sources != 0], probs[sources != 0]
+                ),
+                prog_bar=False,
+                on_epoch=True,
+                on_step=False,
+            )
+            self.log(
+                "val/strong_pauc5",
+                compute_binary_pauc(
+                    gts[sources != 0], probs[sources != 0], max_fpr=0.05, normalize=True
                 ),
                 prog_bar=False,
                 on_epoch=True,
