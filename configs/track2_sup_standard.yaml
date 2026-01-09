@@ -5,6 +5,9 @@ trainer:
         source: emb_CAC_mean
         target: emb_CAC_mean3
         k: 3
+        # If CAC isn't available for an epoch (e.g. metric computation fails), avoid NaNs that
+        # can trigger EarlyStopping's finite-check behavior.
+        missing_value: 0.0
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: emb_CAC_mean3

@@ -11,7 +11,15 @@ from lightning.pytorch.callbacks import Callback
 class RollingMeanMetric(Callback):
     """Log a rolling mean of a metric for smoother monitoring/early stopping."""
 
-    def __init__(self, source: str, target: str, k: int = 3, min_count: int = 1):
+    def __init__(
+        self,
+        source: str,
+        target: str,
+        k: int = 3,
+        min_count: int = 1,
+        *,
+        missing_value: float = float("nan"),
+    ):
         super().__init__()
         if not source:
             raise ValueError("'source' must be a non-empty metric key.")
@@ -26,6 +34,7 @@ class RollingMeanMetric(Callback):
         self.target = str(target)
         self.k = int(k)
         self.min_count = int(min_count)
+        self.missing_value = float(missing_value)
         self._buf: Deque[float] = deque(maxlen=self.k)
 
     def on_fit_start(self, trainer, pl_module) -> None:
@@ -50,16 +59,18 @@ class RollingMeanMetric(Callback):
         elif current_f is not None:
             mean = current_f
         else:
-            mean = float("nan")
+            mean = self.missing_value
 
-        # Lightning disallows `pl_module.log()` inside certain hooks (e.g. `on_validation_end`).
-        # Use the logger directly and also inject into `callback_metrics` so ModelCheckpoint /
-        # EarlyStopping can monitor this value.
-        if getattr(trainer, "logger", None) is not None:
-            try:
-                trainer.logger.log_metrics({self.target: mean}, step=trainer.global_step)
-            except Exception:
-                pass
+        # Log from `on_validation_epoch_end` (allowed) so Lightning can handle step/epoch semantics.
+        pl_module.log(
+            self.target,
+            mean,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            logger=True,
+            sync_dist=bool(getattr(trainer, "world_size", 1) > 1),
+        )
         try:
             trainer.callback_metrics[self.target] = torch.tensor(
                 mean, device=getattr(pl_module, "device", None)

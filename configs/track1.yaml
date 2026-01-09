@@ -5,6 +5,8 @@ trainer:
         source: val/ap
         target: val/ap_mean3
         k: 3
+        # Dev runs may have no positives in val; AP becomes NaN. Keep early stopping finite.
+        missing_value: 0.0
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: val_score
