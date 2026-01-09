@@ -1,5 +1,8 @@
+import inspect
+import random
+from functools import partial
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple, Union, cast
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -12,6 +15,35 @@ from ecg_chagas_embeddings.data.prepare_dataset import (
     preprocess_ecg_safe,
     softclip_scale_ecg,
 )
+
+
+def _seed_worker(worker_id: int) -> None:
+    # Mirror the typical DataLoader seeding scheme (torch -> python/numpy/torch).
+    # torch.initial_seed() is already worker-specific.
+    seed = int(torch.initial_seed()) % 2**32
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+_TORCH_LOAD_SIGNATURE = inspect.signature(torch.load)
+_TORCH_LOAD_SUPPORTS_WEIGHTS_ONLY = "weights_only" in _TORCH_LOAD_SIGNATURE.parameters
+_TORCH_LOAD_SUPPORTS_MMAP = "mmap" in _TORCH_LOAD_SIGNATURE.parameters
+
+
+def _ecg_worker_init_fn(worker_id: int, *, torch_threads: Optional[int] = 1) -> None:
+    # Avoid CPU oversubscription when using multiple workers with torch ops in __getitem__.
+    if torch_threads is not None and int(torch_threads) > 0:
+        try:
+            torch.set_num_threads(int(torch_threads))
+        except Exception:
+            pass
+        try:
+            torch.set_num_interop_threads(1)
+        except Exception:
+            pass
+
+    _seed_worker(worker_id)
 
 
 def read_metadata_folds(
@@ -150,11 +182,11 @@ def get_sampling_weights_pos_frac(
     return torch.DoubleTensor(weights.values)
 
 
-def collate_dict_batch(batch):
+def collate_dict_batch(batch: Sequence[dict[str, object]]) -> dict[str, object]:
     # print("DEBUG BATCH[0]:", batch[0])
 
     # batch is a list of dicts
-    batch_out = {}
+    batch_out: dict[str, object] = {}
     for key in batch[0]:
         if isinstance(batch[0][key], torch.Tensor):
             batch_out[key] = torch.stack([d[key] for d in batch])
@@ -220,6 +252,8 @@ class TorchDataset(Dataset):
         use_ptb_xl: bool = True,
         use_sami_trop: bool = True,
         is_submission: bool = False,
+        torch_load_weights_only: Optional[bool] = True,
+        torch_load_mmap: Optional[bool] = None,
     ):
         self.metadata = read_metadata_folds(meta_path, folds)
         if not use_sami_trop:
@@ -235,6 +269,11 @@ class TorchDataset(Dataset):
         self.transforms = transforms
         self.use_sup_con_views = use_sup_con_views
         self.is_submission = is_submission
+        self._torch_load_kwargs: dict = {}
+        if torch_load_weights_only is not None and _TORCH_LOAD_SUPPORTS_WEIGHTS_ONLY:
+            self._torch_load_kwargs["weights_only"] = bool(torch_load_weights_only)
+        if torch_load_mmap is not None and _TORCH_LOAD_SUPPORTS_MMAP:
+            self._torch_load_kwargs["mmap"] = bool(torch_load_mmap)
 
         self.return_age_and_sex = return_age_and_sex
         if return_age_and_sex:
@@ -242,17 +281,45 @@ class TorchDataset(Dataset):
             d = {"Male": 0.0, "Female": 1.0}
             self.metadata["sex"] = self.metadata["sex"].map(lambda x: d.get(x, x))
 
+        self._exam_ids: List[str] = self.metadata["exam_id"].astype(str).tolist()
+        if self.is_submission:
+            self._paths = self.metadata["path"].astype(str).tolist()
+        else:
+            self._paths = [self.data_dir / f"{eid}.pt" for eid in self._exam_ids]
+
+        # Cache small per-sample metadata as tensors to avoid per-item torch.tensor(...) overhead.
+        self._chagas = torch.from_numpy(
+            self.metadata["chagas"].to_numpy(dtype=np.float32, copy=False)
+        ).view(-1, 1)
+        if self.return_age_and_sex:
+            age_np = (
+                self.metadata["age"].fillna(0.0).to_numpy(dtype=np.float32, copy=False)
+            )
+            self._age = torch.from_numpy(age_np).view(-1, 1)
+            # Keep original semantics: 1.0 if male (==0.0), else 0.0.
+            sex_value_np = (self.metadata["sex"] == 0.0).to_numpy(
+                dtype=np.float32, copy=False
+            )
+            self._sex = torch.from_numpy(sex_value_np).view(-1, 1)
+            source_map = {"CODE-15%": 0.0, "PTB-XL": 1.0, "SaMi-Trop": 2.0}
+            source_np = (
+                self.metadata["source"]
+                .map(source_map)
+                .fillna(-1.0)
+                .to_numpy(dtype=np.float32, copy=False)
+            )
+            self._source = torch.from_numpy(source_np).view(-1, 1)
+
     def __len__(self):
-        return len(self.metadata)
+        return len(self._exam_ids)
 
     def __getitem__(self, index: int):
-        row = self.metadata.iloc[index]
-        exam_id = str(getattr(row, "exam_id", ""))
+        exam_id = self._exam_ids[index]
 
         if self.is_submission:
             # training from wfdb
             signal, _ = preprocess_ecg_safe(
-                row["path"], target_sample_rate=400
+                self._paths[index], target_sample_rate=400
             )  # (C, L) numpy
 
             # Apply soft clipping using dataset statistics
@@ -304,12 +371,12 @@ class TorchDataset(Dataset):
             ecg = torch.tensor(signal, dtype=torch.float32)  # (1, C, L)
         else:
             # training from tensors
-            ecg = torch.load(self.data_dir / f"{row.exam_id}.pt").to(torch.float32)
-        chagas = torch.tensor([row.chagas], dtype=torch.float32)
-
-        # source -> index (if you need it)
-        source_map = {"CODE-15%": 0, "PTB-XL": 1, "SaMi-Trop": 2}
-        source_idx = source_map.get(row.source, -1)
+            ecg = torch.load(
+                self._paths[index], map_location="cpu", **self._torch_load_kwargs
+            )
+            if ecg.dtype != torch.float32:
+                ecg = ecg.to(torch.float32)
+        chagas = self._chagas[index]
 
         # --- apply transform ONCE ---
         if self.transforms is not None:
@@ -334,14 +401,11 @@ class TorchDataset(Dataset):
             # keep backward-compatible tuple return
             return out, chagas
 
-        # One-hot-ish sex value (keeps your original mapping logic)
-        sex_value = 1.0 if getattr(row, "sex", "Female") == 0.0 else 0.0
-
         sample = {
             "chagas": chagas,
-            "age": torch.tensor([getattr(row, "age", 0.0)], dtype=torch.float32),
-            "sex": torch.tensor([sex_value], dtype=torch.float32),
-            "source": torch.tensor([source_idx], dtype=torch.float32),
+            "age": self._age[index],
+            "sex": self._sex[index],
+            "source": self._source[index],
             "exam_id": exam_id,
         }
 
@@ -387,6 +451,10 @@ def get_train_val_loaders(
     val_anchor_clean: bool = True,
     augmentation_base_seed: int = 42,
     is_submission=False,
+    torch_load_weights_only: Optional[bool] = True,
+    torch_load_mmap: Optional[bool] = None,
+    worker_torch_threads: Optional[int] = 1,
+    train_in_order: bool = False,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
     Creates and returns PyTorch DataLoaders for training and validation. Keyword arguments are used to configure the
@@ -542,6 +610,8 @@ def get_train_val_loaders(
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
         use_sup_con_views=2,
+        torch_load_weights_only=torch_load_weights_only,
+        torch_load_mmap=torch_load_mmap,
     )
     valid_dataset = TorchDataset(
         meta_path,
@@ -554,6 +624,8 @@ def get_train_val_loaders(
         use_sami_trop=pos_weight_sami_trop > 0 or neg_weight_sami_trop > 0,
         is_submission=is_submission,
         use_sup_con_views=2,
+        torch_load_weights_only=torch_load_weights_only,
+        torch_load_mmap=torch_load_mmap,
     )
 
     if oversample:
@@ -579,29 +651,51 @@ def get_train_val_loaders(
     else:
         sampler = None
 
+    pin_memory = torch.cuda.is_available()
+    worker_init_fn = (
+        partial(_ecg_worker_init_fn, torch_threads=worker_torch_threads)
+        if num_workers > 0
+        else None
+    )
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        num_workers=num_workers,
-        persistent_workers=num_workers > 0,
-        pin_memory=torch.cuda.is_available(),
-        drop_last=True,
         shuffle=sampler is None,
         sampler=sampler,
-        prefetch_factor=None if num_workers == 0 else prefetch_factor,
+        batch_sampler=None,
+        num_workers=num_workers,
         collate_fn=collate_dict_batch,
+        pin_memory=pin_memory,
+        drop_last=True,
+        timeout=0.0,
+        worker_init_fn=worker_init_fn,
+        multiprocessing_context=None,
+        generator=None,
+        prefetch_factor=None if num_workers == 0 else prefetch_factor,
+        persistent_workers=num_workers > 0,
+        pin_memory_device="cuda" if pin_memory else "",
+        in_order=bool(train_in_order),
     )
 
     valid_loader = DataLoader(
         valid_dataset,
         batch_size=batch_size,
-        num_workers=1,
-        persistent_workers=False,
-        prefetch_factor=None,
-        pin_memory=torch.cuda.is_available(),
-        drop_last=False,
         shuffle=False,
+        sampler=None,
+        batch_sampler=None,
+        num_workers=1,
         collate_fn=collate_dict_batch,
+        pin_memory=pin_memory,
+        drop_last=False,
+        timeout=0.0,
+        worker_init_fn=None,
+        multiprocessing_context=None,
+        generator=None,
+        prefetch_factor=None,
+        persistent_workers=False,
+        pin_memory_device="cuda" if pin_memory else "",
+        in_order=True,
     )
 
     return train_loader, valid_loader

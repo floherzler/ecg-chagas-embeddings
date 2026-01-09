@@ -404,8 +404,9 @@ class TimeMasking(RandomAugmentation):
                 1, min(self.max_mask_duration, N) + 1, generator=generator
             )
             start = self.random_int(0, N - L + 1, generator=generator)
-            signal[:, start : start + L] = 0.0
-            return signal
+            mask = torch.ones(N, device=signal.device, dtype=signal.dtype)
+            mask[start : start + L] = 0.0
+            return signal * mask.unsqueeze(0)
 
         elif signal.dim() == 3:
             # [V, C, N]
@@ -414,8 +415,9 @@ class TimeMasking(RandomAugmentation):
                 1, min(self.max_mask_duration, N) + 1, generator=generator
             )
             start = self.random_int(0, N - L + 1, generator=generator)
-            signal[:, :, start : start + L] = 0.0
-            return signal
+            mask = torch.ones(N, device=signal.device, dtype=signal.dtype)
+            mask[start : start + L] = 0.0
+            return signal * mask.view(1, 1, N)
 
         else:
             raise ValueError(f"Expected [C,N] or [V,C,N], got {tuple(signal.shape)}")
@@ -642,9 +644,9 @@ class Compose:
     def __call__(
         self, x: torch.Tensor, generator: Optional[torch.Generator] = None
     ) -> torch.Tensor:
-        # duplicate upfront (simple & robust)
+        # Duplicate upfront without copying; downstream augs should be out-of-place.
         if self.n_views > 1 and x.dim() == 2:
-            x = torch.stack([x.clone() for _ in range(self.n_views)], dim=0)  # [V,C,N]
+            x = x.unsqueeze(0).expand(self.n_views, -1, -1)  # [V,C,N]
         for aug in self.augs:
             x = aug(x, generator=generator)
         return x

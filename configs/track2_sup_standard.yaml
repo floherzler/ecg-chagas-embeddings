@@ -1,5 +1,8 @@
 trainer:
   callbacks:
+    - class_path: ecg_chagas_embeddings.callbacks.throughput.ThroughputMonitor
+      init_args:
+        log_every_n_steps: 100
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         monitor: emb_CAC_1
@@ -27,4 +30,3 @@ model:
   ratio_supervised_majority: -1.0
   init_classifier_bias: false
   classifier_bias_pos_fraction: null
-
