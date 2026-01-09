@@ -195,7 +195,9 @@ class WfdbDataset(Dataset):
         if self.transforms:
             try:
                 ecg = self.transforms(ecg, key=key)
-            except TypeError as exc:  # backward compatibility for transforms without key
+            except (
+                TypeError
+            ) as exc:  # backward compatibility for transforms without key
                 if "unexpected keyword argument 'key'" not in str(exc):
                     raise
                 ecg = self.transforms(ecg)
@@ -313,7 +315,9 @@ class TorchDataset(Dataset):
         if self.transforms is not None:
             try:
                 out = self.transforms(ecg, key=exam_id)  # returns [C,T] or [V,C,T]
-            except TypeError as exc:  # backward compatibility for transforms without key
+            except (
+                TypeError
+            ) as exc:  # backward compatibility for transforms without key
                 if "unexpected keyword argument 'key'" not in str(exc):
                     raise
                 out = self.transforms(ecg)
@@ -420,7 +424,12 @@ def get_train_val_loaders(
     }
 
     # (shared) physiological axis rotation (VCG-based) — best used on bandpassed (linear) signals
-    if axis_rotation_max_deg and axis_rotation_max_deg > 0 and axis_rotation_prob and axis_rotation_prob > 0:
+    if (
+        axis_rotation_max_deg
+        and axis_rotation_max_deg > 0
+        and axis_rotation_prob
+        and axis_rotation_prob > 0
+    ):
         train_transform_kwargs["axis_rotation_max_deg"] = axis_rotation_max_deg
         train_transform_kwargs["axis_rotation_prob"] = axis_rotation_prob
         train_transform_kwargs["per_view_axis_rotation"] = per_view_axis_rotation
@@ -464,11 +473,17 @@ def get_train_val_loaders(
         n_views=train_transform_kwargs.get("n_views", 2),
         axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
         axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
-        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
+        per_view_axis_rotation=bool(
+            train_transform_kwargs.get("per_view_axis_rotation", True)
+        ),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
-        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
+        time_mask_apply_prob=float(
+            train_transform_kwargs.get("time_mask_apply_prob", 1.0)
+        ),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
-        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
+        channel_mask_apply_prob=float(
+            train_transform_kwargs.get("channel_mask_apply_prob", 1.0)
+        ),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         per_view_noise=bool(train_transform_kwargs.get("per_view_noise", True)),
         scaling=cast(
@@ -497,11 +512,17 @@ def get_train_val_loaders(
         crop_size=crop_size,
         axis_rotation_max_deg=train_transform_kwargs.get("axis_rotation_max_deg", None),
         axis_rotation_prob=float(train_transform_kwargs.get("axis_rotation_prob", 1.0)),
-        per_view_axis_rotation=bool(train_transform_kwargs.get("per_view_axis_rotation", True)),
+        per_view_axis_rotation=bool(
+            train_transform_kwargs.get("per_view_axis_rotation", True)
+        ),
         max_mask_duration=train_transform_kwargs.get("max_mask_duration", None),
-        time_mask_apply_prob=float(train_transform_kwargs.get("time_mask_apply_prob", 1.0)),
+        time_mask_apply_prob=float(
+            train_transform_kwargs.get("time_mask_apply_prob", 1.0)
+        ),
         mask_prob=train_transform_kwargs.get("mask_prob", None),
-        channel_mask_apply_prob=float(train_transform_kwargs.get("channel_mask_apply_prob", 1.0)),
+        channel_mask_apply_prob=float(
+            train_transform_kwargs.get("channel_mask_apply_prob", 1.0)
+        ),
         gaussian_noise_std=train_transform_kwargs.get("gaussian_noise_std", None),
         n_views=val_n_views,
         mode="val",
@@ -574,7 +595,9 @@ def get_train_val_loaders(
     valid_loader = DataLoader(
         valid_dataset,
         batch_size=batch_size,
-        num_workers=num_workers,
+        num_workers=1,
+        persistent_workers=False,
+        prefetch_factor=None,
         pin_memory=torch.cuda.is_available(),
         drop_last=False,
         shuffle=False,

@@ -75,7 +75,7 @@ data:
   data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc
   batch_size: 256
   num_workers: 4
-  prefetch_factor: 16
+  prefetch_factor: 32
   pos_fraction: 0.05
   oversample: false
   train_folds: [0,1,2]

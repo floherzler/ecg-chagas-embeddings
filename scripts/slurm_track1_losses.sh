@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=1:00:00
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
+#SBATCH --mem=256G
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
 #SBATCH --array=0-3  # override at submission: sbatch --array=0-$((${NUM_EXPERIMENTS}-1)) ...
