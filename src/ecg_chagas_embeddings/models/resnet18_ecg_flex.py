@@ -1493,6 +1493,19 @@ class LitResNet18(LightningModule):
             for k, v in emb_metrics.items():
                 tqdm.write(f"Embedding metric {k}: {v:.4f}")
                 self.log(f"emb_{k}", v, prog_bar=False, on_epoch=True, on_step=False)
+
+            cac0 = emb_metrics.get("CAC_0")
+            cac1 = emb_metrics.get("CAC_1")
+            if (
+                cac0 is not None
+                and cac1 is not None
+                and math.isfinite(float(cac0))
+                and math.isfinite(float(cac1))
+            ):
+                cac_mean = 0.5 * (float(cac0) + float(cac1))
+            else:
+                cac_mean = float("nan")
+            self.log("emb_CAC_mean", cac_mean, prog_bar=False, on_epoch=True, on_step=False)
         except Exception as e:
             emb_metrics = {}
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")

@@ -3,12 +3,17 @@ trainer:
     - class_path: ecg_chagas_embeddings.callbacks.throughput.ThroughputMonitor
       init_args:
         log_every_n_steps: 100
+    - class_path: ecg_chagas_embeddings.callbacks.rolling_mean_metric.RollingMeanMetric
+      init_args:
+        source: emb_CAC_mean
+        target: emb_CAC_mean3
+        k: 3
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
-        monitor: emb_CAC_1
+        monitor: emb_CAC_mean3
         mode: max
         dirpath: /tmp/ckpts
-        filename: best_ep_{epoch}_embCAC1_{emb_CAC_1:.3f}
+        filename: best_ep_{epoch}_embCACm3_{emb_CAC_mean3:.3f}
         save_top_k: 1
         save_weights_only: false
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
@@ -16,7 +21,7 @@ trainer:
         logging_interval: epoch
     - class_path: lightning.pytorch.callbacks.EarlyStopping
       init_args:
-        monitor: emb_CAC_1
+        monitor: emb_CAC_mean3
         mode: max
         patience: 10
         strict: true
