@@ -14,17 +14,12 @@
 
 set -euo pipefail
 
-export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
-export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
-export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
-export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
-export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-1}"
-
 source .venv/bin/activate
 wandb login "$WANDB_API_KEY"
 
 BASE=configs/base.yaml
 TRACK=configs/track2_sup_standard.yaml
+EXP_NAME="$(basename "$0" .sh)"
 
 VARIANT="supstd"
 PREPROC="bp"
@@ -55,8 +50,8 @@ TRAIN=${TRAIN_SPLITS[$IDX]}
 VAL=${VAL_SPLITS[$IDX]}
 
 mkdir -p logs
-GROUP_NAME="t2-${VARIANT}-${PREPROC}-${AUG}"
-RUN_NAME="t2-${VARIANT}-${PREPROC}-${AUG}${ROT_DEG}-fold${IDX}-train${TRAIN}-val${VAL}"
+GROUP_NAME="t2-${EXP_NAME}"
+RUN_NAME="t2-${EXP_NAME}-rot${ROT_DEG}-fold${IDX}-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \

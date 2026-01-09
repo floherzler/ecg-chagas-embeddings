@@ -15,12 +15,6 @@
 
 set -euo pipefail
 
-export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
-export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
-export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
-export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
-export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-1}"
-
 # activate venv and login to wandb
 source .venv/bin/activate
 
@@ -29,6 +23,7 @@ wandb login "$WANDB_API_KEY"
 # use base + track1 config
 BASE=configs/base.yaml
 TRACK=configs/track1.yaml
+EXP_NAME="$(basename "$0" .sh)"
 
 # Single experiment config
 LOSS_CFG="configs/losses/bce_weighted.yaml"
@@ -72,8 +67,8 @@ VAL=${VAL_SPLITS[$IDX]}
 mkdir -p logs
 echo "Running split $IDX train=$TRAIN val=$VAL with $LOSS_CFG"
 
-GROUP_NAME="t1-${PREPROC}-${LOSS_TAG}-norot"
-RUN_NAME="t1-${PREPROC}-${LOSS_TAG}-norot-fold${IDX}-train${TRAIN}-val${VAL}"
+GROUP_NAME="t1-${EXP_NAME}"
+RUN_NAME="t1-${EXP_NAME}-fold${IDX}-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \
