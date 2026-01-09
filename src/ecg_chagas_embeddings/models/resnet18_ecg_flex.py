@@ -673,6 +673,7 @@ class LitResNet18(LightningModule):
         self.train_step_losses = []  # ty: ignore[unresolved-attribute]
         self.train_step_supcon_losses = []  # ty: ignore[unresolved-attribute]
         self.val_step_losses = []  # ty: ignore[unresolved-attribute]
+        self.val_step_proj_losses = []  # ty: ignore[unresolved-attribute]
         self.validation_step_outputs = []  # ty: ignore[unresolved-attribute]
         self._pred_rows = []  # ty: ignore[unresolved-attribute]
 
@@ -1204,6 +1205,18 @@ class LitResNet18(LightningModule):
                 logits = logits.mean(dim=1).squeeze(-1)
             else:
                 logits = logits[:, 0].squeeze(-1)
+
+            if self.use_sup_con:
+                y_long = labels.to(torch.long)
+                with torch.amp.autocast(device_type=self.device.type, enabled=False):
+                    con_loss, *_ = self.sup_con_loss(proj.float(), y_long)
+                self.val_step_proj_losses.append(con_loss.detach())
+            elif self.use_prototypes:
+                y_long = labels.to(torch.long)
+                y_oh = F.one_hot(y_long, num_classes=2).to(torch.float32)
+                with torch.amp.autocast(device_type=self.device.type, enabled=False):
+                    proto_loss, *_ = self.proto_loss(proj.float(), y_oh)
+                self.val_step_proj_losses.append(proto_loss.detach())
         else:
             signals = batch.get("ecg")
             if signals is None:
@@ -1586,14 +1599,26 @@ class LitResNet18(LightningModule):
             self.train_step_supcon_losses.clear()
 
         if self.val_step_losses:
+            mean_val_loss = torch.stack(list(self.val_step_losses)).mean()
             self.log(
                 "val/loss",
-                torch.stack(list(self.val_step_losses)).mean(),
+                mean_val_loss,
                 on_epoch=True,
                 on_step=False,
                 prog_bar=False,
             )
             self.val_step_losses.clear()
+
+        if self.val_step_proj_losses:
+            mean_proj_loss = torch.stack(list(self.val_step_proj_losses)).mean()
+            self.log(
+                "val/proj_loss",
+                mean_proj_loss,
+                on_epoch=True,
+                on_step=False,
+                prog_bar=False,
+            )
+            self.val_step_proj_losses.clear()
 
     def _select_balanced_subset_indices(
         self, labels: np.ndarray, ids: Optional[List[str]]
