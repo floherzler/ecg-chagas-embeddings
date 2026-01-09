@@ -77,7 +77,7 @@ data:
   data_dir: /home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/bp_sc
   batch_size: 256
   # Throughput defaults for A100 nodes with ample CPU/RAM.
-  num_workers: 8
+  num_workers: 64
   prefetch_factor: 8
   worker_torch_threads: 1
   torch_load_weights_only: true
