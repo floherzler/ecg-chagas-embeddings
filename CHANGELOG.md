@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.4.0](https://github.com/floherzler/ecg-chagas-embeddings/compare/v0.3.0...v0.4.0) (2026-01-13)
+
+
+### Features
+
+* add UMAP logging schedule ([8f085b1](https://github.com/floherzler/ecg-chagas-embeddings/commit/8f085b114f32e185ca1d136024851d01e853ff00))
+* improve umap markers ([44d7b8b](https://github.com/floherzler/ecg-chagas-embeddings/commit/44d7b8be6c3d650b355b13679356037c6922aae3))
+* log pAUC@5% ([9740125](https://github.com/floherzler/ecg-chagas-embeddings/commit/9740125235ecaa561cf0fcc385854826448fc1ba))
+* speedup suggestions by codex ([70fe24c](https://github.com/floherzler/ecg-chagas-embeddings/commit/70fe24c7c5db769f42be3d36218fb04f39942bfb))
+* track1 early stopping on smoothed AP ([1c208fc](https://github.com/floherzler/ecg-chagas-embeddings/commit/1c208fc4c8e427216b022cdf0a7323640f631461))
+* use smoothed average CAC for track 2 early stopping ([84081b6](https://github.com/floherzler/ecg-chagas-embeddings/commit/84081b655669a87925341c77acb0e489601ab537))
+
+
+### Bug Fixes
+
+* better UMAP title ([94dbe0d](https://github.com/floherzler/ecg-chagas-embeddings/commit/94dbe0d99c0b544a10dc7847107ad8f8867fb7d6))
+* correctly log the smoothed metric ([214cf69](https://github.com/floherzler/ecg-chagas-embeddings/commit/214cf69ab5fe2c31b64e038e2917c08a0db4faef))
+* improve experiment naming ([8e19845](https://github.com/floherzler/ecg-chagas-embeddings/commit/8e19845c188c0d00bc8619ba015202af6f81cc35))
+* improve run naming and remove thread setting from experiments ([8b6c969](https://github.com/floherzler/ecg-chagas-embeddings/commit/8b6c969254386c6677e7099882fe576c3d7752ca))
+* increase avalilable memory for experiments and increase prefetch_factor for train to 32 ([e8532a0](https://github.com/floherzler/ecg-chagas-embeddings/commit/e8532a0332a02f8c14c9986b83b58e964664d623))
+* increase num_workers to 64 ([4526b26](https://github.com/floherzler/ecg-chagas-embeddings/commit/4526b26b9737f0fb0d04ac4b9d16b074d14aad82))
+* log less often ([b7d26a2](https://github.com/floherzler/ecg-chagas-embeddings/commit/b7d26a2bf3bf01078b67605db8d39f5767a3f187))
+* logging on epoch end different loss fro tracks ([e9cc093](https://github.com/floherzler/ecg-chagas-embeddings/commit/e9cc09336ef178264849a90206cce74e93ec31e4))
+* metric computation ([74abb90](https://github.com/floherzler/ecg-chagas-embeddings/commit/74abb90a145f64b80fe7a0166907aa690f03f38a))
+* move tensors to correct device for track2 experiments ([d60745a](https://github.com/floherzler/ecg-chagas-embeddings/commit/d60745a955919b97ed1c6fea7926df3a16b8187c))
+* num_epochs default to 100 and log UMAP every 5 epochs ([8701d91](https://github.com/floherzler/ecg-chagas-embeddings/commit/8701d919ff0e70ceeb07cb2160ca3b90a3679710))
+* revert the 'speedup' changes ([a4bd413](https://github.com/floherzler/ecg-chagas-embeddings/commit/a4bd4136b042929878e4b33434ad907fd0cf3baf))
+* roling mean metric ([f13914d](https://github.com/floherzler/ecg-chagas-embeddings/commit/f13914d9961cce43d16b87a0b8531ed33bc8c944))
+* simplify validation with num_worker=0 ([2533ec7](https://github.com/floherzler/ecg-chagas-embeddings/commit/2533ec77f6260985aa6e94b293947296dd5f12a4))
+* use different amplitude scaling per preprocessing regime ([0d78f93](https://github.com/floherzler/ecg-chagas-embeddings/commit/0d78f93e000c5e1dc07f878c5c304cff8588c77b))
+
 ## [0.3.0](https://github.com/floherzler/ecg-chagas-embeddings/compare/v0.2.0...v0.3.0) (2026-01-05)
 
 
