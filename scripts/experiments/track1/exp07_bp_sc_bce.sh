@@ -25,7 +25,7 @@ LOSS_CFG="configs/losses/bce_weighted.yaml"
 LOSS_TAG="bcew"
 PREPROC="bp_sc"
 PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
-MAX_EPOCHS="${MAX_EPOCHS:-2}"
+MAX_EPOCHS="${MAX_EPOCHS:-100}"
 
 SCRATCH_BASE="${SCRATCH_BASE:-/sc-scratch/sc-scratch-dh-face/physionet2025/processedMaster}"
 META_PATH="${META_PATH:-$SCRATCH_BASE/metadata.csv}"

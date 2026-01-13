@@ -26,7 +26,7 @@ LOSS_TAG="focal-g15"
 PREPROC="bp"
 PREPROC_CFG="configs/preproc/${PREPROC}.yaml"
 
-MAX_EPOCHS="${MAX_EPOCHS:-2}"
+MAX_EPOCHS="${MAX_EPOCHS:-100}"
 ROT_DEG="${ROT_DEG:-10}"
 
 SCRATCH_BASE="${SCRATCH_BASE:-/sc-scratch/sc-scratch-dh-face/physionet2025/processedMaster}"

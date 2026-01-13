@@ -90,7 +90,11 @@ def compute_binary_auroc(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def compute_binary_pauc(
-    y_true: np.ndarray, y_score: np.ndarray, *, max_fpr: float = 0.05, normalize: bool = True
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    max_fpr: float = 0.05,
+    normalize: bool = True,
 ) -> float:
     """
     Compute partial AUC under the ROC curve for FPR in [0, max_fpr].
@@ -605,7 +609,7 @@ class LitResNet18(LightningModule):
         umap_metric: str = "cosine",
         umap_n_epochs: int = 250,
         umap_seed: Optional[int] = None,
-        umap_log_every_n_epochs: int = 1,
+        umap_log_every_n_epochs: int = 5,
         init_classifier_bias: bool = False,
         classifier_bias_pos_fraction: Optional[float] = None,
         use_linear_probe_head: bool = False,
@@ -1505,7 +1509,9 @@ class LitResNet18(LightningModule):
                 cac_mean = 0.5 * (float(cac0) + float(cac1))
             else:
                 cac_mean = float("nan")
-            self.log("emb_CAC_mean", cac_mean, prog_bar=False, on_epoch=True, on_step=False)
+            self.log(
+                "emb_CAC_mean", cac_mean, prog_bar=False, on_epoch=True, on_step=False
+            )
         except Exception as e:
             emb_metrics = {}
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")
@@ -1916,9 +1922,7 @@ class LitResNet18(LightningModule):
             ]
             dataset_plot_order.extend(
                 sorted(
-                    present_sources
-                    - set(dataset_plot_order)
-                    - {"SaMi-Trop", "unknown"}
+                    present_sources - set(dataset_plot_order) - {"SaMi-Trop", "unknown"}
                 )
             )
             if "unknown" in present_sources:
@@ -2003,7 +2007,8 @@ class LitResNet18(LightningModule):
                     markersize=6,
                     markerfacecolor=(
                         "none"
-                        if dataset_marker_map.get(name, "s") in {"x", "X", "+", "|", "_"}
+                        if dataset_marker_map.get(name, "s")
+                        in {"x", "X", "+", "|", "_"}
                         else "#111827"
                     ),
                     markeredgecolor="#111827",
