@@ -669,7 +669,7 @@ def get_train_val_loaders(
         pin_memory=pin_memory,
         drop_last=True,
         timeout=0.0,
-        worker_init_fn=worker_init_fn,
+        # worker_init_fn=worker_init_fn,
         multiprocessing_context=None,
         generator=None,
         prefetch_factor=None if num_workers == 0 else prefetch_factor,
@@ -684,9 +684,9 @@ def get_train_val_loaders(
         shuffle=False,
         sampler=None,
         batch_sampler=None,
-        num_workers=1,
+        num_workers=0,
         collate_fn=collate_dict_batch,
-        pin_memory=pin_memory,
+        pin_memory=False,
         drop_last=False,
         timeout=0.0,
         worker_init_fn=None,
@@ -694,8 +694,22 @@ def get_train_val_loaders(
         generator=None,
         prefetch_factor=None,
         persistent_workers=False,
-        pin_memory_device="cuda" if pin_memory else "",
         in_order=True,
     )
+
+    print(
+        "train num_workers",
+        train_loader.num_workers,
+        "pin_memory",
+        train_loader.pin_memory,
+    )
+    print("train worker_init_fn", train_loader.worker_init_fn)
+    print(
+        "val num_workers",
+        valid_loader.num_workers,
+        "pin_memory",
+        valid_loader.pin_memory,
+    )
+    print("val worker_init_fn", valid_loader.worker_init_fn)
 
     return train_loader, valid_loader
