@@ -63,8 +63,8 @@ VAL=${VAL_SPLITS[$IDX]}
 mkdir -p logs
 echo "Running split $IDX train=$TRAIN val=$VAL with $LOSS_CFG + axis rotation ${ROT_DEG}°"
 
-GROUP_NAME="t1-${EXP_NAME}"
-RUN_NAME="t1-${EXP_NAME}-rot${ROT_DEG}-fold${IDX}-train${TRAIN}-val${VAL}"
+GROUP_NAME="t1-exp04-bp-focal-rot"
+RUN_NAME="t1-exp04-bp-focal-rot${ROT_DEG}-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \

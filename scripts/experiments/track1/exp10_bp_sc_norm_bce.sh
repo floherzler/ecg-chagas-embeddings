@@ -49,8 +49,8 @@ TRAIN=${TRAIN_SPLITS[$IDX]}
 VAL=${VAL_SPLITS[$IDX]}
 
 mkdir -p logs
-GROUP_NAME="t1-${EXP_NAME}"
-RUN_NAME="t1-${EXP_NAME}-fold${IDX}-train${TRAIN}-val${VAL}"
+GROUP_NAME="t1-exp10-bp-sc-norm-bce"
+RUN_NAME="t1-exp10-bp-sc-norm-bce-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \

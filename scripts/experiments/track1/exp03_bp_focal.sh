@@ -63,8 +63,8 @@ VAL=${VAL_SPLITS[$IDX]}
 mkdir -p logs
 echo "Running split $IDX train=$TRAIN val=$VAL with $LOSS_CFG"
 
-GROUP_NAME="t1-${EXP_NAME}"
-RUN_NAME="t1-${EXP_NAME}-fold${IDX}-train${TRAIN}-val${VAL}"
+GROUP_NAME="t1-exp03-bp-focal"
+RUN_NAME="t1-exp03-bp-focal-train${TRAIN}-val${VAL}"
 
 python main.py fit \
   --config "$BASE" \
