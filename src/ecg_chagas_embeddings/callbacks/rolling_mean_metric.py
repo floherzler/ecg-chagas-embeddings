@@ -9,7 +9,11 @@ from lightning.pytorch.callbacks import Callback
 
 
 class RollingMeanMetric(Callback):
-    """Log a rolling mean of a metric for smoother monitoring/early stopping."""
+    """Log a rolling mean of a metric for smoother monitoring/early stopping.
+
+    The mean is always computed over a fixed window of size `k`. When fewer than `k`
+    historical values exist, the missing slots are implicitly treated as zeros.
+    """
 
     def __init__(
         self,
@@ -50,14 +54,15 @@ class RollingMeanMetric(Callback):
         else:
             current_f = float(current)
 
-        if current_f is not None and math.isfinite(current_f):
+        if current_f is None or not math.isfinite(current_f):
+            current_f = None
+        else:
             self._buf.append(current_f)
 
         mean: float
         if len(self._buf) >= self.min_count:
-            mean = float(sum(self._buf) / float(len(self._buf)))
-        elif current_f is not None:
-            mean = current_f
+            missing_count = self.k - len(self._buf)
+            mean = float((sum(self._buf) + (0.0 * float(missing_count))) / float(self.k))
         else:
             mean = self.missing_value
 
