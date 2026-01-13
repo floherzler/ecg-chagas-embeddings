@@ -2077,8 +2077,111 @@ class LitResNet18(LightningModule):
             ax_scatter.set_yticks([])
             ax_scatter.set_xlabel("")
             ax_scatter.set_ylabel("")
+            title_bits: List[str] = [f"t{self.track}"]
+
+            dm = getattr(self.trainer, "datamodule", None)
+            dm_hparams = getattr(dm, "hparams", None)
+            data_dir = getattr(dm_hparams, "data_dir", None)
+            if data_dir:
+                title_bits.append(Path(str(data_dir)).name.replace("_", "-"))
+
+            loss_tag = None
+
+            # Track 2 trains with contrastive/prototype objectives; the classifier criterion is unused.
+            if int(self.track) == 2:
+                if bool(getattr(self, "use_prototypes", False)):
+                    loss_tag = "sup_proto"
+                elif bool(getattr(self, "use_sup_con", False)):
+                    ratio = getattr(self, "ratio_supervised_majority", None)
+                    try:
+                        if ratio is None:
+                            loss_tag = "sup_con"
+                        else:
+                            r = float(ratio)
+                            if r < 0.0:
+                                loss_tag = "sup_std"
+                            elif r == 0.0:
+                                loss_tag = "sup_min"
+                            else:
+                                loss_tag = f"supmaj{r:g}"
+                    except Exception:
+                        loss_tag = "sup_con"
+
+            # Tracks 1/3: infer the *actual* configured criterion class.
+            if loss_tag is None:
+                criterion_meta = getattr(
+                    getattr(self, "hparams", None), "criterion_meta", None
+                )
+                meta_cfg = (
+                    criterion_meta.get("config", {})
+                    if isinstance(criterion_meta, dict)
+                    else {}
+                )
+                class_name = (
+                    criterion_meta.get("class_name")
+                    if isinstance(criterion_meta, dict)
+                    else None
+                )
+                if class_name is None:
+                    class_name = type(getattr(self, "criterion", None)).__name__
+
+                cn = str(class_name)
+                if cn == "BCEWithLogitsLossModule":
+                    pos_weight = (
+                        meta_cfg.get("pos_weight")
+                        if isinstance(meta_cfg, dict)
+                        else None
+                    )
+                    try:
+                        loss_tag = (
+                            "bcew"
+                            if pos_weight is not None and float(pos_weight) != 1.0
+                            else "bce"
+                        )
+                    except Exception:
+                        loss_tag = "bce"
+                elif cn == "SourceWeightedBCE":
+                    loss_tag = "bcew"
+                elif cn == "FocalLoss":
+                    gamma = (
+                        meta_cfg.get("gamma") if isinstance(meta_cfg, dict) else None
+                    )
+                    try:
+                        loss_tag = (
+                            f"focal-g{float(gamma):g}" if gamma is not None else "focal"
+                        )
+                    except Exception:
+                        loss_tag = "focal"
+                elif cn == "FocalTverskyLoss":
+                    loss_tag = "rat"
+                elif cn == "TverskyLoss":
+                    loss_tag = "tversky"
+                elif cn == "AsymmetricLoss":
+                    loss_tag = "asymmetric"
+                else:
+                    loss_tag = cn.lower()
+
+            if loss_tag:
+                title_bits.append(str(loss_tag))
+
+            axis_rotation_prob = getattr(dm_hparams, "axis_rotation_prob", None)
+            axis_rotation_max_deg = getattr(dm_hparams, "axis_rotation_max_deg", None)
+            try:
+                if (
+                    axis_rotation_prob is not None
+                    and axis_rotation_max_deg is not None
+                    and float(axis_rotation_prob) > 0.0
+                    and float(axis_rotation_max_deg) > 0.0
+                ):
+                    deg = float(axis_rotation_max_deg)
+                    deg_str = str(int(deg)) if deg.is_integer() else f"{deg:g}"
+                    title_bits.append(f"rot{deg_str}")
+            except Exception:
+                pass
+
+            title = "UMAP " + " ".join(title_bits) + f" - ep. {self.current_epoch}"
             ax_scatter.set_title(
-                f"UMAP view 0 — epoch {self.current_epoch} | track {self.track}",
+                title,
                 fontsize=12,
                 weight="semibold",
                 pad=10,
