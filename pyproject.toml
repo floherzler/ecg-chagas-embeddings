@@ -42,3 +42,6 @@ dev = [
     "ruff>=0.14.1",
     "ty>=0.0.1a23",
 ]
+
+[tool.ty.src]
+exclude = ["external/**", "**/*.ipynb"]

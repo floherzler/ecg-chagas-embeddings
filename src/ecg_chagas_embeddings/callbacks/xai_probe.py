@@ -663,7 +663,7 @@ class XAIProbeCallback(Callback):
         pl_module.eval()
 
         want = set(self._example_ids)
-        examples: List[Tuple[str, torch.Tensor]] = []
+        examples: List[Tuple[str, torch.Tensor, torch.Tensor]] = []
         for batch in self._probe_loader:
             ids = batch.get("exam_id", None)
             if ids is None:
@@ -740,4 +740,3 @@ class XAIProbeCallback(Callback):
                 logger.experiment.log(images, step=int(getattr(trainer, "global_step", 0)))
             except Exception:
                 pass
-
