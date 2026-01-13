@@ -9,7 +9,7 @@ trainer:
   gradient_clip_val: 0.0
   limit_train_batches: 1.0
   limit_val_batches: 1.0
-  log_every_n_steps: 50
+  log_every_n_steps: 100
   enable_model_summary: true
   enable_progress_bar: true
   logger:
