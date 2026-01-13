@@ -610,6 +610,7 @@ class LitResNet18(LightningModule):
         umap_n_epochs: int = 250,
         umap_seed: Optional[int] = None,
         umap_log_every_n_epochs: int = 5,
+        umap_log_first_n_epochs: int = 9,
         init_classifier_bias: bool = False,
         classifier_bias_pos_fraction: Optional[float] = None,
         use_linear_probe_head: bool = False,
@@ -703,6 +704,14 @@ class LitResNet18(LightningModule):
         self.umap_seed = umap_seed  # ty: ignore[unresolved-attribute]
         self.umap_log_every_n_epochs = int(max(1, umap_log_every_n_epochs))  # ty: ignore[unresolved-attribute]
         self._umap_neg_ids: Optional[List[str]] = None  # ty: ignore[unresolved-attribute]
+        self.umap_log_first_n_epochs = int(max(0, umap_log_first_n_epochs))  # ty: ignore[unresolved-attribute]
+        self._umap_cache_epoch: Optional[int] = None  # ty: ignore[unresolved-attribute]
+        self._umap_cache_embeddings: Optional[np.ndarray] = None  # ty: ignore[unresolved-attribute]
+        self._umap_cache_labels: Optional[np.ndarray] = None  # ty: ignore[unresolved-attribute]
+        self._umap_cache_ids: Optional[List[str]] = None  # ty: ignore[unresolved-attribute]
+        self._umap_cache_sources: Optional[np.ndarray] = None  # ty: ignore[unresolved-attribute]
+        self._umap_cache_metrics: Optional[Dict[str, float]] = None  # ty: ignore[unresolved-attribute]
+        self._umap_logged_epoch: Optional[int] = None  # ty: ignore[unresolved-attribute]
 
         self.init_classifier_bias = init_classifier_bias  # ty: ignore[unresolved-attribute]
         self.classifier_bias_pos_fraction = classifier_bias_pos_fraction  # ty: ignore[unresolved-attribute]
@@ -1516,10 +1525,23 @@ class LitResNet18(LightningModule):
             emb_metrics = {}
             tqdm.write(f"Error in computing representation metrics: {repr(e)}")
 
+        # Cache the last epoch's data so we can still log UMAP once at fit end
+        # (e.g. when EarlyStopping stops on an epoch that isn't part of the regular schedule).
+        self._umap_cache_epoch = int(self.current_epoch)
+        self._umap_cache_embeddings = emb_subset
+        self._umap_cache_labels = gts_subset
+        if (
+            isinstance(ids_subset, list)
+            and len(ids_subset) == int(getattr(emb_subset, "shape", [0])[0])
+        ):
+            self._umap_cache_ids = ids_subset
+        else:
+            self._umap_cache_ids = None
+        self._umap_cache_sources = sources_subset
+        self._umap_cache_metrics = emb_metrics
+
         try:
-            if self.log_umap and (
-                self.current_epoch % self.umap_log_every_n_epochs == 0
-            ):
+            if self.log_umap and self._should_log_umap_epoch(int(self.current_epoch)):
                 self._log_umap_diagnostics(
                     emb_subset,
                     gts_subset,
@@ -1527,6 +1549,7 @@ class LitResNet18(LightningModule):
                     sources=sources_subset,
                     precomputed_metrics=emb_metrics,
                 )
+                self._umap_logged_epoch = int(self.current_epoch)
         except Exception as e:
             tqdm.write(f"Error in computing/logging UMAP diagnostics: {repr(e)}")
 
@@ -2266,6 +2289,44 @@ class LitResNet18(LightningModule):
             },
             step=int(self.global_step),
         )
+
+    def _should_log_umap_epoch(self, epoch: int) -> bool:
+        # Schedule tuned for OneCycleLR + EarlyStopping(patience=10):
+        # - log every epoch for epochs 0..(umap_log_first_n_epochs-1)
+        # - then log every `umap_log_every_n_epochs` epochs
+        # The "always log last epoch" behavior is implemented via `on_fit_end`.
+        if epoch < int(self.umap_log_first_n_epochs):
+            return True
+        return (epoch % int(self.umap_log_every_n_epochs)) == 0
+
+    def on_fit_end(self) -> None:
+        # Always log on the last epoch (useful with EarlyStopping), even if it doesn't
+        # match the regular epoch schedule.
+        if not bool(getattr(self, "log_umap", False)):
+            return
+        cached_epoch = getattr(self, "_umap_cache_epoch", None)
+        if cached_epoch is None:
+            return
+        if getattr(self, "_umap_logged_epoch", None) == cached_epoch:
+            return
+        embeddings = getattr(self, "_umap_cache_embeddings", None)
+        labels = getattr(self, "_umap_cache_labels", None)
+        ids = getattr(self, "_umap_cache_ids", None)
+        if embeddings is None or labels is None or ids is None:
+            return
+        sources = getattr(self, "_umap_cache_sources", None)
+        metrics = getattr(self, "_umap_cache_metrics", None)
+        try:
+            self._log_umap_diagnostics(
+                embeddings,
+                labels,
+                ids=ids,
+                sources=sources,
+                precomputed_metrics=metrics,
+            )
+            self._umap_logged_epoch = cached_epoch
+        except Exception as e:
+            tqdm.write(f"Error in logging final UMAP diagnostics: {repr(e)}")
 
     def configure_optimizers(self):
         param_groups = split_optimizer_in_decay_and_no_decay(
