@@ -1,6 +1,5 @@
 import inspect
 import random
-from functools import partial
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
@@ -652,11 +651,6 @@ def get_train_val_loaders(
         sampler = None
 
     pin_memory = torch.cuda.is_available()
-    worker_init_fn = (
-        partial(_ecg_worker_init_fn, torch_threads=worker_torch_threads)
-        if num_workers > 0
-        else None
-    )
 
     train_loader = DataLoader(
         train_dataset,
