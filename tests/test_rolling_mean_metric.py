@@ -33,6 +33,11 @@ def test_rolling_mean_metric_default_behavior_uses_available_history():
 
 
 def test_rolling_mean_metric_zero_fills_initial_epochs():
+    """
+    Verifies that RollingMeanMetric fills missing initial history with zeros and computes the expected rolling mean.
+    
+    Initializes a RollingMeanMetric with window size k=3 and missing_value=0.0, logs a source value of 0.6 for the first epoch and 0.3 for the second epoch, and asserts the recorded target values are approximately 0.2 after the first epoch and approximately 0.3 after the second epoch.
+    """
     trainer = DummyTrainer()
     module = DummyModule()
     cb = RollingMeanMetric(

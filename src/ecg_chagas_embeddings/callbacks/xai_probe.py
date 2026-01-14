@@ -31,6 +31,23 @@ class DFTLRPConfig:
 
 
 def _as_dftlrp_config(cfg: Optional[Mapping[str, Any]]) -> DFTLRPConfig:
+    """
+    Convert an optional mapping into a DFTLRPConfig, applying sensible defaults for any missing keys.
+    
+    Parameters:
+        cfg (Optional[Mapping[str, Any]]): Mapping with any of the DFTLRPConfig fields. If `None`, a default DFTLRPConfig is returned.
+    
+    Returns:
+        DFTLRPConfig: Configuration with values taken from `cfg` when present, otherwise:
+          - leverage_symmetry: True
+          - precision: 32
+          - epsilon: 1e-6
+          - freq_max_hz: 45.0
+          - compute_timefreq: False
+          - window_width: 128
+          - window_shift: 1
+          - window_shape: "rectangle"
+    """
     if cfg is None:
         return DFTLRPConfig()
     return DFTLRPConfig(
@@ -46,6 +63,20 @@ def _as_dftlrp_config(cfg: Optional[Mapping[str, Any]]) -> DFTLRPConfig:
 
 
 def _parse_bands_hz(bands_hz: Optional[Sequence[Sequence[float]]]) -> List[Tuple[float, float]]:
+    """
+    Parse and validate a sequence of frequency bands (in hertz).
+    
+    Parameters:
+        bands_hz (Optional[Sequence[Sequence[float]]]): Sequence of bands where each band is a sequence of two numbers [low, high].
+            If falsy, a default set of bands is used.
+    
+    Returns:
+        List[Tuple[float, float]]: A list of (low, high) tuples representing frequency bands in Hz. If `bands_hz` is falsy,
+            returns the default bands [(0.67, 2.0), (2.0, 5.0), (5.0, 15.0), (15.0, 45.0)].
+    
+    Raises:
+        ValueError: If any band does not contain exactly two elements or if the high bound is not greater than the low bound.
+    """
     if not bands_hz:
         return [(0.67, 2.0), (2.0, 5.0), (5.0, 15.0), (15.0, 45.0)]
     out: List[Tuple[float, float]] = []
@@ -61,12 +92,20 @@ def _parse_bands_hz(bands_hz: Optional[Sequence[Sequence[float]]]) -> List[Tuple
 
 def extract_pos_logit(model_out: Any) -> torch.Tensor:
     """
-    Return a 1D tensor of positive-class logits (shape [B]).
-
-    Supports:
-      - Tensor logits [B], [B,1], [B,2]
-      - Tuple where last element is logits (LitResNet18: (feats, proj, logits))
-      - Dict containing a 'logits' key
+    Extract the positive-class logit from various model output formats.
+    
+    Parameters:
+        model_out (Any): Model output which may be:
+            - a tensor of shape [B], [B, 1], or [B, 2];
+            - a tuple/list whose last element is logits (e.g., (feats, proj, logits));
+            - a dict containing a "logits" entry.
+    
+    Returns:
+        torch.Tensor: 1-D tensor of positive-class logits with shape [B].
+    
+    Raises:
+        ValueError: If a dict is missing the "logits" key or the logits tensor has an unsupported shape.
+        TypeError: If the resolved logits value is not a torch tensor.
     """
     if isinstance(model_out, (tuple, list)) and len(model_out) > 0:
         model_out = model_out[-1]
@@ -89,6 +128,12 @@ def extract_pos_logit(model_out: Any) -> torch.Tensor:
 
 def _repo_root_from_here() -> Path:
     # src/ecg_chagas_embeddings/callbacks/xai_probe.py -> repo root
+    """
+    Locate the repository root directory relative to this file.
+    
+    Returns:
+        Path: Filesystem path pointing to the repository root (three parent directories above this file).
+    """
     return Path(__file__).resolve().parents[3]
 
 
@@ -118,9 +163,20 @@ def compute_lrp_relevance_time(
     rel_is_model_out: bool = True,
 ) -> torch.Tensor:
     """
-    Compute time-domain relevance via zennit LRP for the positive logit.
-
-    Returns relevance tensor with same shape as input x: [B,C,T].
+    Compute time-domain Layer-wise Relevance Propagation (LRP) for the model's positive-class logit.
+    
+    Parameters:
+        pl_module (torch.nn.Module): The model to explain; must accept `x` and produce logits-compatible output.
+        x (torch.Tensor): Input batch tensor with shape [B, C, T]; gradients are computed w.r.t. this tensor.
+        zennit_composite (str): The zennit composite to use; supported values are `"EpsilonPlus"` and `"EpsilonAlpha2Beta1"`.
+        rel_is_model_out (bool): If `True`, use the raw model output as LRP target; if `False`, use the sign of the model output as the target.
+    
+    Returns:
+        torch.Tensor: Relevance tensor with the same shape as `x` ([B, C, T]) representing per-sample, per-channel, per-time relevance.
+    
+    Raises:
+        ModuleNotFoundError: If the `zennit` package is not available.
+        ValueError: If `zennit_composite` is not one of the supported composites.
     """
     try:
         import zennit.composites  # type: ignore
@@ -159,10 +215,35 @@ def compute_dft_band_fractions_from_relevance(
     eps: float = 1e-12,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
     """
-    Compute relevance mass fractions per frequency band from DFT-LRP relevance in frequency domain.
-
-    Args:
-      relevance_freq: [B,L,F] where F = signal_length//2 + 1 (rfft bins)
+    Compute normalized relevance mass fractions for specified frequency bands from DFT-LRP frequency-domain relevance.
+    
+    This function sums absolute relevance across the given frequency bands and returns:
+    - pooled per-sample fractions (each band's mass divided by the sample's total mass within the considered frequency range),
+    - optionally per-lead fractions (each band's mass divided by that lead's total mass), and
+    - the total absolute mass per sample within the considered frequency range.
+    
+    Parameters:
+        relevance_freq (torch.Tensor): Relevance in frequency domain with shape [B, L, F],
+            where F must equal signal_length // 2 + 1 (rfft bins). Values are interpreted by
+            their absolute magnitude when computing masses.
+        fs_hz (float): Sampling frequency in Hz used to build the frequency grid.
+        signal_length (int): Time-domain signal length used to derive the expected number of rfft bins.
+        freq_max_hz (float): Upper cutoff (exclusive) for frequencies considered when computing total and band masses.
+        bands_hz (Sequence[Tuple[float, float]]): Sequence of (low, high) band boundaries in Hz.
+            Each band includes frequencies f with low <= f < high.
+        per_lead (bool): If True, also return per-lead band fractions with shape [B, L, nb]; otherwise return None for the per-lead output.
+        eps (float): Small value used to clamp denominators to avoid division by zero.
+    
+    Returns:
+        pooled_fracs (torch.Tensor): Tensor of shape [B, nb] with per-sample normalized band fractions
+            (`band_mass / total_mass`) where nb = number of bands in bands_hz.
+        per_lead_fracs_out (Optional[torch.Tensor]): If `per_lead` is True, tensor of shape [B, L, nb]
+            with per-lead normalized band fractions (`band_mass_for_lead / total_mass_for_lead`); otherwise None.
+        total_mass (torch.Tensor): 1-D tensor of shape [B] containing the total absolute relevance mass per sample
+            over frequencies f where f >= min(band lows) and f < freq_max_hz.
+    
+    Raises:
+        ValueError: If `relevance_freq` is not 3-D or its frequency dimension F does not match `signal_length // 2 + 1`.
     """
     if relevance_freq.ndim != 3:
         raise ValueError(f"Expected relevance_freq [B,L,F], got {tuple(relevance_freq.shape)}")
@@ -200,8 +281,19 @@ def compute_dft_band_fractions_from_relevance(
 
 def lead_entropy_from_relevance_time(relevance_time: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
     """
-    Normalized entropy of per-lead relevance mass, in [0,1], shape [B].
-    Lower => model focuses on fewer leads.
+    Compute the normalized entropy of per-lead relevance mass across time.
+    
+    Entropy is computed from the absolute relevance summed over time for each lead, converted to a probability distribution per sample, and normalized by log(number_of_leads) so results lie in [0, 1].
+    
+    Parameters:
+        relevance_time (torch.Tensor): Relevance tensor with shape [B, L, T]; B=batch, L=leads, T=time.
+        eps (float): Small constant to avoid division by zero and log(0).
+    
+    Returns:
+        torch.Tensor: Normalized entropy for each batch sample with shape [B]; `0` means all relevance concentrated in a single lead, `1` means relevance evenly distributed across leads.
+    
+    Raises:
+        ValueError: If `relevance_time` does not have three dimensions [B, L, T].
     """
     if relevance_time.ndim != 3:
         raise ValueError(f"Expected relevance_time [B,L,T], got {tuple(relevance_time.shape)}")
@@ -212,6 +304,22 @@ def lead_entropy_from_relevance_time(relevance_time: torch.Tensor, eps: float = 
 
 
 def _read_ids_file(path: Path) -> List[str]:
+    """
+    Read a file of sample IDs and return them as a list of strings.
+    
+    Supports two formats:
+    - JSON file (suffix `.json`) containing a JSON list of values; each element is converted to a string.
+    - Plain text file: lines are split on commas or whitespace; empty lines and lines starting with `#` are ignored.
+    
+    Parameters:
+        path (Path): Path to the IDs file.
+    
+    Returns:
+        List[str]: List of IDs as strings. Returns an empty list for an empty file.
+    
+    Raises:
+        ValueError: If a `.json` file does not contain a JSON list.
+    """
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return []
@@ -230,6 +338,23 @@ def _read_ids_file(path: Path) -> List[str]:
 
 
 def _default_run_dir(trainer) -> Path:
+    """
+    Resolve a default run directory from a trainer-like object.
+    
+    Checks for a path in the following order and returns the first found:
+    1. trainer.logger.experiment.dir
+    2. trainer.log_dir
+    3. trainer.default_root_dir
+    If none are present or set, returns the current working directory.
+    
+    Parameters:
+        trainer: An object (typically a Lightning Trainer) that may expose
+            `logger`, `log_dir`, or `default_root_dir` attributes. `logger` may
+            expose an `experiment` attribute with a `dir` property.
+    
+    Returns:
+        Path: The chosen run directory as a pathlib.Path.
+    """
     logger = getattr(trainer, "logger", None)
     if logger is not None and hasattr(logger, "experiment"):
         exp = logger.experiment
@@ -273,6 +398,30 @@ class XAIProbeCallback(Callback):
         save_per_sample_csv: bool = True,
         log_wandb_artifact: bool = False,
     ) -> None:
+        """
+        Initialize an XAIProbeCallback that runs DFT-LRP explainability probes on validation data.
+        
+        Parameters:
+            enabled (bool): Whether the callback is active.
+            every_n_epochs (int): Run the probe every N epochs (minimum 1).
+            n_pos (int): Number of positive-label samples to include in the probe sample set.
+            n_neg (int): Number of negative-label samples to include in the probe sample set.
+            seed (int): RNG seed used when sampling probe IDs.
+            fs_hz (float): Signal sampling rate in Hz used for DFT computations.
+            target (str): Target output to probe; currently expected to be "pos_logit".
+            dft_lrp (Optional[Mapping[str, Any]]): Mapping of DFT-LRP configuration options; converted to a DFTLRPConfig.
+            zennit_composite (str): Name of the zennit composite to use for LRP (e.g., "EpsilonPlus", "EpsilonAlpha2Beta1").
+            rel_is_model_out (bool): If True, treat the model output as relevance; otherwise use the sign of the model output as relevance.
+            bands_hz (Optional[Sequence[Sequence[float]]]): Sequence of frequency-band pairs [[low, high], ...]. If falsy, defaults to [(0.67, 2.0), (2.0, 5.0), (5.0, 15.0), (15.0, 45.0)].
+            per_lead (bool): If True, compute and expose per-lead frequency-band fractions in addition to pooled metrics.
+            log_heatmaps (bool): If True and enabled, generate and upload time-frequency heatmaps for example recordings.
+            num_example_plots (int): Maximum number of example heatmaps to produce.
+            probe_ids_path (Optional[str]): Path to a file listing probe sample IDs; if omitted, IDs are sampled from dataset metadata.
+            probe_batch_size (int): Batch size for the probe DataLoader.
+            eps (float): Small constant used for numerical stability in normalizations and divisions.
+            save_per_sample_csv (bool): If True, save per-sample probe outputs as CSV files.
+            log_wandb_artifact (bool): If True, upload saved CSVs as WandB artifacts when available.
+        """
         super().__init__()
         self.enabled = bool(enabled)
         self.every_n_epochs = int(max(1, every_n_epochs))
@@ -302,6 +451,14 @@ class XAIProbeCallback(Callback):
         self._dftlrp_stdft = None
 
     def setup(self, trainer, pl_module, stage: str) -> None:
+        """
+        Prepare the callback's probe DataLoader when invoked during setup.
+        
+        If the callback is enabled and the setup stage is "fit" or "validate", ensure a probe DataLoader is created and cached by calling the internal loader-preparation routine.
+        
+        Parameters:
+            stage (str): Setup stage name; only "fit" and "validate" trigger loader creation.
+        """
         if not self.enabled:
             return
         if stage not in ("fit", "validate"):
@@ -309,6 +466,11 @@ class XAIProbeCallback(Callback):
         self._ensure_probe_loader(trainer)
 
     def on_validation_epoch_end(self, trainer, pl_module) -> None:
+        """
+        Run the XAI probe at the end of validation epochs when configured.
+        
+        Performs early exits if the callback is disabled, Lightning is performing a sanity check, or this process is not the global rank zero. Runs only on epoch 0 or every `every_n_epochs` epochs. Validates that `target` is "pos_logit" and raises a `ValueError` for unsupported targets. When executed, ensures the probe dataloader exists, runs the probe to compute metrics and per-sample results, logs metrics if present, saves per-epoch outputs, and optionally logs heatmap visualizations.
+        """
         if not self.enabled:
             return
         if getattr(trainer, "sanity_checking", False):
@@ -335,6 +497,14 @@ class XAIProbeCallback(Callback):
             self._maybe_log_heatmaps(trainer, pl_module, df_epoch)
 
     def _ensure_probe_loader(self, trainer) -> None:
+        """
+        Ensure a DataLoader over the selected probe samples is created and cached on the callback.
+        
+        Creates a DataLoader built from a Subset of the validation dataset containing the probe IDs selected by _select_probe_ids. If a probe loader already exists, or no validation loader/dataset/probe IDs can be found, the method returns without side effects. When created, the method stores the loader in self._probe_loader, the probe id list in self._probe_ids, the first num_example_plots ids in self._example_ids, and writes the probe ids JSON to <run_dir>/artifacts/xai_probe/xai_probe_ids.json where run_dir is determined by _default_run_dir(trainer).
+        
+        Parameters:
+            trainer: The Lightning Trainer used to locate the validation dataloader and to determine the default run directory.
+        """
         if self._probe_loader is not None:
             return
 
@@ -393,6 +563,25 @@ class XAIProbeCallback(Callback):
         (run_dir / "xai_probe_ids.json").write_text(json.dumps(ids, indent=2), encoding="utf-8")
 
     def _select_probe_ids(self, dataset) -> List[str]:
+        """
+        Selects probe sample IDs from the dataset metadata or a provided probe IDs file.
+        
+        Parameters:
+            dataset: An object exposing a pandas-like `metadata` DataFrame with columns
+                `exam_id` and `chagas`. If `probe_ids_path` was supplied, `dataset` may be
+                None or lack `metadata`.
+        
+        Returns:
+            List[str]: A list of `exam_id` strings to probe. If a probe IDs file is present,
+            its contents are returned. Otherwise up to `n_pos` positive and `n_neg` negative
+            IDs are sampled (without replacement) from `dataset.metadata` using `self.seed`.
+            Returns an empty list if no candidates are available.
+        
+        Raises:
+            FileNotFoundError: If `self.probe_ids_path` is set but the file does not exist.
+            ValueError: If `dataset.metadata` is missing required columns and no probe IDs file
+                was provided.
+        """
         ids_from_file: Optional[List[str]] = None
         if self.probe_ids_path:
             p = Path(self.probe_ids_path)
@@ -431,6 +620,17 @@ class XAIProbeCallback(Callback):
         return [str(x) for x in (chosen_pos + chosen_neg)]
 
     def _get_dftlrp(self, *, signal_length: int, device: torch.device, short_time: bool):
+        """
+        Return a configured DFTLRP instance for the given signal length and device, reusing a cached instance when available.
+        
+        Parameters:
+            signal_length (int): Number of time samples for the DFT/short-time DFT.
+            device (torch.device): Device used to determine whether CUDA acceleration should be enabled.
+            short_time (bool): If True, return a short-time (STDFT) configured instance; otherwise return a full-DFT configured instance.
+        
+        Returns:
+            dftlrp (Any): An initialized DFTLRP object configured for the requested transform; the callback caches and reuses separate instances for short-time and full-DFT configurations.
+        """
         dft_lrp = _import_dft_lrp()
         cuda = device.type == "cuda"
         if short_time:
@@ -460,6 +660,32 @@ class XAIProbeCallback(Callback):
         return self._dftlrp_dft
 
     def _run_probe(self, trainer, pl_module, loader: DataLoader) -> Tuple[Dict[str, float], pd.DataFrame]:
+        """
+        Run the XAI probe over the provided DataLoader and return aggregated metrics plus a per-sample results DataFrame.
+        
+        Processes each batch from `loader` to compute time-domain LRP relevances, transform them to frequency-domain relevance, aggregate relevance mass into configured frequency bands, compute per-lead entropy and a near-cutoff ratio, and collect per-sample rows.
+        
+        Parameters:
+            trainer: Trainer object (used only for epoch retrieval / context).
+            pl_module: LightningModule under probe; used for forward/inference and moved to evaluation mode.
+            loader (DataLoader): Yields batches containing at minimum:
+                - "chagas": label tensor
+                - "ecg" or "ecg_views": signal tensor (if "ecg_views" provided, the first view is used)
+                - optional "exam_id": sample identifier (string/iterable/tensor)
+                If a batch lacks both "ecg" and "ecg_views", a ValueError is raised.
+        
+        Returns:
+            Tuple[Dict[str, float], pandas.DataFrame]:
+            - metrics: Dictionary of aggregated scalar metrics. Always contains:
+                - "xai/epoch": current epoch
+                - "xai/n_samples": number of probed samples
+              If data is present, also includes band-averaged keys of the form
+                "xai/rel_frac_{lo}_{hi}" and group variants "xai_pos/...", "xai_neg/...",
+              plus "xai/lead_entropy", "xai/near_cutoff_ratio", and "xai/total_mass".
+            - df_epoch: DataFrame with one row per probed sample containing columns:
+                - "sample_id", "label", "lead_entropy", "near_cutoff_ratio", "total_mass"
+                - "rel_frac_{lo}_{hi}" for each configured frequency band
+        """
         device = getattr(pl_module, "device", torch.device("cpu"))
         pl_module.eval()
 
@@ -520,6 +746,16 @@ class XAIProbeCallback(Callback):
                 lead_ent = lead_entropy_from_relevance_time(relevance_time, eps=self.eps)
 
                 def _band_idx(lo: float, hi: float) -> int:
+                    """
+                    Finds the index of the frequency band matching the given lower and upper bounds.
+                    
+                    Parameters:
+                        lo (float): Lower bound of the frequency band in Hz.
+                        hi (float): Upper bound of the frequency band in Hz.
+                    
+                    Returns:
+                        int: Index of the matching band in self.bands_hz if a band with bounds equal to `lo` and `hi` (within 1e-9) is found, `-1` otherwise.
+                    """
                     for i, (a, b) in enumerate(self.bands_hz):
                         if abs(a - lo) < 1e-9 and abs(b - hi) < 1e-9:
                             return i
@@ -580,6 +816,19 @@ class XAIProbeCallback(Callback):
         metrics["xai/n_samples"] = float(pooled_all.shape[0])
 
         def add_band_metrics(prefix: str, fracs: torch.Tensor) -> None:
+            """
+            Add mean relevance fraction per frequency band into the surrounding `metrics` mapping.
+            
+            Parameters:
+                prefix (str): Base key prefix to use for metric names; each band metric is stored under
+                    "{prefix}/rel_frac_{lo}_{hi}" where `lo` and `hi` are band bounds.
+                fracs (torch.Tensor): Tensor of shape [B, nb] containing per-sample relevance fractions
+                    for each of `nb` bands. If empty, no metrics are added.
+            
+            Notes:
+                This function updates a `metrics` mapping in the enclosing scope and reads band bounds
+                from `self.bands_hz`.
+            """
             if fracs.numel() == 0:
                 return
             for b, (lo, hi) in enumerate(self.bands_hz):
@@ -602,6 +851,18 @@ class XAIProbeCallback(Callback):
         return metrics, df_epoch
 
     def _log_metrics(self, trainer, metrics: Dict[str, float]) -> None:
+        """
+        Log metrics using trainer.logger if available.
+        
+        Parameters:
+            trainer: Trainer-like object with attributes `logger` (may be None) and optional `global_step`.
+            metrics (Dict[str, float]): Mapping of metric names to scalar values to log.
+        
+        Notes:
+            - Uses `trainer.global_step` as the logging step; defaults to 0 if missing.
+            - No-op if `trainer.logger` is None.
+            - Any exceptions raised by the logger are caught and ignored.
+        """
         logger = getattr(trainer, "logger", None)
         if logger is None:
             return
@@ -613,6 +874,19 @@ class XAIProbeCallback(Callback):
             pass
 
     def _maybe_save_outputs(self, trainer, epoch: int, df_epoch: pd.DataFrame) -> None:
+        """
+        Save per-sample probe outputs to the run artifacts directory and optionally log the saved CSV as a Weights & Biases artifact.
+        
+        If configured to save per-sample CSVs and the provided DataFrame is non-empty, writes the DataFrame to
+        artifacts/xai_probe/xai_probe_epoch_{epoch:04d}.csv inside the trainer's default run directory, creating
+        the directory if necessary. When configured to log WandB artifacts, forwards the saved CSV to the WandB
+        artifact logger.
+        
+        Parameters:
+            trainer: Trainer object used to resolve the default run directory and access the logger.
+            epoch (int): Epoch index used to name the output file.
+            df_epoch (pd.DataFrame): Per-sample results for the epoch; saved only if non-empty.
+        """
         run_dir = _default_run_dir(trainer) / "artifacts" / "xai_probe"
         run_dir.mkdir(parents=True, exist_ok=True)
         if self.save_per_sample_csv and not df_epoch.empty:
@@ -622,6 +896,16 @@ class XAIProbeCallback(Callback):
                 self._log_csv_as_wandb_artifact(trainer, out_path, epoch)
 
     def _log_csv_as_wandb_artifact(self, trainer, csv_path: Path, epoch: int) -> None:
+        """
+        Logs a saved CSV file as a Weights & Biases artifact when a WandB experiment is available.
+        
+        If the trainer has a logger with an active `experiment` and the `wandb` package is importable, this function creates an artifact named `xai_probe_epoch_{epoch:04d}` of type `xai_probe`, attaches the CSV file, and logs the artifact. The function returns without error if the logger/experiment is missing or if wandb operations fail.
+        
+        Parameters:
+            trainer: Trainer-like object providing a `logger` attribute with an `experiment` (used to log the artifact).
+            csv_path (Path): Path to the CSV file to add to the artifact.
+            epoch (int): Epoch number used to construct the artifact name.
+        """
         logger = getattr(trainer, "logger", None)
         if logger is None or not hasattr(logger, "experiment"):
             return
@@ -640,6 +924,14 @@ class XAIProbeCallback(Callback):
             pass
 
     def _maybe_log_heatmaps(self, trainer, pl_module, df_epoch: pd.DataFrame) -> None:
+        """
+        Log short-time DFT-LRP heatmaps for selected probe examples to Weights & Biases when time-frequency logging is enabled and required dependencies are available.
+        
+        Parameters:
+            trainer: The PyTorch Lightning trainer instance used to obtain the logger and global step.
+            pl_module: The Lightning module (model) used to compute relevance; will be placed in eval mode for inference.
+            df_epoch (pd.DataFrame): Per-epoch probe results (unused for generation but provided for contextual parity).
+        """
         if not self.dft_lrp_cfg.compute_timefreq:
             return
         logger = getattr(trainer, "logger", None)

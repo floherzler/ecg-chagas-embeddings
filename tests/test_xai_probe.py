@@ -1,4 +1,3 @@
-
 import torch
 
 from ecg_chagas_embeddings.callbacks.xai_probe import (
@@ -9,18 +8,50 @@ from ecg_chagas_embeddings.callbacks.xai_probe import (
 
 
 def test_extract_pos_logit_shapes():
+    """
+    Verify that `extract_pos_logit` produces a 1D tensor of length equal to the batch size when given model outputs of different trailing dimensions.
+    
+    Creates three dummy modules whose forward outputs have shapes (batch,), (batch, 1), and (batch, 2), then asserts that `extract_pos_logit` returns a tensor with shape (batch,) for each case.
+    """
     x = torch.randn(3, 12, 100)
 
     class M1(torch.nn.Module):
         def forward(self, _x):
+            """
+            Produce a random vector whose length equals the input batch size.
+            
+            Parameters:
+                _x (torch.Tensor): Input tensor; only its first dimension (batch size) is used.
+            
+            Returns:
+                torch.Tensor: 1-D tensor of shape (batch,) with values sampled from a standard normal distribution (mean 0, std 1).
+            """
             return torch.randn(_x.shape[0])
 
     class M2(torch.nn.Module):
         def forward(self, _x):
+            """
+            Produce a single-channel random tensor whose batch size matches the input.
+            
+            Parameters:
+                _x (torch.Tensor): Input tensor; only its first dimension (batch size) is used.
+            
+            Returns:
+                torch.Tensor: Tensor of shape (batch_size, 1) with samples drawn from a standard normal distribution.
+            """
             return torch.randn(_x.shape[0], 1)
 
     class M3(torch.nn.Module):
         def forward(self, _x):
+            """
+            Produce random logits for two classes matching the input batch size.
+            
+            Parameters:
+                _x (torch.Tensor): Input tensor; only its first dimension (batch size) is used.
+            
+            Returns:
+                torch.Tensor: Tensor of shape (batch_size, 2) with values sampled from a standard normal distribution representing logits for two classes.
+            """
             return torch.randn(_x.shape[0], 2)
 
     assert extract_pos_logit(M1()(x)).shape == (3,)
@@ -91,4 +122,3 @@ def test_lead_entropy_bounds():
     assert torch.isfinite(h).all()
     assert (h >= 0).all()
     assert (h <= 1 + 1e-6).all()
-
