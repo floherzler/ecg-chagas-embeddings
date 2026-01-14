@@ -129,6 +129,7 @@ The augmentation is controlled by:
 \end{itemize}
 
 \section{Track Definitions and Experiment Variables}
+\label{sec:track-definitions}
 \subsection{Track 1: supervised classification}
 Track~1 trains a binary classifier on top of the backbone encoder. The main experimental variables are:
 \begin{itemize}
@@ -136,7 +137,8 @@ Track~1 trains a binary classifier on top of the backbone encoder. The main expe
   \item \textbf{Preprocessing regime}: \texttt{bp}, \texttt{bp\_sc}, \texttt{bp\_sc\_norm}.
   \item \textbf{Augmentation scheme}: baseline mild augmentations, optionally with axis rotation for \texttt{bp}.
 \end{itemize}
-We log a challenge-aligned score (TPR@5\%), and additionally AUROC and average precision (AP) for more interpretable reporting.
+We log the challenge-aligned score (TPR@5\%) and additional threshold-independent metrics (AUROC, AP, and pAUC@5\% FPR) for interpretable reporting.
+Early stopping uses a 3-epoch rolling mean of AP (\texttt{val/ap\_mean3}) to reduce noise on imbalanced validation splits.
 
 \subsection{Track 2: projection / embedding learning}
 Track~2 optimizes representation geometry. We run three variants:
@@ -147,7 +149,7 @@ Track~2 optimizes representation geometry. We run three variants:
 \end{itemize}
 Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) to quantify how different objectives, loss functions, and preprocessing regimes shape representation geometry.
 In Track~2, these diagnostics are used to compare embedding structure across objectives and to justify when representation learning translates into improved downstream classification in Track~3.
-Early stopping for Track~2 monitors an embedding-space metric (CAC for the positive class), and UMAP plots are used for qualitative inspection.
+Early stopping for Track~2 monitors a smoothed embedding-space metric (\texttt{emb\_CAC\_mean3}), and UMAP plots are used for qualitative inspection.
 
 \subsection{Track 3: classification with pretrained encoder}
 Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (linear probe by default). This isolates representation quality from end-to-end supervised optimization and connects embedding-space improvements to downstream performance.
