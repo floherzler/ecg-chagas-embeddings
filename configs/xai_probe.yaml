@@ -1,0 +1,39 @@
+trainer:
+  callbacks:
+    - class_path: ecg_chagas_embeddings.callbacks.xai_probe.XAIProbeCallback
+      init_args:
+        enabled: true
+        every_n_epochs: 5
+        n_pos: 64
+        n_neg: 64
+        seed: 1337
+        target: pos_logit
+        fs_hz: 400.0
+
+        # --- DFT-LRP (official upstream) ---
+        zennit_composite: EpsilonPlus
+        rel_is_model_out: true
+        dft_lrp:
+          leverage_symmetry: true
+          precision: 32
+          epsilon: 1.0e-6
+          freq_max_hz: 45.0
+          # Time-frequency visualizations are optional and can be memory-heavy at T=2500.
+          compute_timefreq: false
+          window_width: 128
+          window_shift: 1
+          window_shape: rectangle
+
+        bands_hz:
+          - [0.67, 2.0]
+          - [2.0, 5.0]
+          - [5.0, 15.0]
+          - [15.0, 45.0]
+        per_lead: true
+        log_heatmaps: false
+        num_example_plots: 8
+        probe_ids_path: null
+        probe_batch_size: 16
+        save_per_sample_csv: true
+        log_wandb_artifact: false
+

@@ -26,6 +26,7 @@ dependencies = [
     "umap-learn>=0.5.9.post2",
     "wandb>=0.22.2",
     "wfdb>=4.3.0",
+    "zennit>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -41,3 +42,6 @@ dev = [
     "ruff>=0.14.1",
     "ty>=0.0.1a23",
 ]
+
+[tool.ty.src]
+exclude = ["external/**", "**/*.ipynb"]
