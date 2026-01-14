@@ -2,19 +2,21 @@
 
 \section{Clinical Motivation}
 Chagas disease is a neglected tropical disease caused by \textit{Trypanosoma cruzi} infection and can progress to chronic Chagas cardiomyopathy, which is associated with conduction abnormalities, arrhythmias, and heart failure.
+\todo{state importance of the disease, prevalence, morbidity/mortality}
 Early identification of infected individuals enables confirmatory serological testing and timely follow-up, but population-wide screening is challenging in resource-constrained settings.
-
-\section{Why the ECG?}
-The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
-Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
-Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
 
 \section{Task Origin: PhysioNet/Computing in Cardiology Challenge 2025}
 The experimental classification task in this thesis is derived from the George B.~Moody PhysioNet Challenge 2025, which focuses on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
 We therefore interpret the task as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
 The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
 
-\section{Why Deep Learning?}
+\section{Electrocardiogram as Screening Modality}
+The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
+Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
+Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
+\missingfigure{cabrera circle for ecg leads}
+
+\section{Deep Learning for ECG Interpretation}
 ECG-based detection requires modeling subtle, distributed waveform patterns across leads and time.
 Deep learning methods, particularly convolutional architectures, can learn such representations directly from raw waveforms and have shown strong performance for ECG interpretation tasks \parencite{jidling_screening_2023}.
 
@@ -35,7 +37,7 @@ This thesis studies practical strategies to improve robustness under the above c
 \end{itemize}
 Chapter~\ref{ch:methods-results} details the configuration system and experimental variables used in these tracks.
 
-\section{Open-Source Resources}
+\paragraph{Open-Source Resources}
 To support reproducibility, the codebase, experiment tracking, and project planning are publicly accessible:
 \begin{itemize}
   \item Code repository: \url{https://github.com/floherzler/ecg-chagas-embeddings}
