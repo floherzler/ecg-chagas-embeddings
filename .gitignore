@@ -50,3 +50,8 @@ thesis/**/*.out
 thesis/**/*.run.xml
 thesis/**/*.synctex.gz
 thesis/**/*.toc
+
+# LaTeX (repo root)
+*.aux
+*.fdb_latexmk
+*.fls
