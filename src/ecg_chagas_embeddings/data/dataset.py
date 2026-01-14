@@ -456,33 +456,46 @@ def get_train_val_loaders(
     train_in_order: bool = False,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
-    Creates and returns PyTorch DataLoaders for training and validation. Keyword arguments are used to configure the
-    ECGAugmentation for the training dataset.
-
+    Create training and validation PyTorch DataLoaders configured with dataset selection, optional oversampling, and ECGAugmentation.
+    
     Args:
-        meta_path (Path): Path to the metadata file containing dataset information.
-        data_dir (Path): Path to the directory where the dataset is stored.
-        batch_size (int): Number of samples per batch.
-        oversample (bool, optional): Whether to apply oversampling for balancing classes. Defaults to False.
-        train_folds (Union[int, Iterable], optional): Fold indices to use for training. Defaults to [0, 1, 2, 3].
-        valid_folds (Union[int, Iterable], optional): Fold indices to use for validation. Defaults to [4].
-        num_workers (int, optional): Number of worker threads for data loading. Defaults to 0.
-        prefetch_factor (int, optional): Number of samples to prefetch. Defaults to 2.
-        crop_size: Crops or pads to this size.
-        max_time_warp: Warps time by this percentage.
-        scaling: Min and max of amplitude scaling.
-        gaussian_noise_std: Gaussian noise std.
-        wandering_max_amplitude: Amplitude of random wandering.
-        wandering_frequency_range: Frequency range of random wandering.
-        max_mask_duration: Max duration of zero masking.
-        mask_prob: Probability to completely mask a lead (channel).
-        val_anchor_clean: If True, validation view0 is only cropped (no noise/mask).
-        augmentation_base_seed: Base seed used with exam_id to create deterministic validation views.
-        Note: this pipeline always produces two augmented views for both train and validation.
-
+        meta_path (Path): Path to the metadata CSV used to build datasets.
+        data_dir (Path): Directory containing dataset files or precomputed tensors.
+        batch_size (int): Batch size for both loaders.
+        oversample (bool): If True, apply weighted sampling to reach a target positive ratio. Defaults to False.
+        pos_fraction (float): Desired positive-class fraction when oversampling is enabled.
+        train_folds (Union[int, Iterable]): Fold indices to include in the training split.
+        valid_folds (Union[int, Iterable]): Fold indices to include in the validation split.
+        num_workers (int): Number of worker processes for the training DataLoader.
+        prefetch_factor (int): Number of batches each worker prefetches (used when num_workers > 0).
+        neg_weight_code15 (float), neg_weight_ptb_xl (float), neg_weight_sami_trop (float):
+            Per-source multipliers applied to negative-class sampling weights.
+        pos_weight_code15 (float), pos_weight_ptb_xl (float), pos_weight_sami_trop (float):
+            Per-source multipliers applied to positive-class sampling weights.
+        crop_size (int): Length (samples) to crop or pad each ECG to.
+        axis_rotation_max_deg (float): Maximum VCG-based axis rotation in degrees; set to 0 to disable.
+        axis_rotation_prob (float): Probability of applying axis rotation.
+        per_view_axis_rotation (bool): If True, apply axis rotation independently per view.
+        max_time_warp (float): Maximum time warp ratio; set to 0 to disable.
+        scaling (Tuple[float, float]): (min, max) amplitude scaling per view.
+        gaussian_noise_std (float): Standard deviation of per-view additive Gaussian noise.
+        wandering_max_amplitude (float): Max amplitude for low-frequency wandering artifact.
+        wandering_frequency_range (Tuple[float, float]): Frequency range for wandering artifact.
+        max_mask_duration (int): Maximum duration (in samples) for time masking.
+        time_mask_apply_prob (float): Probability of applying time masking.
+        mask_prob (float): Probability to fully mask (zero) a lead for augmentation.
+        channel_mask_apply_prob (float): Probability a given channel is masked when mask_prob applies.
+        val_anchor_clean (bool): If True, the first validation view is deterministic/clean (no noise/mask).
+        augmentation_base_seed (int): Base seed used together with exam_id to make validation augmentations deterministic.
+        is_submission (bool): If True, dataset reads raw files and applies soft-clipping/preprocessing instead of loading tensors.
+        torch_load_weights_only (Optional[bool]): If True, pass weights_only to torch.load when supported.
+        torch_load_mmap (Optional[bool]): If set, pass mmap_mode to torch.load when supported.
+        worker_torch_threads (Optional[int]): (Present for API compatibility) per-worker torch thread target; not applied by this loader.
+        train_in_order (bool): If True, request the training DataLoader to iterate in order when supported.
+    
     Returns:
         Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
-        A tuple containing the training and validation DataLoaders.
+            (train_loader, valid_loader) — configured DataLoaders for training and validation.
     """
 
     train_transform_kwargs = {
