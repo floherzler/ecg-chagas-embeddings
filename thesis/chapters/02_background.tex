@@ -7,9 +7,9 @@ The work is conducted in the context of the PhysioNet/Computing in Cardiology Ch
 This thesis uses standard 12-lead resting ECGs. The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb-xl_nodate}, distributed via PhysioNet \parencite{goldberger2000physiobank}.
 The dataset is preprocessed into multiple variants to study the trade-off between signal standardization and potential loss of physiologically meaningful variation:
 \begin{itemize}
-    \item \textbf{bp}: band-pass filtered signals (approximately linear processing).
-    \item \textbf{bp\_sc}: additional soft clipping (nonlinear amplitude transform).
-    \item \textbf{bp\_sc\_norm}: additional z-score normalization (per-record standardization).
+  \item \textbf{bp}: band-pass filtered signals (approximately linear processing).
+  \item \textbf{bp\_sc}: additional soft clipping (nonlinear amplitude transform).
+  \item \textbf{bp\_sc\_norm}: additional z-score normalization (per-record standardization).
 \end{itemize}
 These variants are treated as different experimental regimes rather than interchangeable inputs.
 
@@ -20,8 +20,8 @@ Nonlinear transforms (e.g., clipping and per-record normalization) can reduce am
 \section{Augmentations for Deep Learning}
 Data augmentation is used for two distinct reasons in deep learning pipelines:
 \begin{enumerate}
-    \item \textbf{Teach the model what \emph{not} to learn (invariances).} Augmentations inject realistic nuisance factors (noise, small gain changes, minor timing perturbations), encouraging the representation to be indifferent to acquisition artefacts and non-diagnostic variability.
-    \item \textbf{Teach the model what to learn (effective dataset expansion).} Augmentations can also represent plausible physiological variation that is underrepresented in the data, increasing coverage of the target distribution and improving generalization.
+  \item \textbf{Teach the model what \emph{not} to learn (invariances).} Augmentations inject realistic nuisance factors (noise, small gain changes, minor timing perturbations), encouraging the representation to be indifferent to acquisition artefacts and non-diagnostic variability.
+  \item \textbf{Teach the model what to learn (effective dataset expansion).} Augmentations can also represent plausible physiological variation that is underrepresented in the data, increasing coverage of the target distribution and improving generalization.
 \end{enumerate}
 This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while others are designed to mimic specific physiological variability.
 
@@ -34,9 +34,9 @@ In these experiments, the axis-rotation augmentation is treated as dataset expan
 \section{Learning Tracks}
 The thesis is organized into three learning tracks:
 \begin{enumerate}
-    \item \textbf{Track 1 (classification)}: supervised training to predict the target label.
-    \item \textbf{Track 2 (projection/embeddings)}: supervised contrastive learning to shape the embedding space.
-    \item \textbf{Track 3 (classification with pretrained encoder)}: linear probing (or partial fine-tuning) on an encoder pretrained in Track~2.
+  \item \textbf{Track 1 (classification)}: supervised training to predict the target label.
+  \item \textbf{Track 2 (projection/embeddings)}: supervised contrastive learning to shape the embedding space.
+  \item \textbf{Track 3 (classification with pretrained encoder)}: linear probing (or partial fine-tuning) on an encoder pretrained in Track~2.
 \end{enumerate}
 Concrete per-track experimental variables (losses, preprocessing regimes, augmentation schemes, and stopping criteria) are summarized in Chapter~\ref{ch:methods-results}, Section~\ref{sec:track-definitions}.
 
@@ -49,14 +49,14 @@ This section summarizes the three objectives used in Track~1: weighted binary cr
 Let $y \in \{0,1\}$ be the label, $z \in \mathbb{R}$ the model logit, and $p=\sigma(z)$ the predicted probability.
 Weighted BCE with a positive-class weight $w_{+}>0$ is defined as
 \begin{equation}
-    \mathcal{L}_{\text{wBCE}}(z,y)
-    = - \left( w_{+}\, y \log p + (1-y)\log(1-p) \right).
-    \label{eq:wbce}
+  \mathcal{L}_{\text{wBCE}}(z,y)
+  = - \left( w_{+}\, y \log p + (1-y)\log(1-p) \right).
+  \label{eq:wbce}
 \end{equation}
 In this implementation, this corresponds to PyTorch's \texttt{BCEWithLogitsLoss(pos\_weight=$w_{+}$)}, i.e., a numerically stable BCE computed on logits with the positive term up-weighted.
 The weight $w_{+}$ is commonly set to approximately the class imbalance ratio,
 \begin{equation}
-    w_{+} \approx \frac{N_{-}}{N_{+}},
+  w_{+} \approx \frac{N_{-}}{N_{+}},
 \end{equation}
 so that positive and negative examples contribute gradients on a similar scale.
 In Track~1, $w_{+}=49$ is used (roughly corresponding to a positive prevalence of about $2\%$).%
@@ -66,24 +66,24 @@ In Track~1, $w_{+}=49$ is used (roughly corresponding to a positive prevalence o
 Focal loss reshapes the BCE objective such that well-classified samples receive less weight, preventing the large number of easy negatives from overwhelming the gradient \parencite{focal_2018}.
 Define
 \begin{equation}
-    p_t =
-    \begin{cases}
-        p     & \text{if } y=1, \\
-        1 - p & \text{if } y=0,
-    \end{cases}
-    \qquad
-    \alpha_t =
-    \begin{cases}
-        \alpha     & \text{if } y=1, \\
-        1 - \alpha & \text{if } y=0,
-    \end{cases}
+  p_t =
+  \begin{cases}
+    p     & \text{if } y=1, \\
+    1 - p & \text{if } y=0,
+  \end{cases}
+  \qquad
+  \alpha_t =
+  \begin{cases}
+    \alpha     & \text{if } y=1, \\
+    1 - \alpha & \text{if } y=0,
+  \end{cases}
 \end{equation}
 with focusing parameter $\gamma \ge 0$ and class-balancing weight $\alpha \in (0,1)$.
 The focal loss for a single example is
 \begin{equation}
-    \mathcal{L}_{\text{focal}}(z,y)
-    = - \alpha_t (1-p_t)^{\gamma} \log(p_t),
-    \label{eq:focal}
+  \mathcal{L}_{\text{focal}}(z,y)
+  = - \alpha_t (1-p_t)^{\gamma} \log(p_t),
+  \label{eq:focal}
 \end{equation}
 which reduces to standard (balanced) BCE when $\gamma=0$.
 In Track~1, $\alpha=0.75$ and $\gamma=1.5$ are used, matching the concrete implementation in the codebase (BCE-with-logits multiplied by the modulating factor $(1-p_t)^{\gamma}$).
@@ -96,30 +96,30 @@ RAT operationalizes this idea by three design choices: (i) emphasizing the most 
 Let $p_i=\sigma(z_i)$ be the predicted probability for sample $i$ and $y_i\in\{0,1\}$ its label.
 With (soft) true positives (TP), false positives (FP), and false negatives (FN), the Tversky coefficient is
 \begin{equation}
-    \mathrm{Tversky} = \frac{\mathrm{TP}+s}{\mathrm{TP} + \alpha_{\mathrm{tv}}\,\mathrm{FP} + \beta_{\mathrm{tv}}\,\mathrm{FN} + s},
-    \label{eq:tversky}
+  \mathrm{Tversky} = \frac{\mathrm{TP}+s}{\mathrm{TP} + \alpha_{\mathrm{tv}}\,\mathrm{FP} + \beta_{\mathrm{tv}}\,\mathrm{FN} + s},
+  \label{eq:tversky}
 \end{equation}
 where $\alpha_{\mathrm{tv}}$ and $\beta_{\mathrm{tv}}$ trade off false positives vs.\ false negatives, and $s>0$ is a smoothing constant.
 Following the focal-Tversky idea \parencite{focal_tversky_2018}, a focal exponent $\gamma_{\mathrm{tv}}$ is applied to emphasize examples that reduce the coefficient:
 \begin{equation}
-    \mathcal{L}_{\text{FT}} = \left(1 - \mathrm{Tversky}\right)^{\gamma_{\mathrm{tv}}}.
-    \label{eq:focal-tversky}
+  \mathcal{L}_{\text{FT}} = \left(1 - \mathrm{Tversky}\right)^{\gamma_{\mathrm{tv}}}.
+  \label{eq:focal-tversky}
 \end{equation}
 
 \paragraph{Soft top-$k$ selection (ranking awareness).}
 To focus the objective on the region that influences thresholded metrics, RAT computes TP/FP/FN only on a soft approximation of the top-$k$ predictions in the batch.
 Let $q$ be the $k$-th largest predicted probability in a batch (i.e., the minimum of the top-$k$ values), and define a differentiable selection mask
 \begin{equation}
-    m_i = \sigma\!\left(\frac{p_i - q}{\tau}\right),
-    \label{eq:rat-mask}
+  m_i = \sigma\!\left(\frac{p_i - q}{\tau}\right),
+  \label{eq:rat-mask}
 \end{equation}
 with temperature $\tau>0$ (smaller $\tau$ yields a sharper selection).
 Using $m_i$, RAT forms soft counts
 \begin{equation}
-    \mathrm{TP}=\sum_i m_i p_i y_i,\quad
-    \mathrm{FP}=\sum_i m_i p_i (1-y_i),\quad
-    \mathrm{FN}=\sum_i m_i (1-p_i) y_i,
-    \label{eq:rat-counts}
+  \mathrm{TP}=\sum_i m_i p_i y_i,\quad
+  \mathrm{FP}=\sum_i m_i p_i (1-y_i),\quad
+  \mathrm{FN}=\sum_i m_i (1-p_i) y_i,
+  \label{eq:rat-counts}
 \end{equation}
 and then evaluates \eqref{eq:tversky}--\eqref{eq:focal-tversky}.
 
@@ -127,42 +127,102 @@ and then evaluates \eqref{eq:tversky}--\eqref{eq:focal-tversky}.
 In practice, optimizing only a top-$k$ overlap objective can lead to unstable early learning: the selected region can shift rapidly between iterations, and gradients for the ``background'' (non-selected) region may vanish.
 RAT therefore adds two stabilizers:
 \begin{enumerate}
-    \item \textbf{Entropy regularization} on the prediction distribution to discourage premature saturation of $p_i$ to 0/1 and keep the soft mask informative.
-          We use the Bernoulli entropy
-          \begin{equation}
-              H(p) = -\frac{1}{B}\sum_i \Bigl( p_i\log(p_i+\varepsilon) + (1-p_i)\log(1-p_i+\varepsilon)\Bigr),
-              \label{eq:rat-entropy}
-          \end{equation}
-          with small $\varepsilon$ for numerical stability, and subtract it from the loss (equivalently, maximize $H(p)$) to prevent the model from collapsing to extreme probabilities too early.
-    \item \textbf{BCE anchor term} to ensure gradients remain meaningful for all samples and to improve calibration:
-          \begin{equation}
-              \mathcal{L}_{\text{bce-anchor}} = \lambda_{\text{bce}} \cdot \mathcal{L}_{\text{wBCE}}(z,y),
-              \label{eq:rat-bce-anchor}
-          \end{equation}
-          optionally using the same positive-class weight $w_{+}$ as in \eqref{eq:wbce}.
+  \item \textbf{Entropy regularization} on the prediction distribution to discourage premature saturation of $p_i$ to 0/1 and keep the soft mask informative.
+        We use the Bernoulli entropy
+        \begin{equation}
+          H(p) = -\frac{1}{B}\sum_i \Bigl( p_i\log(p_i+\varepsilon) + (1-p_i)\log(1-p_i+\varepsilon)\Bigr),
+          \label{eq:rat-entropy}
+        \end{equation}
+        with small $\varepsilon$ for numerical stability, and subtract it from the loss (equivalently, maximize $H(p)$) to prevent the model from collapsing to extreme probabilities too early.
+  \item \textbf{BCE anchor term} to ensure gradients remain meaningful for all samples and to improve calibration:
+        \begin{equation}
+          \mathcal{L}_{\text{bce-anchor}} = \lambda_{\text{bce}} \cdot \mathcal{L}_{\text{wBCE}}(z,y),
+          \label{eq:rat-bce-anchor}
+        \end{equation}
+        optionally using the same positive-class weight $w_{+}$ as in \eqref{eq:wbce}.
 \end{enumerate}
 The full RAT objective is then
 \begin{equation}
-    \mathcal{L}_{\text{RAT}} = \mathcal{L}_{\text{FT}} - \lambda_{\text{ent}} H(p) + \mathcal{L}_{\text{bce-anchor}}.
-    \label{eq:rat}
+  \mathcal{L}_{\text{RAT}} = \mathcal{L}_{\text{FT}} - \lambda_{\text{ent}} H(p) + \mathcal{L}_{\text{bce-anchor}}.
+  \label{eq:rat}
 \end{equation}
 
 \paragraph{Concrete parameters used in Track~1.}
 The default RAT configuration uses
 \begin{itemize}
-    \item $\alpha_{\mathrm{tv}}=0.6$ and $\beta_{\mathrm{tv}}=0.4$ (stronger penalty on false positives to reflect the low-FPR operating point),
-    \item $\gamma_{\mathrm{tv}}=1.0$, $s=0.1$, $k=0.05$ (top 5\% of the batch), and $\tau=0.1$,
-    \item $\lambda_{\text{ent}}=0.005$ and $\lambda_{\text{bce}}=0.1$, with $w_{+}=49$ for the anchor term.
+  \item $\alpha_{\mathrm{tv}}=0.6$ and $\beta_{\mathrm{tv}}=0.4$ (stronger penalty on false positives to reflect the low-FPR operating point),
+  \item $\gamma_{\mathrm{tv}}=1.0$, $s=0.1$, $k=0.05$ (top 5\% of the batch), and $\tau=0.1$,
+  \item $\lambda_{\text{ent}}=0.005$ and $\lambda_{\text{bce}}=0.1$, with $w_{+}=49$ for the anchor term.
 \end{itemize}
 \todo{The bibliography entry for \texttt{rat2025} appears inconsistent; update it to the correct Herzler et al.\ (2025) RAT loss reference (title/venue/doi/arXiv).}
 
 \section{Representation Learning: Supervised Contrastive Learning and Prototypes}
 Track~2 uses a projection head and contrastive objectives to encourage embeddings of the same class to cluster and different classes to separate. The following variants are considered:
 \begin{itemize}
-    \item \textbf{Standard SupCon}: supervised contrastive loss over augmented views.
-    \item \textbf{SupCon with imbalance-aware sampling/weighting}: optional modifications intended to reduce dominance of the majority class in binary imbalanced settings \parencite{ttc_2025}.
-    \item \textbf{Prototype-based supervision}: class prototypes that act as anchors in representation space.
+  \item \textbf{Standard SupCon}: supervised contrastive loss over augmented views.
+  \item \textbf{SupCon with imbalance-aware sampling/weighting}: optional modifications intended to reduce dominance of the majority class in binary imbalanced settings \parencite{ttc_2025}.
+  \item \textbf{Prototype-based supervision}: class prototypes that act as anchors in representation space.
 \end{itemize}
+
+\subsection{Track~2 contrastive objectives (sketch)}
+\label{sec:track2-objectives}
+This section summarizes the key contrastive objectives used in Track~2 and highlights the differences between the standard supervised contrastive objective and the imbalance-oriented variants proposed in TTC \parencite{ttc_2025}.
+\todo{Add citations for NT-Xent/InfoNCE (e.g., SimCLR) and supervised contrastive learning (SupCon).}
+
+\paragraph{Notation.}
+Let a minibatch contain $N$ original samples $\{x_i\}_{i=1}^{N}$ with labels $y_i \in \{0,1\}$ and $V$ augmented ``views'' per sample.
+Let $z_{i}^{(v)} \in \mathbb{R}^{d}$ denote the normalized projection embedding of view $v$ of sample $i$ (so that $z^\top z'$ is cosine similarity), and let $\tau>0$ denote a temperature parameter.
+For convenience, let $\mathcal{A}$ index all augmented instances in the batch, i.e., $|\mathcal{A}| = NV$.
+
+\paragraph{Unsupervised NT-Xent (SimCLR-style).}
+In NT-Xent, the positive for an anchor is the \emph{other view of the same sample}.
+Denoting by $a\in\mathcal{A}$ an anchor instance and by $a^{+}$ its paired view, the per-anchor loss is
+\begin{equation}
+  \mathcal{L}_{\text{NT-Xent}}(a)
+  = -\log \frac{\exp\!\left(z_a^\top z_{a^{+}} / \tau\right)}
+  {\sum\limits_{b \in \mathcal{A}\setminus\{a\}} \exp\!\left(z_a^\top z_{b} / \tau\right)}.
+  \label{eq:ntxent}
+\end{equation}
+
+\paragraph{Supervised contrastive loss (SupCon).}
+SupCon extends NT-Xent by treating \emph{all} same-class instances in the batch (across views) as positives.
+Let $\mathcal{P}(a)=\{b\in\mathcal{A}\setminus\{a\}: y_b = y_a\}$ denote the positive set for anchor $a$.
+Then the per-anchor SupCon loss is
+\begin{equation}
+  \mathcal{L}_{\text{SupCon}}(a)
+  = -\frac{1}{|\mathcal{P}(a)|}\sum_{p\in\mathcal{P}(a)}
+  \log \frac{\exp\!\left(z_a^\top z_p/\tau\right)}
+  {\sum\limits_{b \in \mathcal{A}\setminus\{a\}} \exp\!\left(z_a^\top z_b/\tau\right)}.
+  \label{eq:supcon}
+\end{equation}
+In imbalanced binary settings, this objective can be dominated by the majority class because it contributes many more positive pairs and anchors.
+
+\paragraph{TTC ``Supervised Minority'' (and the implementation used here).}
+TTC proposes restricting the use of label supervision to the minority class and using an unsupervised objective for the majority class to mitigate class collapse and improve uniformity \parencite{ttc_2025}.
+In this codebase, the corresponding effect is approximated by reducing or disabling majority--majority positive pairs in the SupCon numerator mask.
+Concretely, for anchors in the majority class, only a controlled subset of majority-class positives is retained (or none when the ratio is set to 0), while minority anchors continue to use the standard supervised positives.
+In the provided experiment configs, this is controlled via \texttt{model.ratio\_supervised\_majority}:
+\begin{itemize}
+  \item \texttt{configs/track2\_sup\_standard.yaml}: \texttt{ratio\_supervised\_majority = -1.0} disables this branch and uses standard SupCon positives for both classes.
+  \item \texttt{configs/track2\_sup\_min.yaml}: \texttt{ratio\_supervised\_majority = 0.0} removes majority--majority positive pairs from the numerator mask, approximating TTC's ``Supervised Minority'' idea.
+\end{itemize}
+Note that \texttt{configs/base.yaml} sets \texttt{ratio\_supervised\_majority = 0.0} by default, so the standard SupCon baseline must explicitly override it to \texttt{-1.0}.
+\todo{Clarify how this approximation differs from TTC's original ``SupMin'' formulation (SupCon on minority + NT-Xent on majority), and cite the corresponding TTC section/equation.}
+
+\paragraph{TTC ``Supervised Prototypes'' (and the implementation used here).}
+TTC also introduces a prototype-based variant in which class prototypes act as additional anchors in representation space \parencite{ttc_2025}.
+Let $p_0, p_1 \in \mathbb{R}^{d}$ denote unit-norm class prototypes.
+For a sample of class $i$, a prototype pull term of the form
+\begin{equation}
+  \mathcal{L}_{p}(a)
+  = -\log \frac{\exp\!\left(z_a^\top p_{i} / \tau\right)}
+  {\sum\limits_{b \in \mathcal{A}\setminus\{a\}} \exp\!\left(z_a^\top z_{b} / \tau\right)}
+  \label{eq:proto-pull}
+\end{equation}
+can be added to encourage alignment with $p_i$.
+To avoid collapsing all samples onto the prototypes, TTC applies the prototype term only when the current embedding is not yet sufficiently aligned (e.g., when $z_a^\top p_i$ is below a threshold).
+In \texttt{configs/track2\_sup\_proto.yaml}, training uses the prototype-based objective (\texttt{use\_prototypes=true}), so \texttt{ratio\_supervised\_majority} is not used for the loss in this mode.
+\todo{Align this description with the exact gating rule used in the implementation (\texttt{eps\_0}/\texttt{eps\_1}) and state how the prototypes are initialised/updated (random antipodal initialisation is used in the current code).}
 
 \section{Classification Metrics for Imbalanced Screening}
 All Track~1 classification metrics are logged to Weights \& Biases (W\&B) at validation time to support rapid comparison across runs and preprocessing regimes.
@@ -184,8 +244,8 @@ Given validation scores $\{p_i\}_{i=1}^{N}$, the model is allowed to flag only a
 Operationally, samples are sorted by $p_i$ in descending order and positive predictions are assigned to the top-$k$ samples, where $k=\lfloor cN \rfloor$.
 The challenge score is then the true positive rate (TPR, sensitivity) achieved at this operating point:
 \begin{equation}
-    \mathrm{TPR@5\%} = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}},
-    \label{eq:tpr-at-5}
+  \mathrm{TPR@5\%} = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}},
+  \label{eq:tpr-at-5}
 \end{equation}
 where TP/FN are computed with respect to the top-$k$ selection.
 This score is closely related to \emph{recall@k}: it measures how many true positives are captured among the few cases that the system would forward to confirmatory testing.
@@ -195,14 +255,14 @@ In this codebase this is logged as \texttt{val/score}.
 \subsection{AUROC and partial AUROC at 5\% FPR (pAUC5)}
 To provide a standard machine-learning view of ranking performance, the area under the ROC curve (AUROC) is additionally reported; it integrates sensitivity over all false-positive rates:
 \begin{equation}
-    \mathrm{AUROC} = \int_{0}^{1} \mathrm{TPR}(\mathrm{FPR})\, d\,\mathrm{FPR}.
-    \label{eq:auroc}
+  \mathrm{AUROC} = \int_{0}^{1} \mathrm{TPR}(\mathrm{FPR})\, d\,\mathrm{FPR}.
+  \label{eq:auroc}
 \end{equation}
 AUROC is threshold-independent and widely used, but in screening settings it can overemphasize operating points that are clinically irrelevant (e.g., high false-positive rates).
 We therefore also log a \emph{partial} AUROC restricted to the low-FPR regime:
 \begin{equation}
-    \mathrm{pAUC@5\%} = \frac{1}{0.05}\int_{0}^{0.05} \mathrm{TPR}(\mathrm{FPR})\, d\,\mathrm{FPR},
-    \label{eq:pauc5}
+  \mathrm{pAUC@5\%} = \frac{1}{0.05}\int_{0}^{0.05} \mathrm{TPR}(\mathrm{FPR})\, d\,\mathrm{FPR},
+  \label{eq:pauc5}
 \end{equation}
 which is normalized to $[0,1]$.
 This metric (logged as \texttt{val/pauc5}) provides a ROC-based analogue to the challenge score by focusing on performance when only few false positives can be tolerated.
@@ -212,8 +272,8 @@ Finally, average precision (AP), i.e., the area under the precision--recall curv
 PR-based metrics are often more informative than ROC-based metrics under severe class imbalance because precision directly reflects the expected burden of false positives among flagged cases.
 AP is computed by sorting samples by predicted score and averaging precision at each rank where a positive example occurs:
 \begin{equation}
-    \mathrm{AP} = \frac{1}{N_{+}} \sum_{i:\,y_{(i)}=1} \mathrm{Precision@}i,
-    \label{eq:ap}
+  \mathrm{AP} = \frac{1}{N_{+}} \sum_{i:\,y_{(i)}=1} \mathrm{Precision@}i,
+  \label{eq:ap}
 \end{equation}
 where $y_{(i)}$ denotes the label at rank $i$ and $N_{+}$ is the number of positives.
 AP is logged as \texttt{val/ap}.
@@ -225,8 +285,8 @@ Because both classification metrics (under heavy imbalance) and embedding metric
 \subsection{Smoothed metrics}
 To stabilize early stopping decisions, a short rolling mean (window size 3) of key metrics is monitored:
 \begin{itemize}
-    \item \textbf{Track~1}: early stopping monitors \texttt{val/ap\_mean3}, a 3-epoch rolling mean of AP.
-    \item \textbf{Track~2}: early stopping monitors \texttt{emb\_CAC\_mean3}, a 3-epoch rolling mean of the mean CAC embedding metric.
+  \item \textbf{Track~1}: early stopping monitors \texttt{val/ap\_mean3}, a 3-epoch rolling mean of AP.
+  \item \textbf{Track~2}: early stopping monitors \texttt{emb\_CAC\_mean3}, a 3-epoch rolling mean of the mean CAC embedding metric.
 \end{itemize}
 \todo{Mention that rolling means are logged via a callback (and that missing/NaN values are mapped to 0.0 to keep early stopping finite on dev splits without positives).}
 
@@ -257,33 +317,33 @@ Although TTC evaluates multiple 2D image datasets, the same diagnostics are appl
 This assumes that the geometric failure modes TTC targets (e.g., partial collapse and misleading distance-based alignment) also arise in time-series encoders; this is assessed by monitoring TTC metrics across all tracks and objectives.
 
 \begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{ttc/ttc_imbalance.png}
-    \caption{Overview from TTC: standard SupCon performance degrades with increasing binary imbalance, motivating imbalance-aware objectives and embedding diagnostics \parencite{ttc_2025}.}
-    \label{fig:ttc-imbalance}
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_imbalance.png}
+  \caption{Overview from TTC: standard SupCon performance degrades with increasing binary imbalance, motivating imbalance-aware objectives and embedding diagnostics \parencite{ttc_2025}.}
+  \label{fig:ttc-imbalance}
 \end{figure}
 
 \subsection{Traditional diagnostics: SAD and CAD}
 TTC discusses two intuitive diagnostics that are commonly used to summarize contrastive representation quality:
 \begin{itemize}
-    \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
-    \item \textbf{Class Alignment Distance (CAD)}: how close embeddings are within the \emph{same class} (smaller suggests class-wise clustering).
+  \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
+  \item \textbf{Class Alignment Distance (CAD)}: how close embeddings are within the \emph{same class} (smaller suggests class-wise clustering).
 \end{itemize}
 However, these distances can be misleading under partial collapse: distances may look ``good'' even when the embedding space is poorly structured for downstream separation.
 
 \subsection{Improved diagnostics: SAA and CAC}
 To better detect collapse and capture separability, TTC introduces metrics based on local-neighborhood structure:
 \begin{itemize}
-    \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
-    \item \textbf{Class Alignment Consistency (CAC)}: measures how label-pure local neighborhoods are while still reflecting proximity to the opposite class; it correlates more directly with downstream classification performance in TTC.
+  \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
+  \item \textbf{Class Alignment Consistency (CAC)}: measures how label-pure local neighborhoods are while still reflecting proximity to the opposite class; it correlates more directly with downstream classification performance in TTC.
 \end{itemize}
 Figure~\ref{fig:ttc-metrics} summarizes why SAD/CAD can be overly optimistic and how SAA/CAC address this failure mode \parencite{ttc_2025}.
 
 \begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{ttc/ttc_metrics.png}
-    \caption{Embedding-space diagnostics from TTC: SAD/CAD can appear favorable even for representations with undesirable structure, while SAA/CAC are more robust to collapse and better reflect neighborhood quality \parencite{ttc_2025}.}
-    \label{fig:ttc-metrics}
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_metrics.png}
+  \caption{Embedding-space diagnostics from TTC: SAD/CAD can appear favorable even for representations with undesirable structure, while SAA/CAC are more robust to collapse and better reflect neighborhood quality \parencite{ttc_2025}.}
+  \label{fig:ttc-metrics}
 \end{figure}
 
 \subsection{Uniformity: Gaussian Potential Uniformity (GPU)}
@@ -295,8 +355,8 @@ Finally, TTC proposes two strategies to adapt supervised contrastive learning to
 These are treated as baselines for Track~2 and compared to standard SupCon; Figure~\ref{fig:ttc-methods} provides the conceptual overview \parencite{ttc_2025}.
 
 \begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{ttc/ttc_methods.png}
-    \caption{Methods overview from TTC: two modifications intended to improve supervised contrastive learning under binary class imbalance \parencite{ttc_2025}.}
-    \label{fig:ttc-methods}
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_methods.png}
+  \caption{Methods overview from TTC: two modifications intended to improve supervised contrastive learning under binary class imbalance \parencite{ttc_2025}.}
+  \label{fig:ttc-methods}
 \end{figure}

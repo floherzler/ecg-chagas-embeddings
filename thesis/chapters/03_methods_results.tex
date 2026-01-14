@@ -95,7 +95,7 @@ We use a 1D adaptation of the ResNet family \parencite{resnet_2015} that operate
 The encoder follows the standard ResNet-18 stage pattern, but with 1D convolutions and temporal downsampling, and aggregates the final feature map using global average pooling.
 Track~1 and Track~3 attach a classification head to these pooled features, while Track~2 adds a projection head and optimizes a contrastive/prototype objective on augmented views.
 
-In the thesis experiments, we keep the backbone configuration fixed:
+In the thesis experiments, the backbone configuration is kept fixed:
 \begin{itemize}
   \item \textbf{Input}: 12 channels (standard 12-lead ECG), cropped to a fixed-length segment.
   \item \textbf{Backbone}: ResNet-18 style configuration with four residual stages (basic blocks, two blocks per stage), implemented with 1D convolutions, downsampling via strided convolutions and max-pooling, and global average pooling.
@@ -147,7 +147,9 @@ Track~2 optimizes representation geometry. We run three variants:
   \item \textbf{SupCon (imbalance-aware)}: a variant that applies imbalance-handling logic in the supervised contrastive objective.
   \item \textbf{Prototype-based}: class prototypes provide additional structure in the embedding space.
 \end{itemize}
-Across all tracks, we log TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) to quantify how different objectives, loss functions, and preprocessing regimes shape representation geometry.
+The underlying objective definitions and the TTC-inspired variants are summarized in the background (Section~\ref{sec:track2-objectives}).
+Concretely, the difference between \texttt{track2\_sup\_standard} and \texttt{track2\_sup\_min} is controlled via \texttt{model.ratio\_supervised\_majority} (\texttt{-1.0} for standard SupCon, \texttt{0.0} to remove majority--majority positive pairs), while \texttt{track2\_sup\_proto} uses a separate prototype-based objective and does not rely on this parameter.
+Across all tracks, TTC embedding diagnostics (SAD, SAA, CAD, CAC, and GPU; Section~\ref{sec:ttc-metrics}) are logged to quantify how different objectives, loss functions, and preprocessing regimes shape representation geometry.
 In Track~2, these diagnostics are used to compare embedding structure across objectives and to justify when representation learning translates into improved downstream classification in Track~3.
 Early stopping for Track~2 monitors a smoothed embedding-space metric (\texttt{emb\_CAC\_mean3}), and UMAP plots are used for qualitative inspection.
 
@@ -156,7 +158,7 @@ Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (lin
 
 \section{Dataset Usage and Data Splits}
 Ideally, model selection would be guided by an \emph{external} Chagas-labeled dataset for evaluation.
-Since such a dataset was not available within the scope of this thesis, we instead created a single unified dataset and split it into five folds (0--4).
+Since such a dataset was not available within the scope of this thesis, a single unified dataset is constructed and split into five folds (0--4).
 Folds 0--3 are used for training and validation (including cross-validation), while fold 4 is reserved as a held-out test set.
 
 \subsection{Fold construction (patient-wise, label--source stratified)}
