@@ -184,6 +184,40 @@ def _run_plots_dir(out_dir: Path, run_id: str) -> Path:
     return _run_dir(out_dir, run_id) / "plots"
 
 
+def _sigmoid_np(x: np.ndarray) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float32)
+    x = np.clip(x, -50.0, 50.0)
+    return 1.0 / (1.0 + np.exp(-x, dtype=np.float32))
+
+
+def _load_pred_prob(*, out_dir: Path, run_id: str) -> pd.DataFrame | None:
+    """
+    Load per-probe predicted probabilities from the persisted logits memmap and return:
+      DataFrame[row_idx, pred_prob]
+
+    This keeps storage on-disk as logits, but enables probability plots.
+    """
+    probe_index = out_dir / "probe_index.csv"
+    if not probe_index.exists():
+        return None
+    idx = pd.read_csv(probe_index, usecols=["row_idx"]).sort_values("row_idx")
+    row_idx = idx["row_idx"].to_numpy(dtype=int)
+    N = int(len(row_idx))
+    if N <= 0:
+        return None
+
+    # New layout: per-run memmaps.
+    mmap_path = out_dir / "runs" / run_id / "memmap" / f"{run_id}__logits__N{N}.fp32.mmap"
+    if not mmap_path.exists():
+        # Legacy fallback.
+        mmap_path = out_dir / "memmap" / f"{run_id}__logits__N{N}.fp32.mmap"
+        if not mmap_path.exists():
+            return None
+
+    logits = np.memmap(mmap_path, mode="r", dtype="float32", shape=(N,))
+    probs = _sigmoid_np(np.asarray(logits, dtype=np.float32))
+    return pd.DataFrame({"row_idx": row_idx, "pred_prob": probs})
+
 @dataclass(frozen=True)
 class PlotContext:
     df: pd.DataFrame
@@ -453,6 +487,9 @@ def _load_context(
     if "chagas" not in meta.columns and "y_true" in meta.columns:
         meta = meta.rename(columns={"y_true": "chagas"})
     df = coords.merge(meta, on="row_idx", how="left")
+    pred = _load_pred_prob(out_dir=out_dir, run_id=run_id)
+    if pred is not None:
+        df = df.merge(pred, on="row_idx", how="left")
 
     # Derived columns.
     if "abnormal_ecg" not in df.columns and "normal_ecg" in df.columns:
@@ -501,6 +538,7 @@ def _render_figure(
     out_path: Path,
     title: str,
     subtitle: str,
+    axis_prefix: str,
     grid: tuple[int, int],
     figsize: tuple[float, float],
     panels: list[PanelSpec],
@@ -562,8 +600,17 @@ def _render_figure(
     # Apply shared limits/aspect *after* all hexbin calls. hexbin can autoscale axes, and if we
     # set limits/aspect before plotting it may get undone (most obvious with UMAP).
     for i, ax in enumerate(axes):
-        ax.set_xlabel("")
-        ax.set_ylabel("")
+        r = i // ncols
+        c = i % ncols
+        # Shared axes: label only the outer axes to keep the figure clean.
+        if r == nrows - 1:
+            ax.set_xlabel(f"{axis_prefix}1", fontsize=10)
+        else:
+            ax.set_xlabel("")
+        if c == 0:
+            ax.set_ylabel(f"{axis_prefix}2", fontsize=10)
+        else:
+            ax.set_ylabel("")
         ax.set_xlim(ctx.extent[0], ctx.extent[1])
         ax.set_ylim(ctx.extent[2], ctx.extent[3])
         # Make every subplot box square; combined with square extents and equal aspect
@@ -611,11 +658,14 @@ def _default_figures() -> list[
                     show_background=False,
                 ),
                 PanelSpec(
-                    "subset_density",
-                    "PTB-XL CRBBB (control)",
-                    color="#D62728",
-                    mask_fn=lambda df: _mask_equals(df, "dataset_source", "PTBXL")
-                    & _mask_binary(df, "ptb_crbbb", 1),
+                    "continuous_median",
+                    "Predicted p(Chagas) (median)",
+                    col="pred_prob",
+                    cmap="magma",
+                    vmin=0.0,
+                    vmax=1.0,
+                    colorbar_label="p",
+                    show_background=False,
                 ),
             ],
         ),
@@ -799,6 +849,7 @@ def _run_plotting(
                     mincnt=mincnt,
                 )
                 title = _format_run_title(run_id=rid, space=space, method=method)
+                axis_prefix = "UMAP" if str(method).lower() == "umap" else "PCA"
                 for name, grid, figsize, subtitle, panels in figures:
                     out_path = plots_dir / f"{rid}__{space}__{method}__{name}.png"
                     _render_figure(
@@ -806,6 +857,7 @@ def _run_plotting(
                         out_path=out_path,
                         title=title,
                         subtitle=subtitle,
+                        axis_prefix=axis_prefix,
                         grid=grid,
                         figsize=figsize,
                         panels=panels,
