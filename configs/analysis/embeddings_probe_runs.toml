@@ -1,0 +1,22 @@
+# Analysis run registry for the embeddings probe pipeline.
+#
+# Edit this file by experiment name and later paste your final checkpoint paths
+# (local `.ckpt` paths or `wandb:<entity>/<project>/<artifact>:<alias>` URIs).
+#
+# The pipeline assumes a held-out test fold `fold=4` and uses that fold for:
+# - full-test evaluation
+# - probe sampling (all positives + 2× negatives)
+#
+# Global defaults (can be overridden per run by setting `data_dir`).
+processed_root = "/home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster"
+meta_path = "/home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv"
+
+[[runs]]
+run_id = "t1-exp01-bp-bce-rot10"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-oxpihakx:v12"  # TODO: set
+has_projection = false
+loss = "bce"
+axisrot = true
+

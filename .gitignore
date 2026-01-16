@@ -35,6 +35,7 @@ wandb/
 
 # Local run outputs / notebooks
 artifacts/
+analysis/embeddings_probe
 **/artifacts/
 # LaTeX (thesis/)
 thesis/.out/
