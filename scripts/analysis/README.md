@@ -58,6 +58,12 @@ Override with:
 .venv/bin/python scripts/analysis/compute_projections.py --normalize
 ```
 
+5b) Correlate probe metadata with PCA axes (enc space):
+
+```bash
+.venv/bin/python scripts/analysis/compute_pca_correlations.py --space enc --write_into_test_scores
+```
+
 6) Generate thesis-style plots (hex tiling only):
 
 ```bash
@@ -91,6 +97,12 @@ Focused correlation report (recommended over pairplot for mixed binary/continuou
 ```bash
 .venv/bin/python scripts/analysis/code15_correlation_report.py
 ```
+
+## Notebook: model comparison
+
+Heatmap + radar summary (reads `analysis/embeddings_probe/test_scores.csv` and `analysis/embeddings_probe/embedding_metrics.csv`):
+
+- `scripts/analysis/notebooks/model_comparison.ipynb`
 
 ## One-shot runner
 

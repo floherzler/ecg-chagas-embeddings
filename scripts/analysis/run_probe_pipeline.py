@@ -342,6 +342,20 @@ def main() -> None:
         ]
     )
 
+    _run(
+        [
+            py,
+            "scripts/analysis/compute_pca_correlations.py",
+            "--run_specs",
+            str(run_specs),
+            "--out_dir",
+            str(out_dir),
+            "--space",
+            "enc",
+            "--write_into_test_scores",
+        ]
+    )
+
     if args.plots:
         _run(
             [

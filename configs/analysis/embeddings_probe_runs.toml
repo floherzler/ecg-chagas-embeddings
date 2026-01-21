@@ -12,11 +12,111 @@ processed_root = "/home/flo178/projects/master-thesis/datasets/physionet2025/pro
 meta_path = "/home/flo178/projects/master-thesis/datasets/physionet2025/processedMaster/metadata.csv"
 
 [[runs]]
-run_id = "t1-exp01-bp-bce-rot10"
+run_id = "t1-exp01-bp-bce"
 track = "t1"
 preprocessing = "bp"
-checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-oxpihakx:v12"  # TODO: set
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-pkrv4fs1:v13"
+has_projection = false
+loss = "bce"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp02-bp-bce-rot10"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-oxpihakx:v12"
 has_projection = false
 loss = "bce"
 axisrot = true
+
+[[runs]]
+run_id = "t1-exp03-bp-focal"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-0qvgg31i:v7"
+has_projection = false
+loss = "focal"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp04-bp-focal-rot10"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-epyhyo0t:v11"
+has_projection = false
+loss = "focal"
+axisrot = true
+
+[[runs]]
+run_id = "t1-exp05-bp-rat"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-0153hj9m:v8"
+has_projection = false
+loss = "rat"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp06-bp-rat-rot10"
+track = "t1"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-vsorrlzx:v19"
+has_projection = false
+loss = "rat"
+axisrot = true
+
+[[runs]]
+run_id = "t1-exp07-bp-sc-bce"
+track = "t1"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-85vr5yja:v8"
+has_projection = false
+loss = "bce"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp08-bp-sc-focal"
+track = "t1"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-q0vh8yd4:v8"
+has_projection = false
+loss = "focal"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp09-bp-sc-rat"
+track = "t1"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-lg9rshlm:v14"
+has_projection = false
+loss = "rat"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp10-bp-sc-norm-bce"
+track = "t1"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-ulm26hte:v5"
+has_projection = false
+loss = "bce"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp11-bp-sc-norm-focal"
+track = "t1"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-ik1nn26e:v2"
+has_projection = false
+loss = "focal"
+axisrot = false
+
+[[runs]]
+run_id = "t1-exp12-bp-sc-norm-rat"
+track = "t1"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-rqorirrd:v0"
+has_projection = false
+loss = "rat"
+axisrot = false
+
 
