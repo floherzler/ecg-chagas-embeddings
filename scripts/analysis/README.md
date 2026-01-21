@@ -144,3 +144,11 @@ See `scripts/analysis/RANKING_AGREEMENT.md` for the detailed description of:
 - full-test logits persistence,
 - model×model agreement matrices (Spearman / IoU / Kendall τ),
 - per-sample screening consensus (`c_i`).
+
+## XAI sample selection
+
+See `scripts/analysis/XAI_SAMPLE_SELECTION.md` for:
+
+- selecting an allowlisted model pool,
+- computing per-sample top‑K% consensus on fold4,
+- producing a medium-sized candidate table with patient de‑duplication.
