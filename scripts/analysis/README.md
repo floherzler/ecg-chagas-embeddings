@@ -64,6 +64,17 @@ Override with:
 .venv/bin/python scripts/analysis/compute_pca_correlations.py --space enc --write_into_test_scores
 ```
 
+5c) Ranking agreement + screening overlap (full test fold logits):
+
+Writes model×model CSVs (Spearman rho, top-5% IoU, top-5% Kendall tau) and per-sample top-5% consensus
+(`c_i = #models where sample i is in top-5%`):
+
+```bash
+.venv/bin/python scripts/analysis/compute_ranking_agreement.py --set test
+```
+
+Outputs are written under `analysis/embeddings_probe/ranking_agreement/test/`.
+
 6) Generate thesis-style plots (hex tiling only):
 
 ```bash
@@ -125,3 +136,11 @@ Or run all runs from an existing TOML registry:
   --run_specs configs/analysis/embeddings_probe_runs.toml \
   --out_dir ./analysis/embeddings_probe
 ```
+
+## Ranking agreement (full test set)
+
+See `scripts/analysis/RANKING_AGREEMENT.md` for the detailed description of:
+
+- full-test logits persistence,
+- model×model agreement matrices (Spearman / IoU / Kendall τ),
+- per-sample screening consensus (`c_i`).

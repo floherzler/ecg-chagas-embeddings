@@ -91,6 +91,7 @@ def main() -> None:
         DEFAULT_OUTPUT_DIR,
         compute_binary_pauc,
         compute_tpr_at_top_fraction,
+        run_memmap_dir,
     )
     from ecg_chagas_embeddings.analysis.run_specs import load_run_specs, resolve_data_dir
     from ecg_chagas_embeddings.data.augmentation import ECGAugmentation
@@ -113,6 +114,11 @@ def main() -> None:
     parser.add_argument("--device", type=str, default="auto", help="'auto'|'cpu'|'cuda'")
     parser.add_argument("--crop_size", type=int, default=2500)
     parser.add_argument("--augmentation_base_seed", type=int, default=42)
+    parser.add_argument(
+        "--save_logits",
+        action="store_true",
+        help="Also persist full-test logits per run as a float32 memmap (for ranking-agreement analysis).",
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -153,9 +159,12 @@ def main() -> None:
         if not run.checkpoint_path:
             print(f"Skipping {run.run_id}: empty checkpoint_path")
             continue
-        if run.run_id in existing_run_ids:
-            tqdm.write(f"Skipping {run.run_id}: already present in {scores_path.name} (use --overwrite)")
-            continue
+
+        # If --save_logits is enabled we may need to run inference even when scores exist.
+        need_scores = bool(args.overwrite) or (run.run_id not in existing_run_ids)
+        memmap_dir = run_memmap_dir(out_dir, run.run_id)
+        logits_path = memmap_dir / f"{run.run_id}__logits__N{{N}}.fp32.mmap"  # placeholder for messages
+        need_logits = bool(args.save_logits)
 
         ckpt = _resolve_checkpoint(run.checkpoint_path, download_dir=download_dir)
         if not ckpt.exists():
@@ -186,6 +195,12 @@ def main() -> None:
             is_submission=False,
             use_sup_con_views=2,
         )
+        N_total = int(len(dataset))
+        if need_logits:
+            memmap_dir.mkdir(parents=True, exist_ok=True)
+            logits_path = memmap_dir / f"{run.run_id}__logits__N{N_total}.fp32.mmap"
+            if logits_path.exists() and not args.overwrite:
+                need_logits = False
         loader = DataLoader(
             dataset,
             batch_size=int(args.batch_size),
@@ -213,8 +228,25 @@ def main() -> None:
         model.eval()
         model.to(device)
 
+        if not need_scores and not need_logits:
+            tqdm.write(
+                f"Skipping {run.run_id}: scores present and logits memmap already exists "
+                f"({scores_path.name}; {logits_path.name})"
+            )
+            continue
+
         ys: list[np.ndarray] = []
         ps: list[np.ndarray] = []
+        logits_mm: np.memmap | None = None
+        offset = 0
+        if need_logits:
+            logits_mm = np.memmap(
+                logits_path,
+                mode="w+",
+                dtype="float32",
+                shape=(N_total,),
+            )
+
         with torch.no_grad():
             for batch in tqdm(
                 loader,
@@ -227,16 +259,24 @@ def main() -> None:
                 _feats, _proj, logits = model(x)
                 if logits.ndim == 2 and logits.shape[1] == 1:
                     logits = logits[:, 0]
+                logits_cpu = logits.detach().cpu().to(torch.float32).numpy()
                 probs = torch.sigmoid(logits).detach().cpu().numpy().astype(np.float64)
                 ys.append(y)
                 ps.append(probs.reshape(-1))
+                if logits_mm is not None:
+                    b = int(logits_cpu.shape[0])
+                    logits_mm[offset : offset + b] = logits_cpu.reshape(-1)
+                    offset += b
+
+        if logits_mm is not None:
+            if offset != N_total:
+                raise RuntimeError(
+                    f"Internal error: wrote {offset} logits but dataset has N={N_total} for {run.run_id}"
+                )
+            logits_mm.flush()
 
         y_true = np.concatenate(ys, axis=0)
         y_score = np.concatenate(ps, axis=0)
-
-        m = np.isfinite(y_score)
-        y_true = y_true[m]
-        y_score = y_score[m]
 
         n_pos = int((y_true == 1).sum())
         n_neg = int((y_true == 0).sum())
@@ -251,26 +291,30 @@ def main() -> None:
         }
         row.update({k: v for k, v in run.meta.items()})
 
+        m = np.isfinite(y_score)
+        y_true_m = y_true[m]
+        y_score_m = y_score[m]
         try:
-            row["auroc"] = float(roc_auc_score(y_true, y_score))
+            row["auroc"] = float(roc_auc_score(y_true_m, y_score_m))
         except Exception:
             row["auroc"] = float("nan")
         try:
-            row["ap"] = float(average_precision_score(y_true, y_score))
+            row["ap"] = float(average_precision_score(y_true_m, y_score_m))
         except Exception:
             row["ap"] = float("nan")
 
-        row["pauc_fpr0.05"] = float(compute_binary_pauc(y_true, y_score, max_fpr=0.05))
-        row["tpr_top0.05"] = float(compute_tpr_at_top_fraction(y_true, y_score, fraction=0.05))
+        row["pauc_fpr0.05"] = float(compute_binary_pauc(y_true_m, y_score_m, max_fpr=0.05))
+        row["tpr_top0.05"] = float(compute_tpr_at_top_fraction(y_true_m, y_score_m, fraction=0.05))
 
-        rows.append(row)
+        if need_scores:
+            rows.append(row)
         print(
             f"{run.run_id}: auroc={row['auroc']:.4f} ap={row['ap']:.4f} "
             f"tpr_top0.05={row['tpr_top0.05']:.4f}"
         )
 
-    _append_rows_csv(scores_path, rows)
     if rows:
+        _append_rows_csv(scores_path, rows)
         print(f"Wrote {scores_path}")
 
 

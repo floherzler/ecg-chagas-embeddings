@@ -67,7 +67,11 @@ def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 def _has_probe_files(out_dir: Path) -> bool:
-    return (out_dir / "probe_index.csv").exists() and (out_dir / "probe_metadata.csv").exists()
+    return (
+        (out_dir / "probe_index.csv").exists()
+        and (out_dir / "probe_metadata.csv").exists()
+        and (out_dir / "test_index.csv").exists()
+    )
 
 
 def _has_all_scores(out_dir: Path, run_ids: list[str]) -> bool:
@@ -82,6 +86,29 @@ def _has_all_scores(out_dir: Path, run_ids: list[str]) -> bool:
         return all(rid in have for rid in run_ids)
     except Exception:
         return False
+
+
+def _has_all_test_logits(out_dir: Path, run_ids: list[str]) -> bool:
+    test_index = out_dir / "test_index.csv"
+    if not test_index.exists():
+        return False
+    try:
+        import pandas as pd
+
+        N = int(len(pd.read_csv(test_index, usecols=["row_idx"])))
+    except Exception:
+        return False
+
+    for rid in run_ids:
+        memmap_dir = out_dir / "runs" / rid / "memmap"
+        legacy_dir = out_dir / "memmap"
+        p = memmap_dir / f"{rid}__logits__N{N}.fp32.mmap"
+        if p.exists():
+            continue
+        p = legacy_dir / f"{rid}__logits__N{N}.fp32.mmap"
+        if not p.exists():
+            return False
+    return True
 
 
 def _has_all_memmaps(out_dir: Path, run_ids: list[str]) -> bool:
@@ -260,7 +287,7 @@ def main() -> None:
     else:
         print("Skipping build_probe_set: probe files already exist.")
 
-    if args.overwrite or not _has_all_scores(out_dir, run_ids):
+    if args.overwrite or not _has_all_scores(out_dir, run_ids) or not _has_all_test_logits(out_dir, run_ids):
         _run(
             [
                 py,
@@ -281,6 +308,7 @@ def main() -> None:
                 str(args.crop_size),
                 "--augmentation_base_seed",
                 str(args.augmentation_base_seed),
+                "--save_logits",
                 *overwrite_flag,
             ]
         )
@@ -328,6 +356,19 @@ def main() -> None:
         )
     else:
         print("Skipping compute_embedding_metrics: metrics already exist for all runs.")
+
+    _run(
+        [
+            py,
+            "scripts/analysis/compute_ranking_agreement.py",
+            "--run_specs",
+            str(run_specs),
+            "--out_dir",
+            str(out_dir),
+            "--set",
+            "test",
+        ]
+    )
 
     _run(
         [

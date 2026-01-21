@@ -32,6 +32,7 @@ def main() -> None:
         load_samitrop_exams,
         load_test_master_table,
     )
+    import numpy as np
 
     parser = argparse.ArgumentParser(
         description="Build a fixed fold4 probe subset + probe metadata CSV."
@@ -67,6 +68,11 @@ def main() -> None:
     out_dir = ensure_dir(args.out_dir)
 
     df_test = load_test_master_table(meta_path=args.meta_path, test_fold=args.test_fold)
+    test_index = df_test.copy().reset_index(drop=True)
+    test_index.insert(0, "row_idx", np.arange(len(test_index), dtype=int))
+    test_index_path = out_dir / "test_index.csv"
+    test_index.to_csv(test_index_path, index=False)
+
     master_quality = load_master_quality(meta_path=args.meta_path)
     code15 = load_code15_exams(args.code15_exams)
     samitrop = load_samitrop_exams(args.samitrop_exams)
@@ -104,6 +110,7 @@ def main() -> None:
 
     n_pos = int((probe_index["chagas"] == 1).sum())
     n_neg = int((probe_index["chagas"] == 0).sum())
+    print(f"Wrote {test_index_path} (N={len(test_index)})")
     print(f"Wrote {probe_index_path} (N={len(probe_index)}; pos={n_pos}; neg={n_neg})")
     print(f"Wrote {probe_meta_path} (rows={len(probe_meta)})")
 
