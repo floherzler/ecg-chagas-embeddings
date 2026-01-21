@@ -991,16 +991,26 @@ class LitResNet18(LightningModule):
 
     def _resolve_wandb_artifact(self, path: str) -> str:
         """
-        Resolve a wandb artifact URI to a local file path. If `path` does not start with
-        'wandb:', it is returned unchanged.
+        Resolve a wandb artifact URI to a local file path.
 
-        Supported format: wandb:<entity>/<project>/<artifact-name>:<alias>
-        Example: wandb:ag-lukassen/ecg-chagas-embeddings-cli/model-51nqcxar:v1
+        Accepted formats:
+        - ``wandb:<entity>/<project>/<artifact-name>:<alias>``
+        - Bare form: ``<entity>/<project>/<artifact-name>:<alias>`` (only if the path does not exist locally)
+
+        If `path` is neither, it is returned unchanged.
         """
-        if not path.startswith("wandb:"):
-            return path
+        p = Path(path)
+        uri = path
+        if path.startswith("wandb:"):
+            uri = path[len("wandb:") :]
+        else:
+            # Accept bare W&B artifact URIs like:
+            #   "entity/project/model-xxxx:v12"
+            # to avoid forcing a "wandb:" prefix in config files.
+            parts = path.split("/")
+            if not (len(parts) == 3 and ":" in parts[-1] and not p.exists()):
+                return path
 
-        uri = path[len("wandb:") :]
         api = wandb.Api()
         art = api.artifact(uri, type="model")
         local_dir = Path(art.download())
