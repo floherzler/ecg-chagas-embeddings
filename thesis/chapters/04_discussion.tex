@@ -1,4 +1,10 @@
 \chapter{Discussion}
 
-Discuss findings, limitations, and future work here.
+This thesis compares supervised classification (Track~1), representation learning (Track~2), and downstream probing of learned representations (Track~3).
+While the same backbone architecture is used throughout for consistency, the tracks answer different questions and should be interpreted accordingly.
 
+\paragraph{Linear probe vs.\ end-to-end classification.}
+Track~3 is implemented as a linear evaluation protocol: an encoder pretrained in Track~2 is reused and (by default) frozen, and only a lightweight classifier head is trained to predict the Chagas label.
+This probes whether label information is readily accessible in the learned representation without allowing the encoder to co-adapt to the downstream objective.
+In contrast, Track~1 trains encoder and classifier jointly and therefore reflects the best achievable supervised classifier under the chosen objective and preprocessing.
+Consequently, Track~1 and Track~3 are not an apples-to-apples comparison of classifier performance; Track~3 is primarily used to connect improvements in embedding-space diagnostics to downstream separability.

@@ -20,7 +20,7 @@ An individual run typically combines \texttt{base.yaml} + one track config + an 
 \Needspace*{6\baselineskip}
 \section{Model Architecture}
 
-All tracks share the same backbone encoder for fair comparison.
+All tracks share the same backbone \emph{architecture} for fair comparison, but differ in how the encoder is trained and used.
 The implementation is named \texttt{resnet18\_ecg\_flex} because it was developed during earlier PhysioNet Challenge experimentation and supports swapping blocks, normalization layers, and optional modules.
 For this thesis, the architecture is intentionally \emph{fixed across all tracks} to keep comparisons focused on preprocessing, augmentation, and objective choices rather than model capacity.
 
@@ -154,7 +154,14 @@ In Track~2, these diagnostics are used to compare embedding structure across obj
 Early stopping for Track~2 monitors a smoothed embedding-space metric (\texttt{emb\_CAC\_mean3}), and UMAP plots are used for qualitative inspection.
 
 \subsection{Track 3: classification with pretrained encoder}
-Track~3 reuses the encoder from Track~2 and trains a lightweight classifier (linear probe by default). This isolates representation quality from end-to-end supervised optimization and connects embedding-space improvements to downstream performance.
+Track~3 reuses the encoder from Track~2 and trains a lightweight classifier on top (linear probe by default).
+In this setting, the encoder is initialized from a Track~2 checkpoint and kept frozen while a simple head is optimized with a standard classification loss.
+This is a common ``linear evaluation'' protocol for contrastive representations: it isolates representation quality from end-to-end supervised optimization and tests whether the Chagas label becomes linearly accessible in the learned embedding space.
+
+\paragraph{Comparison note.}
+Track~3 is therefore best interpreted as a \emph{representation diagnostic} and not as a direct substitute for Track~1's end-to-end classifier.
+Because Track~1 is allowed to adapt the encoder weights to the label, it can achieve stronger pure classification performance even if the Track~2 representation is improved.
+In addition, the Track~3 probe head and optimization settings are intentionally simplified for efficiency; this is acknowledged when comparing Track~1 and Track~3 results.
 
 \section{Dataset Usage and Data Splits}
 Ideally, model selection would be guided by an \emph{external} Chagas-labeled dataset for evaluation.

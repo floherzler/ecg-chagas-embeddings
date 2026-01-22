@@ -80,6 +80,19 @@ Each BasicBlock performs:
 - Freezes the encoder by default (`model.freeze_encoder: true`), optionally unfreezing `layer4`.
 - Can optionally replace `fc` with a small MLP head (`model.use_linear_probe_head: true` in `configs/track3_probe.yaml`).
 
+#### Linear Probe vs. End-to-End Classification
+
+This repo uses Track 3 primarily as a **linear evaluation / linear probe** protocol:
+
+- **Track 1 (end-to-end classifier)**: the encoder and classification head are trained together on the label. This answers: *how well can a fully supervised model solve the task?*
+- **Track 3 (linear probe)**: the encoder is initialized from Track 2 and typically frozen (`model.freeze_encoder: true`), and only a lightweight head is trained on top. This answers: *how linearly accessible is the label information in the learned representation?*
+
+Important comparison caveats:
+
+- Track 1 vs Track 3 is **not an apples-to-apples “best classifier” comparison**, because Track 1 is allowed to adapt the encoder to the label while Track 3 is not.
+- Heads can differ: Track 1 uses `fc`, while Track 3 can use `linear_probe_head` (`model.use_linear_probe_head: true`).
+- For a “standard” linear probe baseline, prefer plain BCE on the probe head (rather than focal/RAT-style losses), to avoid mixing representation evaluation with loss shaping.
+
 ## “Flex” options kept in code (not used for thesis runs)
 
 The implementation supports, but the thesis configuration does not use:
@@ -91,4 +104,3 @@ The implementation supports, but the thesis configuration does not use:
 - dilation settings (`replace_stride_with_dilation`)
 
 The fixed thesis architecture is fully specified by `configs/base.yaml` plus the track toggles in `configs/track1.yaml`, `configs/track2_sup_*.yaml`, and `configs/track3*.yaml`.
-

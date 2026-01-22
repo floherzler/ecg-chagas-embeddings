@@ -79,6 +79,28 @@ def _append_rows_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         df = df_new
     df.to_csv(path, index=False)
 
+def _track3_overrides(run_meta: dict[str, Any]) -> dict[str, Any]:
+    """
+    Track-3 (linear probe) checkpoints may require a `pretrained_encoder_path` to be present in hparams.
+
+    For offline evaluation we normally don't call `setup()`, so encoder weights should already be in the
+    checkpoint state_dict. Still, providing the path as an override makes track3 checkpoints robust and
+    allows future code paths that call `setup()` to work.
+    """
+    out: dict[str, Any] = {}
+    if not run_meta:
+        return out
+    # Preferred key
+    pep = run_meta.get("pretrained_encoder_path", None)
+    # Backward/alternate naming
+    if pep is None:
+        pep = run_meta.get("encoder_checkpoint_path", None)
+    if pep is None:
+        pep = run_meta.get("encoder_path", None)
+    if pep is not None:
+        out["pretrained_encoder_path"] = str(pep)
+    return out
+
 
 def main() -> None:
     _add_src_to_path()
@@ -211,9 +233,13 @@ def main() -> None:
             drop_last=False,
         )
 
+        overrides: dict[str, Any] = {}
+        if str(run.track) == "t3":
+            overrides = _track3_overrides(run.meta)
+
         try:
             model = LitResNet18.load_from_checkpoint(
-                str(ckpt), map_location="cpu", strict=True
+                str(ckpt), map_location="cpu", strict=True, **overrides
             )
         except RuntimeError as exc:
             # Some historical checkpoints include extra keys (e.g. nested criterion params).
@@ -223,7 +249,7 @@ def main() -> None:
                 raise
             print(f"Warning: strict checkpoint load failed for {run.run_id}; retrying strict=False.")
             model = LitResNet18.load_from_checkpoint(
-                str(ckpt), map_location="cpu", strict=False
+                str(ckpt), map_location="cpu", strict=False, **overrides
             )
         model.eval()
         model.to(device)
