@@ -1,68 +1,82 @@
-direction: down
+direction: right
 
-LightningCLI: {
-  style.fill: "#b45aff"
-  description: |md
-    - Manages hyperparameters and configurations
-    - Configurable via YAML
-  |
+# raw_data: ECG
+prepro: ECG Preprocessing\n(Harmonization) {
+  style.shadow: true
+  bandpass: 1: Bandpass (BP)
+  + softclip: 2: BP\n+ Softclip (SC)
+  + normalize: 3: BP + SC\n+ Normalize (NORM)
 }
 
-ECGDataModule: {
-  description: |md
-    - Loads and preprocesses ECG datasets
-    - Supports train, validation, and test splits
-    - Implements augmentation and resampling for imbalance
-    - Ensures reproducible data pipelines
-  |
-  description -> Dataset / Dataloader
-}
-CNN: {
-  Resnet18: {
-    icon: https://icons.terrastruct.com/essentials%2F220-layers.svg
-  }
-  loss_functions: |md
-    **ResNet18 with flexible:**
-      - SE-Blocks
-      - Normalization
-
-      **Classification Losses**
-      - Binary Cross Entropy Loss
-      - Focal Loss
-
-      **Geometric Losses**
-      - SupCon Loss
-      - Prototype Loss
-  |
-  loss_functions -> Resnet18
-}
-
-LightningTrainer: {
-  style.fill: "#b45aff"
-}
-
-WeightsBiases: Weights & Biases {
+encoder: Encoder\n(shared representation) {
   shape: image
-  icon: https://wandb.ai/logo-transparent.png
-  style.fill: orange
+  icon: plot_encoder.png
+  height: 250
+  width: 250
 }
 
-Embeddings
-Comparisons: {
-  orientation: |md
-    ### Separability
-    ### Alignment
-    ### Uniformity
+heads: Learning / Loss Strategies {
+  style.shadow: true
+  classification: Classification Head {
+    options: |`md
+      | Method |
+      | :--- |
+      | W-BaCE |
+      | Focal |
+      | RAT |
+    `|
+    metrics: |`md
+      | Metric |
+      | :--- |
+      | TPR @5% |
+      | pAUC @5% |
+      | AP |
+    `|
+  }
+
+  projection: Projection Head {
+    options: |`md
+      | Method |
+      | :--- |
+      | SupCon |
+      | SupMin |
+      | SupProto |
+    `|
+    metrics: |`md
+      | Metric |
+      | :--- |
+      | GPU |
+      | CAC |
+      | SAA |
+    `|
+  }
+}
+
+run_analysis: Post-Hoc Analysis\nPer-Model {
+  style.shadow: true
+  grid-columns: 1
+  Task Utility (Ranking) -- Embedding Space Health -- Physiological Plausibility
+  x: |md
+    ---
   |
+  Cross-Model Consistency\n(post-selection)
 }
 
-# Relationships
-LightningCLI -> CNN: model_class
-LightningCLI -> ECGDataModule: datamodule_class
-ECGDataModule.Dataset / Dataloader -> LightningTrainer: "feeds batches"
-LightningTrainer -> WeightsBiases: "logs metrics"
-CNN <-> LightningTrainer: "fits model"
+# raw_data -> prepro.bandpass
+# raw_data -> prepro.+ softclip
+# raw_data -> prepro.+ normalize
+prepro.bandpass -> encoder
+prepro.+ softclip -> encoder
+prepro.+ normalize -> encoder
+encoder -> heads.classification: shaped by
+encoder -> heads.projection: shaped by
 
-CNN -> Embeddings: "produces"
-Embeddings -> Comparisons: "used for"
-Embeddings -> WeightsBiases: "visualized in"
+heads.classification.options -> heads.classification.metrics: eval w/ {
+  style.stroke-dash: 3
+}
+heads.projection.options -> heads.projection.metrics: eval w/ {
+  style.stroke-dash: 3
+}
+heads.classification -> run_analysis
+encoder -> run_analysis
+heads.projection -> run_analysis
