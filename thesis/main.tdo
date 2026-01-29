@@ -1,2 +1,64 @@
-\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ add Selbstständigkeitserklärung}{i}{section*.2}%
-\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ write personal reflection}{17}{section*.12}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ add Selbstständigkeitserklärung}{iv}{section*.2}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State importance of the disease: prevalence, morbidity/mortality, and relevance for screening in non-endemic settings.}{1}{section*.4}%
+\contentsline {todo}{Figure: Background figure: Chagas progression + typical ECG manifestations (schematic).}{1}{section*.4}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Clarify label sources and reliability differences across datasets used in the pooled benchmark.}{2}{section*.5}%
+\contentsline {todo}{Figure: Cabrera circle / hexaxial reference system (for limb-lead axis intuition).}{2}{section.1.3}%
+\contentsline {todo}{Figure: Dataset overview: sample counts + label reliability by source (CODE-15 vs SaMi-Trop vs PTB-XL).}{3}{section.1.5}%
+\contentsline {todo}{Figure: Thesis flow diagram (convert diagrams/flow.svg to flow.pdf or flow.png).}{4}{section*.6}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State the main hypothesis in one sentence (harmonization vs.\ amplitude cues; objective choice shapes geometry and downstream separability).}{4}{section*.6}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add a short roadmap sentence: what is in Background vs Methods vs Results vs Discussion.}{4}{section*.7}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add one paragraph connecting ``dataset bias'' to the need for embedding diagnostics and groupwise evaluation.}{5}{section*.10}%
+\contentsline {todo}{Figure: Place Fig.~\ref {fig:thesis-flow} near here if you want the reader to see the pipeline early.}{5}{section*.10}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State band-pass filter design (cutoff frequencies/order) and implementation.}{6}{section*.11}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Define the soft-clipping function and its parameterization.}{6}{section*.12}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Clarify whether normalization is per-lead, robust (median/IQR), and whether it uses statistics per record or from a reference population.}{6}{section*.13}%
+\contentsline {todo}{Figure: Preprocessing illustration: same ECG segment under bp vs bp\_sc vs bp\_sc\_norm (one lead or multi-lead summary).}{6}{section*.13}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add a short statement on how preprocessing is kept consistent between train/val/test by reading from preprocessed folders on disk.}{6}{section*.16}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add a sentence clarifying which track is ``best classifier'' (Track~1) vs ``representation diagnostic'' (Track~2/3).}{8}{section*.17}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Keep these strategy names aligned with the exact config names used in the code (e.g.\ \texttt {track2\_sup\_standard/min/proto}).}{8}{section*.20}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Confirm whether $w_{+}$ is computed per training split or fixed globally (and report the exact prevalence that motivates $w_{+}=49$).}{9}{section*.21}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ The bibliography entry for \texttt {rat2025} appears inconsistent; update it to the correct Herzler et al.\ (2025) RAT loss reference (title/venue/doi/arXiv).}{11}{section*.30}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add citations for NT-Xent/InfoNCE (e.g., SimCLR) and supervised contrastive learning (SupCon).}{11}{section*.31}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Clarify how this approximation differs from TTC's original ``SupMin'' formulation (SupCon on minority + NT-Xent on majority), and cite the corresponding TTC section/equation.}{13}{section*.40}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Align this description with the exact gating rule used in the implementation (\texttt {eps\_0}/\texttt {eps\_1}) and state how the prototypes are initialised/updated (random antipodal initialisation is used in the current code).}{13}{section*.43}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add a clinical screening / confirmatory testing citation appropriate for ECG-based population screening.}{14}{section*.44}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State explicitly how ties are handled in the official evaluation and in this implementation (expected confusion matrix via random permutations when many identical scores exist).}{14}{section*.45}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Mention that rolling means are logged via a callback (and that missing/NaN values are mapped to 0.0 to keep early stopping finite on dev splits without positives).}{15}{section*.46}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add calibration-related citations (e.g., modern neural network calibration; calibration under shift) and state whether calibration was evaluated or applied.}{16}{section*.47}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Clarify which metric is used for checkpoint selection vs. early stopping vs. final reporting, and add a short reference to best practices for model selection under class imbalance.}{16}{section*.48}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add citations on dataset shift in ECG / clinical ML and on label noise or weak labels in medical datasets.}{16}{section*.49}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State exact negative sampling fractions (CODE15/PTBXL/SAMITROP) used for the final probe definition.}{26}{section*.52}%
+\contentsline {todo}{Figure: Probe sampling overview (class + dataset stratification and final counts).}{26}{section*.52}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Add a short interpretation guardrail: differences reflect both label reliability and dataset/domain shift.}{27}{section*.53}%
+\contentsline {todo}{Figure: Score table split by verified vs.\ CODE-15.}{27}{section*.53}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Explicitly state which augmentations are enabled for evaluation-time view1 and why this choice is defensible across tracks.}{27}{section*.54}%
+\contentsline {todo}{Figure: SAA schematic (view0/view1 construction and NN matching).}{27}{section*.54}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ List the final panel sets used in the thesis figures (main / conduction / outcome).}{28}{section*.55}%
+\contentsline {todo}{Figure: Example hex-multipanel figure (UMAP + chosen panel set).}{28}{section*.55}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ DFT-LRP analysis:}{29}{section*.56}%
+\contentsline {todo}{Figure: DFT-LRP workflow schematic (selection -> relevance -> summaries).}{29}{section*.56}%
+\contentsline {todo}{Figure: Table: per-run test performance (global metrics) for all runs.}{30}{section.4.1}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Summarize: best/worst runs and differences across preprocessing regimes and objectives.}{30}{section*.57}%
+\contentsline {todo}{Figure: Plot: performance by preprocessing regime (small multiples or grouped bars).}{30}{section*.57}%
+\contentsline {todo}{Figure: Table: global vs.\ verified-only vs.\ CODE-15-only metrics (TPR@5\%, pAUC@5\%, AP).}{31}{subsection.4.1.1}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Report whether the verified-only performance drops relative to the global score and discuss possible causes (domain shift vs.\ label noise) in Chapter~\ref {ch:discussion}.}{31}{section*.58}%
+\contentsline {todo}{Figure: Plot: verified-only vs.\ CODE-15-only performance deltas per run.}{31}{section*.58}%
+\contentsline {todo}{Figure: Table: embedding metrics for all runs (enc; and proj where available).}{31}{section.4.2}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Summarize: which objectives/regimes show signs of collapse (GPU) and how this relates to ranking performance.}{31}{section*.59}%
+\contentsline {todo}{Figure: Plot: GPU vs.\ TPR@5\% scatter (colored by preprocessing).}{31}{section*.59}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Summarize whether CAC/SAA differ between verified and CODE-15 subsets and how this aligns with dataset clustering.}{32}{section*.60}%
+\contentsline {todo}{Figure: Plot: CAC/SAA split by verified vs.\ CODE-15 for each run.}{32}{section*.60}%
+\contentsline {todo}{Figure: Main figure: exemplar multipanel for selected representative runs (UMAP).}{32}{section.4.3}%
+\contentsline {todo}{Figure: Appendix: full set of multipanels for all runs (UMAP and PCA).}{33}{section.4.3}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Describe consistent qualitative patterns (e.g.\ dataset clustering, phenotype enrichment locations) without over-interpreting.}{33}{section*.61}%
+\contentsline {todo}{Figure: Callouts: annotated examples highlighting key regions (one per dataset).}{33}{section*.61}%
+\contentsline {todo}{Figure: Heatmap: Spearman rho across models.}{33}{section.4.4}%
+\contentsline {todo}{Figure: Heatmap: top-5\% IoU across models.}{33}{section.4.4}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ Summarize whether agreement clusters by preprocessing regime, loss/objective, or track.}{34}{section*.62}%
+\contentsline {todo}{Figure: Dendrogram or clustered heatmap (optional).}{34}{section*.62}%
+\contentsline {todo}{Figure: Table: examples of high-consensus, low-consensus, and non-consensus candidates (with dataset and QC).}{34}{section.4.5}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ State final thresholds $\alpha ,\beta $ used for consensus-high/low (if used) and the rationale.}{34}{section*.63}%
+\contentsline {todo}{Figure: Histogram: distribution of consensus scores c\_i (and normalized consensus).}{34}{section*.63}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ One paragraph: main takeaways for (i) ranking performance, (ii) embedding health, (iii) dataset/label effects, (iv) agreement/consensus.}{35}{section*.64}%
+\contentsline {todo}{Figure: One consolidated summary figure (optional): performance vs.\ embedding metrics.}{35}{section*.64}%
+\contentsline {todo}{\color@fb@x {}{black}{}{orange}{\leavevmode {\color {orange}o}}\ write personal reflection}{38}{section*.73}%

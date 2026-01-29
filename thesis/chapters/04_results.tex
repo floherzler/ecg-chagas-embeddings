@@ -1,0 +1,130 @@
+\chapter{Results}
+\label{ch:results}
+
+This chapter summarizes empirical findings from the evaluation pipeline described in Chapter~\ref{ch:methods}.
+Unless stated otherwise, all reported metrics are computed on the held-out test fold~4.
+
+\section{Clinical task performance (ranking under screening constraints)}
+\begin{itemize}
+  \item Primary endpoint: TPR@5\% (screening capacity).
+  \item Supporting endpoints: pAUC@5\% FPR, AP, AUROC, and TPR@10\%.
+  \item \missingfigure{Table: per-run test performance (global metrics) for all runs.}
+  \item \todo{Summarize: best/worst runs and differences across preprocessing regimes and objectives.} \missingfigure{Plot: performance by preprocessing regime (small multiples or grouped bars).}
+\end{itemize}
+
+\subsection{Verified vs.\ self-reported labels (label-strength split)}
+\begin{itemize}
+  \item Verified labels: PTB-XL (negative) + SaMi-Trop (positive).
+  \item Self-reported/mixed labels: CODE-15.
+  \item \missingfigure{Table: global vs.\ verified-only vs.\ CODE-15-only metrics (TPR@5\%, pAUC@5\%, AP).}
+  \item \todo{Report whether the verified-only performance drops relative to the global score and discuss possible causes (domain shift vs.\ label noise) in Chapter~\ref{ch:discussion}.} \missingfigure{Plot: verified-only vs.\ CODE-15-only performance deltas per run.}
+\end{itemize}
+
+\begin{table}[t]
+  \centering
+  \caption{CODE-15\% Zhao2018 quality vs.\ Chagas label (fold~4).}
+  \label{tab:code15_quality_chagas}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Quality}  & \textbf{Chagas=0} & \textbf{Chagas=1}                                     \\
+    \midrule
+    Excellent         & 241{,}976         & 3{,}796                                               \\
+    Barely acceptable & 81{,}529          & 2{,}208                                               \\
+    Unacceptable      & 12{,}672          & 555                                                   \\
+    \midrule
+    \multicolumn{3}{l}{2$\times$2 Fisher (Excellent vs.\ Not): OR=1.870, $p=3.94\times10^{-129}$} \\
+    \multicolumn{3}{l}{3$\times$2 FFH Monte-Carlo: $p\approx 0.0001$}                             \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{table}[t]
+  \centering
+  \caption{Counterfactual Zhao2018 QC distribution by applying the CODE-15\% Chagas effect to PTB-XL negatives (fold~4).}
+  \label{tab:qc_counterfactual}
+  \begin{tabular}{lrrr}
+    \toprule
+    \textbf{Quality}  & \begin{tabular}[b]{@{}r@{}}\textbf{CODE-15\% factor} \\ \textbf{(pos/neg)}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL} \\ \textbf{neg (\%)}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL cf} \\ \textbf{pos (\%)}\end{tabular} \\
+    \midrule
+    Excellent         & 0.809                                                                                   & 65.84                                                                        & 51.0                                                                            \\
+    Barely acceptable & 1.329                                                                                   & 29.09                                                                        & 37.0                                                                            \\
+    Unacceptable      & 2.455                                                                                   & 5.08                                                                         & 12.0                                                                            \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Embedding-space diagnostics (probe set)}
+\begin{itemize}
+  \item Primary comparable space: encoder embeddings (\texttt{enc}) for all tracks.
+  \item Metrics: GPU/CAC (collapse and global separation) and SAA (two-view consistency on the probe set).
+  \item \missingfigure{Table: embedding metrics for all runs.}
+  \item \todo{Summarize: which objectives/regimes show signs of collapse (GPU) and how this relates to ranking performance.} \missingfigure{Plot: GPU vs.\ TPR@5\% scatter (colored by preprocessing).}
+\end{itemize}
+
+\subsection{Probe group splits}
+\begin{itemize}
+  \item Probe metrics are additionally computed on:
+        \begin{itemize}
+          \item verified subset (PTB-XL + SaMi-Trop) vs.\ CODE-15 subset.
+        \end{itemize}
+  \item \todo{Summarize whether CAC/SAA differ between verified and CODE-15 subsets and how this aligns with dataset clustering.} \missingfigure{Plot: CAC/SAA split by verified vs.\ CODE-15 for each run.}
+\end{itemize}
+
+\section{Qualitative embedding visualization (PCA/UMAP hex-multipanels)}
+\begin{itemize}
+  \item PCA and UMAP are computed on the stored probe embeddings and visualized with hex-tiling multipanels.
+  \item Panels emphasize: geometry density, Chagas enrichment, RBBB enrichment, abnormal ECG enrichment, age/$\Delta$age, and PTB-XL control flags (e.g.\ CRBBB).
+  \item \missingfigure{Main figure: exemplar multipanel for selected representative runs (UMAP).}
+  \item \missingfigure{Appendix: full set of multipanels for all runs (UMAP and PCA).}
+  \item \todo{Describe consistent qualitative patterns (e.g.\ dataset clustering, phenotype enrichment locations) without over-interpreting.} \missingfigure{Callouts: annotated examples highlighting key regions (one per dataset).}
+  \item \todo{Optional: add quantitative summaries of embedding geometry (e.g., dataset-centroid distances, within/between-dataset dispersion, or density overlap statistics) to complement the visual panels.} \missingfigure{Plot: centroid distances or dispersion ratios by dataset for UMAP/PCA.}
+\end{itemize}
+
+\section{Cross-model agreement and screening set overlap}
+\begin{itemize}
+  \item Global agreement: model$\times$model Spearman $\rho$ on the full-test ranking vectors.
+  \item Screening agreement: top-5\% set overlap via Jaccard (IoU).
+  \item Within-overlap agreement: Kendall's $\tau$ on the intersection of top-5\% sets (with intersection size reported).
+  \item \missingfigure{Heatmap: Spearman rho across models.}
+  \item \missingfigure{Heatmap: top-5\% IoU across models.}
+  \item \todo{Summarize whether agreement clusters by preprocessing regime, loss/objective, or track.}
+\end{itemize}
+
+\section{Consensus sets for sample selection (preparation for DFT-LRP)}
+\begin{itemize}
+  \item Models define top-5\% sets $T_m$; per-sample consensus score is $c_i=\sum_m \mathbf{1}(i\in T_m)$.
+  \item Candidate tables enforce patient-unique sampling and retain QC metadata for manual selection.
+  \item \missingfigure{Table: examples of high-consensus, low-consensus, and non-consensus candidates (with dataset and QC).}
+  \item \todo{State final thresholds $\alpha,\beta$ used for consensus-high/low (if used) and the rationale.} \missingfigure{Histogram: distribution of consensus scores c\_i (and normalized consensus).}
+\end{itemize}
+
+\subsection{Robust rank aggregation (RRA) by dataset}
+RRA \parencite{rra_kolde_2012}is applied to the full-test rankings to identify samples that are \emph{robustly} ranked high or low across models using the python package \texttt{PyFLAGR}\parencite{pyflagr_2023} (version 1.0.21).
+The total test set size was $N=73{,}236$, with $7{,}411$ robust positives and $11{,}456$ robust negatives.
+Figure~\ref{fig:rra_dataset_violin} summarizes the rank distributions for the robust positive and robust negative sets by dataset.
+RRA provides an ordering \emph{within} each robust set; samples not included in the robust lists are not ranked by RRA.
+
+\begin{wrapfigure}{r}{0.7\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/ranking_agreement/test/plots/rra_ridgeline.png}
+  \caption{RRA rank distributions by dataset and robust set. Each ridge shows the distribution of RRA ranks for robust positives or robust negatives within a dataset (lower rank = more robust).}
+  \label{fig:rra_dataset_violin}
+\end{wrapfigure}
+
+\begin{table}[t]
+  \centering
+  \caption{Kruskal--Wallis tests for RRA rank distributions across datasets.}
+  \label{tab:rra_kw}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Subset}  & \textbf{H statistic} & \textbf{p-value}     \\
+    \midrule
+    Robust positives & 147.2232             & $1.07\times10^{-32}$ \\
+    Robust negatives & 90.1182              & $2.70\times10^{-20}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Summary of key results}
+\begin{itemize}
+  \item \todo{One paragraph: main takeaways for (i) ranking performance, (ii) embedding health, (iii) dataset/label effects, (iv) agreement/consensus.} \missingfigure{One consolidated summary figure (optional): performance vs.\ embedding metrics.}
+\end{itemize}

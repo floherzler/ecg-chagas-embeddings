@@ -21,6 +21,7 @@ def _add_src_to_path() -> None:
 
 _ENC_RE = re.compile(r"__enc__N(?P<N>\d+)__D(?P<D>\d+)\.fp32\.mmap$")
 _PROJ_RE = re.compile(r"__proj__N(?P<N>\d+)__D(?P<D>\d+)\.fp32\.mmap$")
+_ENC_VIEW1_RE = re.compile(r"__enc_view1__N(?P<N>\d+)__D(?P<D>\d+)\.fp32\.mmap$")
 
 
 def _find_memmap(path: Path, *, run_id: str, space: str, n_expected: int) -> tuple[Path, int]:
@@ -43,6 +44,65 @@ def _find_memmap(path: Path, *, run_id: str, space: str, n_expected: int) -> tup
             raise ValueError(f"Unexpected proj memmap filename: {matches[0].name}")
         return matches[0], int(m.group("D"))
     raise ValueError(f"Unsupported space: {space}")
+
+
+def _find_enc_view1_memmap(path: Path, *, run_id: str, n_expected: int) -> tuple[Path, int] | None:
+    patt = f"{run_id}__enc_view1__N{n_expected}__D*.fp32.mmap"
+    matches = sorted(path.glob(patt))
+    if not matches:
+        return None
+    m = _ENC_VIEW1_RE.search(matches[0].name)
+    if not m:
+        raise ValueError(f"Unexpected enc_view1 memmap filename: {matches[0].name}")
+    return matches[0], int(m.group("D"))
+
+
+def _saa_from_two_views(
+    x0_u: np.ndarray, x1_u: np.ndarray, y: np.ndarray, *, block: int = 256
+) -> dict[str, float]:
+    """
+    Sample Alignment Accuracy (SAA) between two views, probe-only.
+
+    For each sample i, find the nearest neighbor of view0[i] in view1 (cosine similarity on L2-normalized embeddings).
+    It's a correct match if argmax_j sim(view0[i], view1[j]) == i.
+    Compute the same in the other direction and average.
+
+    Returns SAA_0 and SAA_1 as percentages (0..100) for class 0/1.
+    """
+    x0_u = np.asarray(x0_u, dtype=np.float32)
+    x1_u = np.asarray(x1_u, dtype=np.float32)
+    y = np.asarray(y, dtype=int).reshape(-1)
+    if x0_u.shape != x1_u.shape:
+        raise ValueError(f"Expected x0_u and x1_u same shape, got {x0_u.shape} vs {x1_u.shape}")
+    N = int(x0_u.shape[0])
+    if N != int(y.size):
+        raise ValueError(f"Expected y size N={N}, got {y.size}")
+    if N < 1:
+        return {"SAA_0": float("nan"), "SAA_1": float("nan")}
+
+    def _nn_indices(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+        nn = np.empty((N,), dtype=np.int32)
+        BT = B.T
+        for i0 in range(0, N, int(block)):
+            i1 = min(N, i0 + int(block))
+            sim = A[i0:i1] @ BT  # [b, N]
+            nn[i0:i1] = np.argmax(sim, axis=1).astype(np.int32)
+        return nn
+
+    nn01 = _nn_indices(x0_u, x1_u)
+    nn10 = _nn_indices(x1_u, x0_u)
+    correct01 = nn01 == np.arange(N, dtype=np.int32)
+    correct10 = nn10 == np.arange(N, dtype=np.int32)
+    correct = 0.5 * (correct01.astype(np.float32) + correct10.astype(np.float32))
+
+    out: dict[str, float] = {}
+    for cls in (0, 1):
+        m = y == cls
+        if not np.any(m):
+            out[f"SAA_{cls}"] = float("nan")
+        else:
+            out[f"SAA_{cls}"] = float(correct[m].mean() * 100.0)
+    return out
 
 
 def _effective_rank(x: np.ndarray) -> float:
@@ -122,6 +182,16 @@ def main() -> None:
     )
     parser.add_argument("--max_samples", type=int, default=0, help="0 = use all samples")
     parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument(
+        "--compute_saa",
+        action="store_true",
+        help="Compute probe-only SAA (requires `__enc_view1__...` memmaps; encoder space only).",
+    )
+    parser.add_argument(
+        "--group_metrics",
+        action="store_true",
+        help="Also compute probe-only metrics on dataset splits: verified=(PTBXL+SAMITROP) vs CODE15.",
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -133,7 +203,10 @@ def main() -> None:
         probe_index = probe_index.rename(columns={"y_true": "chagas"})
     if "chagas" not in probe_index.columns:
         raise ValueError(f"{probe_index_path} must include label column 'chagas'")
+    if "dataset_source" not in probe_index.columns:
+        raise ValueError(f"{probe_index_path} must include column 'dataset_source' for group splits")
     y = probe_index["chagas"].to_numpy(dtype=int)
+    ds = probe_index["dataset_source"].astype(str).to_numpy(dtype=object)
     N = int(len(y))
 
     global_cfg, runs = load_run_specs(args.run_specs)
@@ -217,6 +290,52 @@ def main() -> None:
             row.update({k: v for k, v in run.meta.items()})
             row.update(ttc)
             row.update(diag)
+
+            # Optional: load view1 embeddings once (used for SAA and/or group SAA).
+            x1_u: np.ndarray | None = None
+            if (bool(args.compute_saa) or bool(args.group_metrics)) and space == "enc" and idx is None:
+                enc1 = _find_enc_view1_memmap(memmap_dir, run_id=run.run_id, n_expected=N)
+                if enc1 is None:
+                    enc1 = _find_enc_view1_memmap(legacy_memmaps, run_id=run.run_id, n_expected=N)
+                if enc1 is not None:
+                    mmap_path1, D1 = enc1
+                    if int(D1) == int(D):
+                        x1 = np.memmap(mmap_path1, mode="r", dtype="float32", shape=(N, D1))
+                        x1_u = l2_normalize_np(np.asarray(x1, dtype=np.float32), axis=1, eps=1e-12)
+
+            # SAA on probe only, encoder space only.
+            if bool(args.compute_saa) and space == "enc" and idx is None and x1_u is not None:
+                row.update(_saa_from_two_views(x_u, x1_u, y_use))
+
+            if bool(args.group_metrics) and space == "enc" and idx is None:
+                # Dataset splits on the probe set:
+                # - verified: PTBXL + SAMITROP
+                # - self-reported/mixed: CODE15
+                is_verified = np.isin(ds, np.array(["PTBXL", "SAMITROP"], dtype=object))
+                is_code15 = ds == "CODE15"
+
+                def _add_group(prefix: str, m: np.ndarray) -> None:
+                    m = np.asarray(m, dtype=bool)
+                    if not np.any(m):
+                        row[f"N_{prefix}"] = 0
+                        for key in ("CAC_0", "CAC_1", "GPU_0", "GPU_1"):
+                            row[f"{key}_{prefix}"] = float("nan")
+                        if x1_u is not None:
+                            row[f"SAA_0_{prefix}"] = float("nan")
+                            row[f"SAA_1_{prefix}"] = float("nan")
+                        return
+                    row[f"N_{prefix}"] = int(m.sum())
+                    ttc_g = _compute_ttc_metrics(x_u[m], y_use[m])
+                    for key in ("CAC_0", "CAC_1", "GPU_0", "GPU_1"):
+                        row[f"{key}_{prefix}"] = float(ttc_g.get(key, float("nan")))
+                    if x1_u is not None:
+                        saa_g = _saa_from_two_views(x_u[m], x1_u[m], y_use[m])
+                        row[f"SAA_0_{prefix}"] = float(saa_g.get("SAA_0", float("nan")))
+                        row[f"SAA_1_{prefix}"] = float(saa_g.get("SAA_1", float("nan")))
+
+                _add_group("verified", is_verified)
+                _add_group("code15", is_code15)
+
             rows.append(row)
             print(f"{run.run_id} {space}: CAC_1={row.get('CAC_1', float('nan')):.3f}")
 

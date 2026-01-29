@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import pyflagr.RRA as RRA
 
 
 def _add_src_to_path() -> None:
@@ -43,7 +45,9 @@ def _logits_memmap_path(*, out_dir: Path, run_id: str, n: int) -> Path:
     return p
 
 
-def _load_logits(*, out_dir: Path, run_ids: list[str], n: int, skip_missing: bool) -> tuple[list[str], np.ndarray]:
+def _load_logits(
+    *, out_dir: Path, run_ids: list[str], n: int, skip_missing: bool
+) -> tuple[list[str], np.ndarray]:
     kept: list[str] = []
     cols: list[np.ndarray] = []
     for rid in tqdm(run_ids, desc="Load logits", unit="run"):
@@ -180,7 +184,9 @@ def _kendall_tau_a(x: np.ndarray, y: np.ndarray) -> float:
     return float((concordant - discordant) / float(total))
 
 
-def _kendall_topk_matrix(scores: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _kendall_topk_matrix(
+    scores: np.ndarray, mask: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Kendall tau-a on intersection of top-k sets.
 
@@ -214,6 +220,120 @@ def _write_matrix_csv(path: Path, run_ids: list[str], mat: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=True)
 
+
+def _build_rra_lists(
+    scores: np.ndarray,
+    run_ids: list[str],
+    item_ids: np.ndarray,
+    *,
+    top_frac: float,
+    query_id: str = "1",
+    list_name: str = "ECG",
+) -> pd.DataFrame:
+    """
+    Build a long-form ranking table for RRA aggregation.
+
+    Columns (current convention):
+      - list_id: run_id for each model (list)
+      - item_id: unique sample id (row_idx)
+      - rank: 1 = best (highest logit), increasing
+      - score: raw logit (kept for debugging)
+
+    NOTE: PyFLAGR's expected schema may differ. See TODO in main() to adjust.
+    """
+    M, N = scores.shape
+    k = int(np.ceil(float(top_frac) * N))
+    k = max(1, min(N, k))
+    rows: list[dict[str, Any]] = []
+    for i, rid in enumerate(tqdm(run_ids, desc="Build RRA lists", unit="run")):
+        s = scores[i]
+        idx = np.argpartition(s, -k)[-k:]
+        # Sort top-k by score descending for proper rank order
+        idx = idx[np.argsort(s[idx])[::-1]]
+        for r, j in enumerate(idx, start=1):
+            item_tag = f"Q{query_id}-E{int(item_ids[j]) + 1}"
+            rows.append(
+                {
+                    "Query": f"Q{query_id}",
+                    "Voter": f"V-{int(i)}",
+                    "ItemID": item_tag,
+                    "Rank": int(r),
+                    "Score": float(s[j]),
+                    "List": list_name,
+                }
+            )
+    return pd.DataFrame(
+        rows, columns=["Query", "Voter", "ItemID", "Rank", "Score", "List"]
+    )
+
+
+def _infer_rra_columns(df_out: pd.DataFrame) -> tuple[str | None, str | None]:
+    """
+    Best-effort guessing of item_id and score columns from PyFLAGR output.
+    Returns (item_col, score_col).
+    """
+    item_candidates = [
+        "ItemID",
+        "item_id",
+        "item",
+        "docno",
+        "document",
+        "object",
+        "element",
+        "id",
+    ]
+    score_candidates = [
+        "Score",
+        "score",
+        "rra_score",
+        "pvalue",
+        "p_value",
+        "p",
+        "agg_score",
+    ]
+    item_col = next((c for c in item_candidates if c in df_out.columns), None)
+    score_col = next((c for c in score_candidates if c in df_out.columns), None)
+    return item_col, score_col
+
+
+def _rank_from_score(values: np.ndarray, *, higher_is_better: bool) -> np.ndarray:
+    order = np.argsort(values)
+    if higher_is_better:
+        order = order[::-1]
+    ranks = np.empty_like(order)
+    ranks[order] = np.arange(1, len(values) + 1, dtype=int)
+    return ranks
+
+
+def _parse_rra_output(df_out: pd.DataFrame, *, n: int) -> pd.DataFrame:
+    item_col, score_col = _infer_rra_columns(df_out)
+    if item_col is None or score_col is None:
+        raise ValueError("Could not infer item/score columns from RRA output.")
+    rra_df = df_out[[item_col, score_col]].copy()
+    rra_df = rra_df.rename(columns={item_col: "row_idx", score_col: "rra_score"})
+    if rra_df["row_idx"].dtype == object:
+        rra_df["rra_item_id"] = rra_df["row_idx"].astype(str)
+        rra_df["row_idx"] = (
+            rra_df["row_idx"]
+            .astype(str)
+            .str.extract(r"E(\d+)", expand=False)
+            .astype(float)
+        )
+    if rra_df["row_idx"].isna().all():
+        raise ValueError("Failed to parse ItemID into row_idx (all NaN).")
+    if rra_df["row_idx"].min() >= 1 and rra_df["row_idx"].max() == n:
+        rra_df["row_idx"] = rra_df["row_idx"].astype(int) - 1
+    if "Rank" in df_out.columns:
+        rra_df["rra_rank"] = pd.to_numeric(df_out["Rank"], errors="coerce")
+    else:
+        lower_better = "p" in score_col.lower()
+        rra_df["rra_rank"] = _rank_from_score(
+            rra_df["rra_score"].to_numpy(dtype=float),
+            higher_is_better=not lower_better,
+        )
+    return rra_df
+
+
 def _write_run_id_list(path: Path, run_ids: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(run_ids) + "\n", encoding="utf-8")
@@ -243,6 +363,29 @@ def main() -> None:
     )
     parser.add_argument("--top_frac", type=float, default=0.05)
     parser.add_argument(
+        "--rra",
+        action="store_true",
+        help="Compute Robust Rank Aggregation (PyFLAGR) on top-k lists and write per-sample RRA scores.",
+    )
+    parser.add_argument(
+        "--rra_top_frac",
+        type=float,
+        default=1.0,
+        help="Top fraction to include in RRA lists (default: 1.0 = full ranking).",
+    )
+    parser.add_argument("--rra_eval_pts", type=int, default=7)
+    parser.add_argument("--rra_exact", action="store_true")
+    parser.add_argument(
+        "--rra_subprocess",
+        action="store_true",
+        help="Run PyFLAGR RRA in a subprocess to isolate potential segfaults.",
+    )
+    parser.add_argument(
+        "--rra_fill_missing",
+        action="store_true",
+        help="Fill missing RRA entries with worst score/rank (score=1.0, rank=N).",
+    )
+    parser.add_argument(
         "--skip_missing",
         action="store_true",
         help="Skip runs that are missing logits memmaps instead of failing.",
@@ -267,6 +410,9 @@ def main() -> None:
     M = int(len(kept_ids))
     print(f"Loaded logits for {M} runs on {args.set} set N={N}")
 
+    # Dense aggregation: median rank across all models (full ordering)
+    median_rank_full = np.median(_rank_ordinal(scores), axis=0).astype(np.float32) + 1.0
+
     out_base = out_dir / "ranking_agreement" / str(args.set)
     out_base.mkdir(parents=True, exist_ok=True)
 
@@ -284,14 +430,20 @@ def main() -> None:
     # (3) Within-screening ranking agreement (Kendall tau on intersection)
     tau, n_int = _kendall_topk_matrix(scores, mask)
     _write_matrix_csv(out_base / "top5_kendall_tau.csv", kept_ids, tau)
-    _write_matrix_csv(out_base / "top5_intersection_n.csv", kept_ids, n_int.astype(np.float32))
+    _write_matrix_csv(
+        out_base / "top5_intersection_n.csv", kept_ids, n_int.astype(np.float32)
+    )
     print(f"Wrote {out_base / 'top5_kendall_tau.csv'}")
     print(f"Wrote {out_base / 'top5_intersection_n.csv'}")
 
     # (4) Per-sample consensus for top-k (Step 2 in your screenshot)
     consensus_count = mask.sum(axis=0).astype(np.int32)  # [N]
     consensus_frac = (consensus_count.astype(np.float32) / float(M)).astype(np.float32)
-    keep_cols = [c for c in ["row_idx", "exam_id", "dataset_source", "chagas"] if c in index_df.columns]
+    keep_cols = [
+        c
+        for c in ["row_idx", "exam_id", "dataset_source", "chagas"]
+        if c in index_df.columns
+    ]
     consensus_df = index_df[keep_cols].copy()
     if "chagas" in consensus_df.columns:
         consensus_df["chagas"] = consensus_df["chagas"].astype(int)
@@ -315,6 +467,163 @@ def main() -> None:
         membership.insert(1, "exam_id", index_df["exam_id"].astype(str).to_numpy())
         membership.to_csv(out_base / "top5_membership.csv", index=False)
         print(f"Wrote {out_base / 'top5_membership.csv'}")
+
+    if args.rra:
+        # (6) Robust Rank Aggregation (PyFLAGR)
+        def _run_rra(lists_path: Path, *, tag: str) -> pd.DataFrame:
+            print(f"Running RRA aggregation ({tag})...")
+            if args.rra_subprocess:
+                code = (
+                    "import pandas as pd\n"
+                    "import pyflagr.RRA as RRA\n"
+                    "from pathlib import Path\n"
+                    f'lists_path = Path(r"{lists_path}")\n'
+                    f'out_base = Path(r"{out_base}")\n'
+                    f"rra = RRA.RRA(eval_pts={int(args.rra_eval_pts)}, exact={bool(args.rra_exact)})\n"
+                    "df_out, df_eval = rra.aggregate(input_file=str(lists_path), out_dir=str(out_base))\n"
+                    f'df_out.to_csv(out_base / "rra_output_{tag}.csv", index=False)\n'
+                    f'df_eval.to_csv(out_base / "rra_eval_{tag}.csv", index=False)\n'
+                )
+                log_path = out_base / f"rra_subprocess_{tag}.log"
+                with log_path.open("w", encoding="utf-8") as log_f:
+                    log_f.write(f"RRA subprocess starting ({tag})...\n")
+                    log_f.flush()
+                    proc = subprocess.run(
+                        [sys.executable, "-X", "faulthandler", "-c", code],
+                        check=False,
+                        stdout=log_f,
+                        stderr=log_f,
+                    )
+                    log_f.write(f"\nRRA subprocess returncode={proc.returncode}\n")
+                if proc.returncode != 0:
+                    if proc.returncode < 0:
+                        print(
+                            "WARNING: RRA subprocess terminated by signal "
+                            f"{-proc.returncode}. This can indicate a segfault or OOM."
+                        )
+                    print(
+                        "WARNING: RRA subprocess failed (non-zero exit). "
+                        f"See {log_path} for details."
+                    )
+                    raise RuntimeError("RRA subprocess failed")
+                out_path = out_base / f"rra_output_{tag}.csv"
+                eval_path = out_base / f"rra_eval_{tag}.csv"
+                print(f"Wrote {out_path}")
+                print(f"Wrote {eval_path}")
+                return pd.read_csv(out_path)
+            try:
+                import pyflagr.RRA as RRA  # type: ignore
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError(f"Failed to import pyflagr: {exc}") from exc
+            rra = RRA.RRA(eval_pts=int(args.rra_eval_pts), exact=bool(args.rra_exact))
+            df_out, df_eval = rra.aggregate(
+                input_file=str(lists_path), out_dir=str(out_base)
+            )
+            out_path = out_base / f"rra_output_{tag}.csv"
+            eval_path = out_base / f"rra_eval_{tag}.csv"
+            df_out.to_csv(out_path, index=False)
+            df_eval.to_csv(eval_path, index=False)
+            print(f"Wrote {out_path}")
+            print(f"Wrote {eval_path}")
+            return df_out
+
+        lists_path = out_base / "rra_lists.csv"
+        lists_debug_path = out_base / "rra_lists_debug.csv"
+        voter_map_path = out_base / "rra_voter_map.csv"
+        item_map_path = out_base / "rra_item_map.csv"
+        if not lists_path.exists():
+            item_ids = index_df["row_idx"].to_numpy(dtype=int)
+            lists_df = _build_rra_lists(
+                scores, kept_ids, item_ids, top_frac=float(args.rra_top_frac)
+            )
+            # PyFLAGR expects header-less CSV: Query, Voter, ItemID, Rank, Score, List
+            lists_df.to_csv(lists_path, index=False, header=False)
+            lists_df.to_csv(lists_debug_path, index=False)
+            pd.DataFrame(
+                {"voter_id": np.arange(len(kept_ids)), "run_id": kept_ids}
+            ).to_csv(voter_map_path, index=False)
+            pd.DataFrame(
+                {
+                    "item_id": [f"Q1-E{int(i) + 1}" for i in item_ids],
+                    "row_idx": item_ids,
+                }
+            ).to_csv(item_map_path, index=False)
+            print(f"Wrote {lists_path}")
+            print(f"Wrote {lists_debug_path}")
+            print(f"Wrote {voter_map_path}")
+            print(f"Wrote {item_map_path}")
+        else:
+            print(f"Using existing {lists_path}")
+
+        lists_inv_path = out_base / "rra_lists_inverted.csv"
+        lists_inv_debug_path = out_base / "rra_lists_inverted_debug.csv"
+        if not lists_inv_path.exists():
+            item_ids = index_df["row_idx"].to_numpy(dtype=int)
+            lists_inv_df = _build_rra_lists(
+                -scores, kept_ids, item_ids, top_frac=float(args.rra_top_frac)
+            )
+            lists_inv_df.to_csv(lists_inv_path, index=False, header=False)
+            lists_inv_df.to_csv(lists_inv_debug_path, index=False)
+            print(f"Wrote {lists_inv_path}")
+            print(f"Wrote {lists_inv_debug_path}")
+        else:
+            print(f"Using existing {lists_inv_path}")
+
+        df_out_pos = _run_rra(lists_path, tag="pos")
+        df_out_neg = _run_rra(lists_inv_path, tag="neg")
+
+        try:
+            rra_pos = _parse_rra_output(df_out_pos, n=N).rename(
+                columns={"rra_rank": "rra_rank_pos"}
+            )
+        except Exception as exc:
+            print(f"WARNING: Failed to parse RRA positive output: {exc}")
+            return
+        try:
+            rra_neg = _parse_rra_output(df_out_neg, n=N).rename(
+                columns={"rra_rank": "rra_rank_neg"}
+            )
+        except Exception as exc:
+            print(f"WARNING: Failed to parse RRA negative output: {exc}")
+            return
+        # Invert negative ranks back to original direction
+        rra_neg["rra_rank_neg"] = float(N) - rra_neg["rra_rank_neg"] + 1.0
+
+        merged = index_df.merge(
+            rra_pos[["row_idx", "rra_rank_pos", "rra_item_id"]],
+            on="row_idx",
+            how="left",
+        )
+        merged = merged.merge(rra_neg[["row_idx", "rra_rank_neg"]], on="row_idx", how="left")
+        keep_cols = [
+            c
+            for c in ["row_idx", "exam_id", "dataset_source", "chagas"]
+            if c in merged.columns
+        ]
+        merged["median_rank_full"] = median_rank_full
+        if args.rra_fill_missing:
+            merged["rra_rank_pos"] = merged["rra_rank_pos"].fillna(float(N))
+            merged["rra_rank_neg"] = merged["rra_rank_neg"].fillna(float(N))
+        # Convert filled values back to NaN so only robust hits remain.
+        merged.loc[merged["rra_rank_pos"] >= float(N), "rra_rank_pos"] = np.nan
+        merged.loc[merged["rra_rank_neg"] >= float(N), "rra_rank_neg"] = np.nan
+        # Ensure at most one of rra_rank_pos / rra_rank_neg is set.
+        both = merged["rra_rank_pos"].notna() & merged["rra_rank_neg"].notna()
+        if both.any():
+            pos_rank = merged.loc[both, "rra_rank_pos"].to_numpy(dtype=float)
+            neg_raw_rank = float(N) - merged.loc[both, "rra_rank_neg"].to_numpy(dtype=float) + 1.0
+            keep_pos = pos_rank <= neg_raw_rank
+            drop_pos_idx = merged.loc[both].index[~keep_pos]
+            drop_neg_idx = merged.loc[both].index[keep_pos]
+            merged.loc[drop_pos_idx, "rra_rank_pos"] = np.nan
+            merged.loc[drop_neg_idx, "rra_rank_neg"] = np.nan
+        # Only keep rank (score is not meaningful at this scale)
+        merged = merged[
+            keep_cols
+            + ["rra_item_id", "rra_rank_pos", "rra_rank_neg", "median_rank_full"]
+        ]
+        merged.to_csv(out_base / "sample_rra_consensus.csv", index=False)
+        print(f"Wrote {out_base / 'sample_rra_consensus.csv'}")
 
 
 if __name__ == "__main__":

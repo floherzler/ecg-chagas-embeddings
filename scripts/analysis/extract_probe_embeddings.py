@@ -118,6 +118,13 @@ def main() -> None:
     parser.add_argument("--device", type=str, default="auto", help="'auto'|'cpu'|'cuda'")
     parser.add_argument("--crop_size", type=int, default=2500)
     parser.add_argument("--augmentation_base_seed", type=int, default=42)
+    parser.add_argument(
+        "--probe_n_views",
+        type=int,
+        default=2,
+        choices=[1, 2],
+        help="Number of probe views to embed. View0 is the clean anchor; view1 is augmented (val mode).",
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -155,7 +162,7 @@ def main() -> None:
 
     transform = ECGAugmentation(
         crop_size=int(args.crop_size),
-        n_views=2,
+        n_views=int(args.probe_n_views),
         mode="val",
         base_seed=int(args.augmentation_base_seed),
         val_anchor_clean=True,
@@ -173,11 +180,20 @@ def main() -> None:
         # Fast-path skip if memmaps already exist (avoid loading data/model).
         if not args.overwrite:
             enc_matches = sorted(memmap_dir.glob(f"{run.run_id}__enc__N{N}__D*.fp32.mmap"))
+            enc1_matches = sorted(memmap_dir.glob(f"{run.run_id}__enc_view1__N{N}__D*.fp32.mmap"))
             logits_path = memmap_dir / f"{run.run_id}__logits__N{N}.fp32.mmap"
-            if (enc_matches and logits_path.exists()) or (
+            need_view1 = int(args.probe_n_views) == 2
+            have_new = bool(enc_matches) and logits_path.exists() and (bool(enc1_matches) if need_view1 else True)
+            have_legacy = (
                 sorted(legacy_dir.glob(f"{run.run_id}__enc__N{N}__D*.fp32.mmap"))
                 and (legacy_dir / f"{run.run_id}__logits__N{N}.fp32.mmap").exists()
-            ):
+                and (
+                    bool(sorted(legacy_dir.glob(f"{run.run_id}__enc_view1__N{N}__D*.fp32.mmap")))
+                    if need_view1
+                    else True
+                )
+            )
+            if have_new or have_legacy:
                 tqdm.write(
                     f"Skipping {run.run_id}: memmaps already exist (use --overwrite)"
                 )
@@ -262,6 +278,7 @@ def main() -> None:
 
         # Allocate memmaps after first forward to know dimensions.
         enc_mmap = None
+        enc1_mmap = None
         proj_mmap = None
         logits_mmap = None
 
@@ -285,12 +302,15 @@ def main() -> None:
                 if enc_mmap is None:
                     D = int(feats_np.shape[1])
                     enc_path = memmap_dir / f"{run.run_id}__enc__N{N}__D{D}.fp32.mmap"
+                    enc1_path = memmap_dir / f"{run.run_id}__enc_view1__N{N}__D{D}.fp32.mmap"
                     logits_path = memmap_dir / f"{run.run_id}__logits__N{N}.fp32.mmap"
                     if (enc_path.exists() or logits_path.exists()) and not args.overwrite:
                         print(f"Skipping {run.run_id}: memmaps already exist (use --overwrite)")
                         break
                     enc_mmap = np.memmap(enc_path, mode="w+", dtype="float32", shape=(N, D))
                     logits_mmap = np.memmap(logits_path, mode="w+", dtype="float32", shape=(N,))
+                    if int(args.probe_n_views) == 2:
+                        enc1_mmap = np.memmap(enc1_path, mode="w+", dtype="float32", shape=(N, D))
                     if has_projection:
                         d_proj = int(proj_np.shape[1])
                         proj_path = memmap_dir / f"{run.run_id}__proj__N{N}__D{d_proj}.fp32.mmap"
@@ -307,6 +327,12 @@ def main() -> None:
                 if has_projection and proj_mmap is not None:
                     proj_mmap[i0:i1] = proj_np.astype(np.float32, copy=False)
 
+                if enc1_mmap is not None:
+                    x1 = batch["ecg_views"][:, 1].to(device, non_blocking=True)
+                    feats1, _proj1, _logits1 = model(x1)
+                    feats1_np = feats1.detach().cpu().to(torch.float32).numpy()
+                    enc1_mmap[i0:i1] = feats1_np.astype(np.float32, copy=False)
+
                 offset = i1
 
         if enc_mmap is None:
@@ -314,6 +340,8 @@ def main() -> None:
         if offset != N:
             raise RuntimeError(f"{run.run_id}: wrote {offset} rows, expected {N}")
         enc_mmap.flush()
+        if enc1_mmap is not None:
+            enc1_mmap.flush()
         if proj_mmap is not None:
             proj_mmap.flush()
         if logits_mmap is not None:

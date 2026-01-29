@@ -1,41 +1,70 @@
 \chapter{Introduction}
 
 \section{Clinical Motivation}
-Chagas disease is a neglected tropical disease caused by \textit{Trypanosoma cruzi} infection and can progress to chronic Chagas cardiomyopathy, which is associated with conduction abnormalities, arrhythmias, and heart failure.
-\todo{state importance of the disease, prevalence, morbidity/mortality}
+Chagas disease (ChD) is a neglected tropical disease caused by parasite \textit{Trypanosoma cruzi} infection, predominantly in Latin America.
+It can progress to chronic Chagas cardiomyopathy, which is associated with conduction abnormalities, arrhythmias, and heart failure.
+\todo{disease importance: prevalence, morbidity/mortality, and relevance for screening in non-endemic settings needed?}
+The infection with chagas disease starts with an acute phase with fever and mild symptoms.
+After this phase, infected individuals enter the indeterminate phase, which can last for decades without symptoms while the ECG appears normal.
+The chronic phase can develop in approximately 30\% of infected individuals, potentially leading to serious cardiac complications.
+\todo{citation needed here. how in depth do i have to go?}.
 Early identification of infected individuals enables confirmatory serological testing and timely follow-up, but population-wide screening is challenging in resource-constrained settings.
 
-\section{Task Origin: PhysioNet/Computing in Cardiology Challenge 2025}
-The experimental classification task in this thesis is derived from the George B.~Moody PhysioNet Challenge 2025, which focuses on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
-We therefore interpret the task as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
-The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
-
-\section{Electrocardiogram as Screening Modality}
+\subsection*{Electrocardiogram as Screening Modality}
 The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
 Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
 Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
-\missingfigure{cabrera circle for ecg leads}
+\missingfigure{Cabrera circle / lead intuition, is this needed?}
 
-\section{Deep Learning for ECG Interpretation}
+\subsection*{George B.~Moody PhysioNet Challenge 2025}
+The experimental classification task in this thesis originates from the George B.~Moody PhysioNet Challenge 2025, which focused on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
+
+The task is therefore interpreted as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
+The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
+\begin{itemize}
+  \item \textbf{Operating point:} fixed-capacity screening (top $K\%$ flagged for follow-up; $K=5\%$ in the challenge setting).
+  \item \textbf{Evaluation emphasis:} ranking quality under strict false-positive constraints.
+  \item \textbf{Data sources:} large-scale CODE-15\%\parencite{ribeiro_code-15_2021} cohort (self-reported labels from Brazil), SaMi-Trop\parencite{ribeiro_sami-trop_2021} (clinically confirmed positives from Brazil), PTB-XL\parencite{wagner_ptb_xl} (confirmed negatives from Germany).
+\end{itemize}
+
+
+
+\section{Deep Learning for ECG Classification}
 ECG-based detection requires modeling subtle, distributed waveform patterns across leads and time.
 Deep learning methods, particularly convolutional architectures, can learn such representations directly from raw waveforms and have shown strong performance for ECG interpretation tasks \parencite{jidling_screening_2023}.
 
-\section{Key Challenges: Dataset Composition}
-Two properties of the training data complicate optimization and interpretation:
-\begin{itemize}
-  \item \textbf{Class imbalance}: positives are rare, so standard objectives can be dominated by easy negatives.
-  \item \textbf{Dataset bias and label noise}: the pooled dataset combines multiple sources with different acquisition pipelines and population characteristics, and some labels (e.g., in large-scale cohorts such as CODE-15\%) may be less reliable than clinically adjudicated endpoints \parencite{ribeiro_code-15_2021,jidling_screening_2023}.
-\end{itemize}
+This thesis investigates the extent to which these models learn disease-relevant morphology versus dataset shortcuts, while developing strategies to ensure robustness under the practical constraints of strong class imbalance and domain shift.
+Models are explicitly only trained on signal data wihtout introducing age, sex and other related metadata as features to avoid potential biases and aim for generalizability.
+
+\section{Key Challenges}
+Two properties of the training data complicate optimization and interpretation.
+
+First, the severe class imbalance with only approximately 2~\% positives can cause standard learning objectives to be dominated by easy negatives.
+
+Second, dataset bias and label noise arise because the pooled dataset combines multiple sources with different acquisition pipelines and population characteristics.\todo{look again if i can find documented differences in acquisition or noralization}
+Additionally, labels in CODE-15\% are less reliable than clinically validated labels.
 These issues can lead to inflated apparent performance on in-distribution validation while degrading generalization across sources.
+\missingfigure{Dataset overview: sample counts + labels by source, age and sex distributions (CODE-15 vs SaMi-Trop vs PTB-XL).}
 
 \section{Contributions and Thesis Structure}
-This thesis studies practical strategies to improve robustness under the above constraints, using embedding-space analysis as a diagnostic tool to motivate data harmonization and loss-function choices:
-\begin{itemize}
-  \item \textbf{Track 1}: supervised classification with metric-aligned loss functions and controlled augmentations.
-  \item \textbf{Track 2}: supervised contrastive / prototype-based training to shape the embedding space and quantify representation quality.
-  \item \textbf{Track 3}: downstream probing of pretrained encoders to connect embedding quality to classification performance.
-\end{itemize}
-Chapter~\ref{ch:methods-results} details the configuration system and experimental variables used in these tracks.
+This thesis investigates practical strategies for improving model robustness under the constraints of severe class imbalance and dataset bias.
+The core hypothesis is that careful data harmonization and metric-aligned objectives significantly influence the geometry of the learned embedding space, thereby determining downstream separability and generalization.
+To test this, the experimental work is organized into three tracks utilizing embedding-space analysis as a primary diagnostic tool.
+
+(i) The first track focuses on supervised classification, employing metric-aligned loss functions and controlled augmentations to optimize performance at low false-positive rates.
+
+(ii) The second track explores supervised contrastive and prototype-based training methods to explicitly shape the embedding space, allowing for the quantification of representation quality.
+
+(iii) The third track connects these representations to classification performance through downstream linear probing of pretrained encoders.
+Across these tracks, three preprocessing regimes regarding bandpass filtering and scaling normalization appear as key experimental variables to balance data harmonization against the preservation of physiological variation.
+
+The resulting models are evaluated on two levels: first, by their clinical ranking utility using metrics such as TPR@5\% and partial AUC; and second, via embedding diagnostics to detect mode collapse and dataset-specific clustering artifacts.
+
+\missingfigure{Thesis flow diagram (convert diagrams/flow.svg to flow.png)}%
+
+
+Chapter~\ref{ch:methods} details the configuration system and experimental variables used in these tracks.
+\todo{Add a short roadmap sentence: what is in Background vs Methods vs Results vs Discussion.}
 
 \paragraph{Open-Source Resources}
 To support reproducibility, the codebase, experiment tracking, and project planning are publicly accessible:

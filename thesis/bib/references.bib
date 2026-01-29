@@ -273,32 +273,15 @@
   file       = {Snapshot:C\:\\Users\\Flo\\Zotero\\storage\\FDD9GBHK\\4905618.html:text/html}
 }
 
-@misc{wagner_ptb-xl_nodate,
-  title     = {{PTB}-{XL}, a large publicly available electrocardiography dataset},
-  doi       = {10.13026/KFZX-AW45},
-  abstract  = {Electrocardiography (ECG) is a key diagnostic tool to assess the cardiac
-               condition of a patient. Automatic ECG interpretation algorithms as diagnosis
-               support systems promise large reliefs for the medical personnel - only on the
-               basis of the number of ECGs that are routinely taken. However, the development
-               of such algorithms requires large training datasets and clear benchmark
-               procedures. In our opinion, both aspects are not covered satisfactorily by
-               existing freely accessible ECG datasets.
-               
-               The PTB-XL ECG dataset is a large dataset of 21799 clinical 12-lead ECGs from
-               18869 patients of 10 second length. The raw waveform data was annotated by up
-               to two cardiologists, who assigned potentially multiple ECG statements to each
-               record. The in total 71 different ECG statements conform to the SCP-ECG
-               standard and cover diagnostic, form, and rhythm statements. To ensure
-               comparability of machine learning algorithms trained on the dataset, we
-               provide recommended splits into training and test sets. In combination with
-               the extensive annotation, this turns the dataset into a rich resource for the
-               training and the evaluation of automatic ECG interpretation algorithms. The
-               dataset is complemented by extensive metadata on demographics, infarction
-               characteristics, likelihoods for diagnostic ECG statements as well as
-               annotated signal properties.},
-  urldate   = {2025-08-27},
-  publisher = {PhysioNet},
-  author    = {Wagner, Patrick and Strodthoff, Nils and Bousseljot, Ralf-Dieter and Samek, Wojciech and Schaeffter, Tobias}
+@article{wagner_ptb_xl,
+  author  = {Wagner, Patrick and Strodthoff, Nils and Bousseljot, Ralf-Dieter and Samek, Wojciech and Schaeffter, Tobias},
+  title   = {{PTB-XL, a large publicly available electrocardiography dataset}},
+  journal = {{PhysioNet}},
+  year    = {2022},
+  month   = nov,
+  note    = {Version 1.0.3},
+  doi     = {10.13026/kfzx-aw45},
+  url     = {https://doi.org/10.13026/kfzx-aw45}
 }
 
 % Alias for convenience in the thesis text.
@@ -309,4 +292,29 @@
   pages  = {},
   title  = {Ranking Aware Loss for CNN-Based Chagas Disease Detection from ECGs},
   doi    = {10.22489/CinC.2025.243}
+}
+
+@article{rra_kolde_2012,
+  author  = {Kolde, Raivo and Laur, Sven and Adler, Priit and Vilo, Jaak},
+  year    = {2012},
+  month   = {02},
+  pages   = {573-80},
+  title   = {Robust Rank Aggregation for gene list integration and meta-analysis},
+  volume  = {28},
+  journal = {Bioinformatics (Oxford, England)},
+  doi     = {10.1093/bioinformatics/btr709}
+}
+
+@article{pyflagr_2023,
+  title    = {FLAGR: A flexible high-performance library for rank aggregation},
+  journal  = {SoftwareX},
+  volume   = {21},
+  pages    = {101319},
+  year     = {2023},
+  issn     = {2352-7110},
+  doi      = {https://doi.org/10.1016/j.softx.2023.101319},
+  url      = {https://www.sciencedirect.com/science/article/pii/S2352711023000158},
+  author   = {Leonidas Akritidis and Miltiadis Alamaniotis and Panayiotis Bozanis},
+  keywords = {Rank aggregation, Library, FLAGR, PyFLAGR, Python, C++},
+  abstract = {The fusion of multiple preference lists into a single aggregate list with improved element ranking is a well-studied research area with numerous applications in bioinformatics, information retrieval, collaborative filtering, and election systems. Despite the existence of a large number of rank aggregation methods, only a small portion of them have publicly available implementations. In this paper we introduce FLAGR, a high performance, modular, open source library for rank aggregation. The library contains efficient implementations of both baseline and state-of-the-art algorithms that receive multiple ranked preference lists and output a single consensus ranking. We also introduce PyFLAGR, a library that links to the FLAGR core and allows the invocation of its implementations from standard Python programs. The package also includes a special tool that can be used to evaluate and compare the performance of the underlying algorithms. In contrast to other solutions, FLAGR has been created with flexibility in mind: third-party researchers and analysts may easily integrate their implementations into the library by developing only a single function. These features render FLAGR and PyFLAGR an attractive research platform for developing, comparing and evaluating rank aggregation algorithms. Extended descriptions of the library components and useful code examples are provided in the accompanying user manual (provided as supplemental material) and the supporting Web site at https://flagr.site.}
 }

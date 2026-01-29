@@ -137,6 +137,15 @@ This is the file you’ll typically use to:
 - pick “consensus positives” (high `top5_frac_models`) and
 - pick “non-consensus” or “disagreement” samples (mid-range `top5_frac_models`).
 
+### 5b) `sample_rra_consensus.csv` (optional; PyFLAGR RRA)
+If `compute_ranking_agreement.py --rra` is enabled, an additional file is produced:
+
+* `rra_score` — aggregated score from Robust Rank Aggregation
+* `rra_rank` — rank order derived from `rra_score` (heuristic: lower-is-better if score looks like a p-value)
+
+This is intended to replace the simple top‑5% consensus count for downstream
+selection once you verify the PyFLAGR input schema and output columns.
+
 ### 6) `top5_membership__N{N_test}__M{M}.u8.mmap` (+ `top5_membership_run_ids.txt`)
 
 Compact per-sample per-model membership matrix:
@@ -245,4 +254,3 @@ If Kendall τ becomes the bottleneck, you can:
 
 - reduce `--top_frac` (smaller intersections),
 - or temporarily skip Kendall τ computation (can be added later).
-

@@ -119,4 +119,110 @@ has_projection = false
 loss = "rat"
 axisrot = false
 
+[[runs]]
+run_id = "t3-exp01-bp-supstd"
+track = "t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-fwrd1vyt:v3"
+has_projection = false
+loss = "supstd"
+axisrot = false
 
+[[runs]]
+run_id = "t3-exp02-bp-supstd-rot10"
+track = "t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-43vi9suq:v3"
+has_projection = false
+loss = "supstd"
+axisrot = true
+
+[[runs]]
+run_id = "t3-exp03-bp-sc-supstd"
+track = "t3"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-gvwkmfwz:v1"
+has_projection = false
+loss = "supstd"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp04-bp-sc-norm-supstd"
+track = "t3"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-j4li4ili:v4"
+has_projection = false
+loss = "supstd"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp05-bp-supmin"
+track = "t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-mq6lz3v3:v1"
+has_projection = false
+loss = "supmin"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp06-bp-supmin-rot10"
+track="t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-i5gc98ep:v2"
+has_projection = false
+loss = "supmin"
+axisrot = true
+
+[[runs]]
+run_id = "t3-exp07-bp-sc-supmin"
+track="t3"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-z7g1irdv:v1"
+has_projection = false
+loss = "supmin"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp08-bp-sc-norm-supmin"
+track="t3"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-weni1uig:v3"
+has_projection = false
+loss = "sup"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp09-bp-proto"
+track="t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-o51b2ut5:v3"
+has_projection = false
+loss = "supproto"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp10-bp-proto-rot10"
+track="t3"
+preprocessing = "bp"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-dgo96uhf:v3"
+has_projection = false
+loss = "supproto"
+axisrot = true
+
+[[runs]]
+run_id = "t3-exp11-bp-sc-proto"
+track="t3"
+preprocessing = "bp_sc"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-mhr483ck:v1"
+has_projection = false
+loss = "supproto"
+axisrot = false
+
+[[runs]]
+run_id = "t3-exp12-bp-sc-norm-proto"
+track="t3"
+preprocessing = "bp_sc_norm"
+checkpoint_path = "ag-lukassen/ecg-chagas-embeddings-cli/model-pcbiqt8a:v2"
+has_projection = false
+loss = "supproto"
+axisrot = false

@@ -40,6 +40,13 @@ Override with:
 .venv/bin/python scripts/analysis/evaluate_test_models.py
 ```
 
+Note: the scores file includes `tpr_top0.05` and `tpr_top0.10` (TPR at top 5% / 10% of ranked predictions).
+It also includes groupwise columns for label-strength comparisons:
+`*_verified` (PTB-XL + SaMi-Trop) vs `*_code15` (CODE-15).
+
+If you already computed full-test logits (`--save_logits`) and later add new score columns, rerunning
+`evaluate_test_models.py` will update `test_scores.csv` from the stored logits + `test_index.csv` (no re-inference).
+
 3) Extract probe embeddings (Pattern A memmaps):
 
 ```bash
@@ -49,7 +56,7 @@ Override with:
 4) Compute TTC embedding metrics + collapse diagnostics:
 
 ```bash
-.venv/bin/python scripts/analysis/compute_embedding_metrics.py
+.venv/bin/python scripts/analysis/compute_embedding_metrics.py --compute_saa --group_metrics
 ```
 
 5) Compute PCA/UMAP coordinates from stored embeddings:

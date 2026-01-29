@@ -81,6 +81,35 @@ def _has_all_scores(out_dir: Path, run_ids: list[str]) -> bool:
     try:
         import pandas as pd
 
+        # Require the new columns as well (prevents "skipping" after adding new metrics).
+        # We only check for column presence (not non-null), because some splits may
+        # legitimately produce NaNs (e.g. AUROC on all-negative PTB-XL).
+        df_head = pd.read_csv(p, nrows=1)
+        required_cols = {
+            "run_id",
+            # Global
+            "auroc",
+            "ap",
+            "pauc_fpr0.05",
+            "tpr_top0.05",
+            "tpr_top0.10",
+            # Verified vs self-reported/mixed splits
+            "N_verified",
+            "N_code15",
+            "auroc_verified",
+            "ap_verified",
+            "pauc_fpr0.05_verified",
+            "tpr_top0.05_verified",
+            "tpr_top0.10_verified",
+            "auroc_code15",
+            "ap_code15",
+            "pauc_fpr0.05_code15",
+            "tpr_top0.05_code15",
+            "tpr_top0.10_code15",
+        }
+        if not required_cols.issubset(set(df_head.columns)):
+            return False
+
         df = pd.read_csv(p, usecols=["run_id"])
         have = set(df["run_id"].astype(str).tolist())
         return all(rid in have for rid in run_ids)
@@ -127,13 +156,15 @@ def _has_all_memmaps(out_dir: Path, run_ids: list[str]) -> bool:
         memmap_dir = out_dir / "runs" / rid / "memmap"
         legacy_dir = out_dir / "memmap"
         enc = list(memmap_dir.glob(f"{rid}__enc__N{N}__D*.fp32.mmap"))
+        enc1 = list(memmap_dir.glob(f"{rid}__enc_view1__N{N}__D*.fp32.mmap"))
         logits = memmap_dir / f"{rid}__logits__N{N}.fp32.mmap"
-        if enc and logits.exists():
+        if enc and enc1 and logits.exists():
             continue
         # Backwards compatibility: legacy <out_dir>/memmap/
         enc_legacy = list(legacy_dir.glob(f"{rid}__enc__N{N}__D*.fp32.mmap"))
+        enc1_legacy = list(legacy_dir.glob(f"{rid}__enc_view1__N{N}__D*.fp32.mmap"))
         logits_legacy = legacy_dir / f"{rid}__logits__N{N}.fp32.mmap"
-        if not enc_legacy or not logits_legacy.exists():
+        if not enc_legacy or not enc1_legacy or not logits_legacy.exists():
             return False
     return True
 
@@ -145,7 +176,12 @@ def _has_all_embedding_metrics(out_dir: Path, run_ids: list[str]) -> bool:
     try:
         import pandas as pd
 
-        df = pd.read_csv(p, usecols=["run_id", "space"])
+        df = pd.read_csv(p)
+        if "SAA_0" not in df.columns or "SAA_1" not in df.columns:
+            return False
+        if "CAC_1_verified" not in df.columns or "SAA_1_verified" not in df.columns:
+            return False
+        df = df[["run_id", "space"]]
         have = set(zip(df["run_id"].astype(str), df["space"].astype(str)))
         return all((rid, "enc") in have for rid in run_ids)
     except Exception:
@@ -223,6 +259,20 @@ def main() -> None:
         action="store_true",
         help="Generate hex-tiling multipanel figures (main/conduction/outcome + small multiples) after projections.",
     )
+    parser.add_argument(
+        "--stdftlrp",
+        action="store_true",
+        help="Compute STDFT-LRP beat-level aggregates per run over the selected index set.",
+    )
+    parser.add_argument(
+        "--stdftlrp_exam_ids",
+        choices=["probe", "test"],
+        default="probe",
+        help="Use probe_index.csv or test_index.csv as the sample list for STDFT-LRP aggregation.",
+    )
+    parser.add_argument("--stdftlrp_lead_index", type=int, default=1)
+    parser.add_argument("--stdftlrp_all_leads", action="store_true")
+    parser.add_argument("--stdftlrp_write_per_lead", action="store_true")
     args = parser.parse_args()
 
     out_dir = args.out_dir
@@ -351,6 +401,8 @@ def main() -> None:
                 str(run_specs),
                 "--out_dir",
                 str(out_dir),
+                "--compute_saa",
+                "--group_metrics",
                 *overwrite_flag,
             ]
         )
@@ -367,6 +419,8 @@ def main() -> None:
             str(out_dir),
             "--set",
             "test",
+            "--rra",
+            "--rra_subprocess",
         ]
     )
 
@@ -408,6 +462,56 @@ def main() -> None:
                 str(out_dir),
             ]
         )
+
+    if args.stdftlrp:
+        from ecg_chagas_embeddings.analysis.run_specs import load_run_specs, resolve_data_dir
+
+        global_cfg, runs = load_run_specs(run_specs)
+        processed_root_raw = str(global_cfg.get("processed_root", "")).strip()
+        processed_root = Path(processed_root_raw) if processed_root_raw else Path(args.processed_root)
+        meta_path_raw = str(global_cfg.get("meta_path", "")).strip()
+        meta_path = Path(meta_path_raw) if meta_path_raw else Path(args.meta_path)
+        exam_ids_csv = out_dir / ("probe_index.csv" if args.stdftlrp_exam_ids == "probe" else "test_index.csv")
+
+        for run in runs:
+            out_root = out_dir / "runs" / run.run_id / "xai"
+            out_path = out_root / "stdftlrp_beat_agg.csv"
+            if out_path.exists() and not args.overwrite:
+                continue
+
+            data_dir = resolve_data_dir(run, processed_root=processed_root)
+            _run(
+                [
+                    py,
+                    "scripts/analysis/compute_stdftlrp_beat_aggregates.py",
+                    "--checkpoint",
+                    str(run.checkpoint_path),
+                    "--run_id",
+                    str(run.run_id),
+                    "--meta_path",
+                    str(meta_path),
+                    "--data_dir",
+                    str(data_dir),
+                    "--exam_ids_csv",
+                    str(exam_ids_csv),
+                    "--out_dir",
+                    str(out_dir / "runs"),
+                    "--fold",
+                    str(args.test_fold),
+                    "--lead_index",
+                    str(args.stdftlrp_lead_index),
+                    *(
+                        ["--all_leads"]
+                        if args.stdftlrp_all_leads
+                        else []
+                    ),
+                    *(
+                        ["--write_per_lead"]
+                        if args.stdftlrp_write_per_lead
+                        else []
+                    ),
+                ]
+            )
 
 
 if __name__ == "__main__":

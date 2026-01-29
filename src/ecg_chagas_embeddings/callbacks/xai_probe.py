@@ -26,7 +26,7 @@ class DFTLRPConfig:
     # Only used for optional time-frequency visualizations (can be memory-heavy).
     compute_timefreq: bool = False
     window_width: int = 128
-    window_shift: int = 1
+    window_shift: int = 128
     window_shape: str = "rectangle"  # rectangle|halfsine
 
 
@@ -45,7 +45,9 @@ def _as_dftlrp_config(cfg: Optional[Mapping[str, Any]]) -> DFTLRPConfig:
     )
 
 
-def _parse_bands_hz(bands_hz: Optional[Sequence[Sequence[float]]]) -> List[Tuple[float, float]]:
+def _parse_bands_hz(
+    bands_hz: Optional[Sequence[Sequence[float]]],
+) -> List[Tuple[float, float]]:
     if not bands_hz:
         return [(0.67, 2.0), (2.0, 5.0), (5.0, 15.0), (15.0, 45.0)]
     out: List[Tuple[float, float]] = []
@@ -72,7 +74,9 @@ def extract_pos_logit(model_out: Any) -> torch.Tensor:
         model_out = model_out[-1]
     if isinstance(model_out, dict):
         if "logits" not in model_out:
-            raise ValueError(f"Model output dict missing 'logits' key: {list(model_out)}")
+            raise ValueError(
+                f"Model output dict missing 'logits' key: {list(model_out)}"
+            )
         model_out = model_out["logits"]
     if not torch.is_tensor(model_out):
         raise TypeError(f"Unsupported model output type: {type(model_out)}")
@@ -142,7 +146,9 @@ def compute_lrp_relevance_time(
     try:
         out = extract_pos_logit(pl_module(x_leaf))
         target_out = out.detach() if rel_is_model_out else torch.sign(out.detach())
-        relevance = torch.autograd.grad(out, x_leaf, grad_outputs=target_out, retain_graph=False)[0]
+        relevance = torch.autograd.grad(
+            out, x_leaf, grad_outputs=target_out, retain_graph=False
+        )[0]
     finally:
         composite.remove()
     return relevance
@@ -165,13 +171,19 @@ def compute_dft_band_fractions_from_relevance(
       relevance_freq: [B,L,F] where F = signal_length//2 + 1 (rfft bins)
     """
     if relevance_freq.ndim != 3:
-        raise ValueError(f"Expected relevance_freq [B,L,F], got {tuple(relevance_freq.shape)}")
+        raise ValueError(
+            f"Expected relevance_freq [B,L,F], got {tuple(relevance_freq.shape)}"
+        )
     B, L, F = relevance_freq.shape
     expected_f = signal_length // 2 + 1
     if F != expected_f:
-        raise ValueError(f"Expected F={expected_f} for signal_length={signal_length}, got F={F}")
+        raise ValueError(
+            f"Expected F={expected_f} for signal_length={signal_length}, got F={F}"
+        )
 
-    freqs = torch.fft.rfftfreq(signal_length, d=1.0 / float(fs_hz)).to(device=relevance_freq.device)
+    freqs = torch.fft.rfftfreq(signal_length, d=1.0 / float(fs_hz)).to(
+        device=relevance_freq.device
+    )
     max_hz = float(freq_max_hz)
     min_low = min(float(lo) for lo, _hi in bands_hz)
     mask_total = (freqs >= min_low) & (freqs < max_hz)
@@ -198,13 +210,17 @@ def compute_dft_band_fractions_from_relevance(
     return pooled_fracs, per_lead_fracs_out, total_mass
 
 
-def lead_entropy_from_relevance_time(relevance_time: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
+def lead_entropy_from_relevance_time(
+    relevance_time: torch.Tensor, eps: float = 1e-12
+) -> torch.Tensor:
     """
     Normalized entropy of per-lead relevance mass, in [0,1], shape [B].
     Lower => model focuses on fewer leads.
     """
     if relevance_time.ndim != 3:
-        raise ValueError(f"Expected relevance_time [B,L,T], got {tuple(relevance_time.shape)}")
+        raise ValueError(
+            f"Expected relevance_time [B,L,T], got {tuple(relevance_time.shape)}"
+        )
     mass = relevance_time.abs().sum(dim=2)  # [B,L]
     p = mass / mass.sum(dim=1, keepdim=True).clamp_min(eps)
     h = -(p * (p.clamp_min(eps).log())).sum(dim=1)
@@ -321,7 +337,9 @@ class XAIProbeCallback(Callback):
         if not should_run:
             return
         if self.target != "pos_logit":
-            raise ValueError(f"Unsupported target: {self.target} (only 'pos_logit' supported)")
+            raise ValueError(
+                f"Unsupported target: {self.target} (only 'pos_logit' supported)"
+            )
 
         self._ensure_probe_loader(trainer)
         if self._probe_loader is None:
@@ -370,7 +388,11 @@ class XAIProbeCallback(Callback):
         if not id_to_index:
             for i in range(len(dataset)):
                 sample = dataset[i]
-                sid = str(sample.get("exam_id", i)) if isinstance(sample, dict) else str(i)
+                sid = (
+                    str(sample.get("exam_id", i))
+                    if isinstance(sample, dict)
+                    else str(i)
+                )
                 if sid not in id_to_index:
                     id_to_index[sid] = i
 
@@ -390,7 +412,9 @@ class XAIProbeCallback(Callback):
 
         run_dir = _default_run_dir(trainer) / "artifacts" / "xai_probe"
         run_dir.mkdir(parents=True, exist_ok=True)
-        (run_dir / "xai_probe_ids.json").write_text(json.dumps(ids, indent=2), encoding="utf-8")
+        (run_dir / "xai_probe_ids.json").write_text(
+            json.dumps(ids, indent=2), encoding="utf-8"
+        )
 
     def _select_probe_ids(self, dataset) -> List[str]:
         ids_from_file: Optional[List[str]] = None
@@ -430,7 +454,9 @@ class XAIProbeCallback(Callback):
         chosen_neg = rng.permutation(np.sort(neg.astype(str)))[:n_neg].tolist()
         return [str(x) for x in (chosen_pos + chosen_neg)]
 
-    def _get_dftlrp(self, *, signal_length: int, device: torch.device, short_time: bool):
+    def _get_dftlrp(
+        self, *, signal_length: int, device: torch.device, short_time: bool
+    ):
         dft_lrp = _import_dft_lrp()
         cuda = device.type == "cuda"
         if short_time:
@@ -459,7 +485,9 @@ class XAIProbeCallback(Callback):
             )
         return self._dftlrp_dft
 
-    def _run_probe(self, trainer, pl_module, loader: DataLoader) -> Tuple[Dict[str, float], pd.DataFrame]:
+    def _run_probe(
+        self, trainer, pl_module, loader: DataLoader
+    ) -> Tuple[Dict[str, float], pd.DataFrame]:
         device = getattr(pl_module, "device", torch.device("cpu"))
         pl_module.eval()
 
@@ -470,8 +498,10 @@ class XAIProbeCallback(Callback):
         near_cutoff_all: List[torch.Tensor] = []
         total_mass_all: List[torch.Tensor] = []
 
-        with torch.inference_mode(False), torch.enable_grad(), torch.autocast(
-            device_type=str(device).split(":")[0], enabled=False
+        with (
+            torch.inference_mode(False),
+            torch.enable_grad(),
+            torch.autocast(device_type=str(device).split(":")[0], enabled=False),
         ):
             for batch in loader:
                 y = batch["chagas"].view(-1).to(device=device, dtype=torch.float32)
@@ -491,7 +521,9 @@ class XAIProbeCallback(Callback):
                 )
 
                 B, L, T = relevance_time.shape
-                dftlrp = self._get_dftlrp(signal_length=T, device=device, short_time=False)
+                dftlrp = self._get_dftlrp(
+                    signal_length=T, device=device, short_time=False
+                )
 
                 x_np = x.detach().cpu().numpy().reshape(B * L, T)
                 rel_np = relevance_time.detach().cpu().numpy().reshape(B * L, T)
@@ -508,16 +540,20 @@ class XAIProbeCallback(Callback):
                     .reshape(B, L, -1)
                 )
 
-                pooled_fracs, _per_lead_fracs, total_mass = compute_dft_band_fractions_from_relevance(
-                    relevance_freq=relevance_freq_t,
-                    fs_hz=self.fs_hz,
-                    signal_length=T,
-                    freq_max_hz=self.dft_lrp_cfg.freq_max_hz,
-                    bands_hz=self.bands_hz,
-                    per_lead=self.per_lead,
-                    eps=self.eps,
+                pooled_fracs, _per_lead_fracs, total_mass = (
+                    compute_dft_band_fractions_from_relevance(
+                        relevance_freq=relevance_freq_t,
+                        fs_hz=self.fs_hz,
+                        signal_length=T,
+                        freq_max_hz=self.dft_lrp_cfg.freq_max_hz,
+                        bands_hz=self.bands_hz,
+                        per_lead=self.per_lead,
+                        eps=self.eps,
+                    )
                 )
-                lead_ent = lead_entropy_from_relevance_time(relevance_time, eps=self.eps)
+                lead_ent = lead_entropy_from_relevance_time(
+                    relevance_time, eps=self.eps
+                )
 
                 def _band_idx(lo: float, hi: float) -> int:
                     for i, (a, b) in enumerate(self.bands_hz):
@@ -528,9 +564,13 @@ class XAIProbeCallback(Callback):
                 i_low = _band_idx(0.67, 2.0)
                 i_mid = _band_idx(5.0, 15.0)
                 if i_low != -1 and i_mid != -1:
-                    near_cutoff = pooled_fracs[:, i_low] / (pooled_fracs[:, i_mid] + self.eps)
+                    near_cutoff = pooled_fracs[:, i_low] / (
+                        pooled_fracs[:, i_mid] + self.eps
+                    )
                 else:
-                    near_cutoff = torch.full((pooled_fracs.shape[0],), float("nan"), device=device)
+                    near_cutoff = torch.full(
+                        (pooled_fracs.shape[0],), float("nan"), device=device
+                    )
 
                 pooled_fracs_all.append(pooled_fracs.detach().cpu())
                 labels_all.append((y > 0.5).to(torch.int64).detach().cpu())
@@ -540,7 +580,9 @@ class XAIProbeCallback(Callback):
 
                 ids_list: List[str]
                 if ids is None:
-                    ids_list = [f"idx_{len(rows) + i}" for i in range(pooled_fracs.shape[0])]
+                    ids_list = [
+                        f"idx_{len(rows) + i}" for i in range(pooled_fracs.shape[0])
+                    ]
                 elif isinstance(ids, (list, tuple)):
                     ids_list = [str(x) for x in ids]
                 elif isinstance(ids, torch.Tensor):
@@ -553,11 +595,15 @@ class XAIProbeCallback(Callback):
                         "sample_id": ids_list[i],
                         "label": int((y[i] > 0.5).item()),
                         "lead_entropy": float(lead_ent[i].detach().cpu().item()),
-                        "near_cutoff_ratio": float(near_cutoff[i].detach().cpu().item()),
+                        "near_cutoff_ratio": float(
+                            near_cutoff[i].detach().cpu().item()
+                        ),
                         "total_mass": float(total_mass[i].detach().cpu().item()),
                     }
                     for b, (lo, hi) in enumerate(self.bands_hz):
-                        row[f"rel_frac_{lo}_{hi}"] = float(pooled_fracs[i, b].detach().cpu().item())
+                        row[f"rel_frac_{lo}_{hi}"] = float(
+                            pooled_fracs[i, b].detach().cpu().item()
+                        )
                     rows.append(row)
 
         df_epoch = pd.DataFrame(rows)
@@ -583,7 +629,9 @@ class XAIProbeCallback(Callback):
             if fracs.numel() == 0:
                 return
             for b, (lo, hi) in enumerate(self.bands_hz):
-                metrics[f"{prefix}/rel_frac_{lo}_{hi}"] = float(fracs[:, b].mean().item())
+                metrics[f"{prefix}/rel_frac_{lo}_{hi}"] = float(
+                    fracs[:, b].mean().item()
+                )
 
         add_band_metrics("xai", pooled_all)
         if pooled_all.numel() > 0:
@@ -683,8 +731,10 @@ class XAIProbeCallback(Callback):
                 continue
             x = x.to(device=device, dtype=torch.float32)
 
-            with torch.inference_mode(False), torch.enable_grad(), torch.autocast(
-                device_type=str(device).split(":")[0], enabled=False
+            with (
+                torch.inference_mode(False),
+                torch.enable_grad(),
+                torch.autocast(device_type=str(device).split(":")[0], enabled=False),
             ):
                 relevance_time = compute_lrp_relevance_time(
                     pl_module=pl_module,
@@ -695,7 +745,9 @@ class XAIProbeCallback(Callback):
 
             for i, sid in enumerate(ids_list):
                 if sid in want:
-                    examples.append((sid, x[i].detach().cpu(), relevance_time[i].detach().cpu()))
+                    examples.append(
+                        (sid, x[i].detach().cpu(), relevance_time[i].detach().cpu())
+                    )
             if len(examples) >= len(want):
                 break
 
@@ -703,12 +755,16 @@ class XAIProbeCallback(Callback):
             return
 
         images = {}
-        dftlrp = self._get_dftlrp(signal_length=examples[0][1].shape[-1], device=device, short_time=True)
+        dftlrp = self._get_dftlrp(
+            signal_length=examples[0][1].shape[-1], device=device, short_time=True
+        )
         fs = float(self.fs_hz)
         T = int(examples[0][1].shape[-1])
         freqs = np.fft.rfftfreq(T, d=1.0 / fs)
         fmask = freqs <= float(self.dft_lrp_cfg.freq_max_hz)
-        k_max = int(np.where(fmask)[0][-1]) if np.any(fmask) else min(100, len(freqs) - 1)
+        k_max = (
+            int(np.where(fmask)[0][-1]) if np.any(fmask) else min(100, len(freqs) - 1)
+        )
 
         for sid, x_one, rel_one in examples[: self.num_example_plots]:
             # Lead-sum for readability.
@@ -737,6 +793,8 @@ class XAIProbeCallback(Callback):
 
         if images:
             try:
-                logger.experiment.log(images, step=int(getattr(trainer, "global_step", 0)))
+                logger.experiment.log(
+                    images, step=int(getattr(trainer, "global_step", 0))
+                )
             except Exception:
                 pass

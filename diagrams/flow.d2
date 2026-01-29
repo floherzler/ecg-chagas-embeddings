@@ -17,11 +17,13 @@ encoder: Encoder\n(shared representation) {
 
 heads: Learning / Loss Strategies {
   style.shadow: true
+  style.fill: white
   classification: Classification Head {
+    style.3d: true
     options: |`md
       | Method |
       | :--- |
-      | W-BaCE |
+      | W-BCE |
       | Focal |
       | RAT |
     `|
@@ -35,6 +37,7 @@ heads: Learning / Loss Strategies {
   }
 
   projection: Projection Head {
+    style.3d: true
     options: |`md
       | Method |
       | :--- |
@@ -54,6 +57,7 @@ heads: Learning / Loss Strategies {
 
 run_analysis: Post-Hoc Analysis\nPer-Model {
   style.shadow: true
+  style.fill: white
   grid-columns: 1
   Task Utility (Ranking) -- Embedding Space Health -- Physiological Plausibility
   x: |md
@@ -78,5 +82,7 @@ heads.projection.options -> heads.projection.metrics: eval w/ {
   style.stroke-dash: 3
 }
 heads.classification -> run_analysis
-encoder -> run_analysis
+encoder -> run_analysis: PCA / UMAP {
+  style.stroke-dash: 3
+}
 heads.projection -> run_analysis

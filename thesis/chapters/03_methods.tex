@@ -1,0 +1,190 @@
+\chapter{Methods}
+\label{ch:methods}
+
+\section{Configuration System}
+Experiments are implemented in PyTorch \parencite{pytorch_2019} using PyTorch Lightning \parencite{pytorch_lightning_2025}.
+Configuration is managed through composable YAML files, separating shared defaults (backbone, optimizer, data loading) from track-specific settings (augmentations, loss functions).
+An individual run combines a base configuration, a track configuration, and an optional loss configuration, with specific parameters overridden via command line arguments.
+
+\section{Model Architecture}
+A 1D adaptation of the ResNet-18 architecture \parencite{resnet_2015} that operates directly on 12-lead ECG waveforms (Figure~\ref{fig:model_arch}) was implemented.
+The network consists of an initial convolutional layer followed by four residual stages, each containing two blocks with 1D convolutions and internal temporal downsampling.
+Global average pooling aggregates the features into a fixed-size vector.
+Depending on the track, this backbone is followed by either a classification head (for classification learning) or a projection head (for contrastive learning).
+
+\begin{figure}[htbp]
+  \centering
+  \resizebox{0.6\textwidth}{!}{%
+    \begin{tikzpicture}[node distance=4mm,>=latex]
+      \tikzset{
+        arrow/.style={-Latex, thick},
+        annot/.style={font=\footnotesize},
+        op/.style={draw, rounded corners=2pt, thick, align=center, minimum height=5mm, minimum width=18mm, fill=gray!10},
+        stem/.style={draw, rounded corners=2pt, thick, align=center, minimum height=5mm, minimum width=22mm, fill=gray!10},
+        blk/.style={draw, rounded corners=2pt, thick, align=center, minimum height=5mm, minimum width=18mm},
+        head/.style={draw, rounded corners=2pt, thick, align=center, minimum height=8mm, minimum width=18mm},
+        tiny/.style={draw, rounded corners=2pt, thick, align=center, minimum height=4.5mm, minimum width=16mm, font=\footnotesize},
+      }
+      % =========================================================
+      % Overview
+      % =========================================================
+      \node[op] (x) {12-lead ECG};
+      \node[stem,below=3mm of x] (conv) {Conv-BN-ReLU\\MaxPool};
+      \node[blk,below=3mm of conv,fill=orange!20] (resblk) {ResBlk $\times 4$};
+      \node[op,below=3mm of resblk] (drop) {GAP-Flatten\\Dropout};
+
+      \draw[arrow] (x) -- (conv);
+      \draw[arrow] (conv) -- (resblk);
+      \draw[arrow] (resblk) -- (drop);
+
+      % --- split to heads without overlap ---
+      \node[head,below=7mm of drop, xshift=-12mm, anchor=north,fill=blue!30] (proj) {Projection\\Head};
+      \node[head,below=7mm of drop, xshift= 13mm, anchor=north,fill=blue!30] (clf)  {Classification\\Head};
+      \draw[arrow] (drop) -- (proj);
+      \draw[arrow] (drop) -- (clf);
+
+      % =========================================================
+      % Residual block (zoom)
+      % =========================================================
+      \node[draw, rounded corners=3pt, thick, inner sep=5pt, fill=orange!20,
+        right=8mm of resblk, yshift=+3mm,
+        minimum width=27mm, minimum height=57mm] (inset) {};
+      \node[annot,font=\bfseries,anchor=north] (t_res)
+      at ($(inset.north)+(0,-0.2mm)$) {ResBlk};
+
+      \node[tiny,fill=blue!10,below=8mm of inset.north] (c1) {Conv $3{\times}1$};
+      \node[tiny,fill=blue!10,below=3mm of c1] (bn1) {BN};
+      \node[tiny,fill=red!20,below=3mm of bn1] (r1) {ReLU};
+      \node[tiny,fill=blue!10,below=3mm of r1] (c2) {Conv $3{\times}1$};
+      \node[tiny,fill=blue!10,below=3mm of c2] (bn2) {BN};
+      \node[tiny,fill=red!20,below=3mm of bn2] (rout) {ReLU};
+
+      \coordinate (inflow) at ($(c1.north)+(0,8mm)$);
+      \draw[arrow] (inflow) -- (c1.north);
+      \draw[arrow] (c1) -- (bn1);
+      \draw[arrow] (bn1) -- (r1);
+      \draw[arrow] (r1) -- (c2);
+      \draw[arrow] (c2) -- (bn2);
+      \draw[arrow] (bn2) -- (rout);
+
+      % skip connection
+      \draw[very thick,-Latex]
+      ($(inflow)+(0,-1.5mm)$) |- ($(inflow)+(-12mm,-1.5mm)$) |- ($(rout.west)+(-1.5mm,0)$) |- (rout.west);
+    \end{tikzpicture}
+  }%
+  \caption[Model architecture]{Model architecture with classification and projection heads (left) and the residual block definition (right).}
+  \label{fig:model_arch}
+\end{figure}
+
+To limit the experimental scope, the architecture is fixed across all runs; batch normalization is used. This ensures that performance differences can be attributed to preprocessing, augmentations, and objective functions rather than model capacity.
+
+\section{Data Regimes}
+\label{sec:data_regimes}
+We investigate three preprocessing levels to isolate the effect of harmonization:
+\begin{enumerate}
+  \item \textbf{bp}: Band-pass filtered signals ($0.67$--$45$\,Hz).
+  \item \textbf{bp\_sc}: Band-pass filtering plus soft clipping to handle outliers.
+  \item \textbf{bp\_sc\_norm}: Band-pass filtering, soft clipping, and robust per-lead normalization (z-score using median and IQR).
+\end{enumerate}
+Experiments read preprocessed tensors directly from disk for efficiency.
+
+\paragraph{Band-pass filtering.}
+Filtering is implemented as a linear-phase FIR band-pass using \texttt{scipy.signal.firwin}, applied with zero-phase \texttt{filtfilt} to avoid phase distortion.
+Cutoffs are $0.67$--$45$\,Hz (motivated by the Zhao et al.\ ECG quality work and the defaults used in NeuroKit2/BioSPPy-style preprocessing) \todo{Add citations for Zhao et al.\ and NeuroKit2 / BioSPPy}.
+The tap length is set to $\lfloor 1.5 \cdot f_s \rfloor$ with odd length enforced ($f_s=400$\,Hz after resampling); taps are reduced for short signals to fit the record length.
+
+\paragraph{Soft clipping.}
+Soft clipping is a smooth saturation transform \texttt{softclip}(x; a,b,c) applied per lead.
+Lower/upper bounds $(a,b)$ are estimated from training folds only (0--3) by computing per-record $p_1/p_{99}$ and then taking the global 5th percentile of $p_1$ and 95th percentile of $p_{99}$ per lead.
+The shape parameter is $c=\log(2)/\left(2/(e^2+1)\right)$ (as implemented in code), and each lead is scaled by $\max(|a|,|b|)$ to keep amplitudes comparable across leads.
+\todo{find citation for this, Nabil sent me an article}
+
+\paragraph{Robust per-lead normalization.}
+The \textbf{bp\_sc\_norm} regime applies per-record, per-lead robust normalization:
+\[
+  x_i \leftarrow \frac{x_i - \mathrm{median}(x_i)}{\mathrm{IQR}(x_i) + \epsilon}, \quad \epsilon=10^{-6},
+\]
+where $\mathrm{IQR} = p_{75}-p_{25}$. No population-level statistics are used.
+
+\section{Augmentations}
+\subsection{Default augmentations}
+Training uses mild augmentations to improve robustness without distorting ECG morphology:
+\begin{itemize}
+  \item \textbf{Amplitude scaling:} multiplicative gain jitter. \textbf{bp} uses $[0.95,1.05]$, \textbf{bp\_sc} uses $[0.975,1.025]$, and \textbf{bp\_sc\_norm} disables scaling ($[1.0,1.0]$) to preserve the intent of robust normalization.
+  \item \textbf{Gaussian noise:} additive noise with $\sigma=0.005$ (per-view by default).
+\end{itemize}
+Stronger transforms are explicitly disabled in the main experiments: time warping (max\_time\_warp $=0$), time masking (max\_mask\_duration $=0$), channel masking (mask\_prob $=0$), and baseline-wander augmentation (wandering amplitude $=0$). This preserves interpretability and avoids injecting artifacts not supported by the target clinical setting.
+\todo{Add citations for augmentation choices in ECG (e.g., mild gain/noise vs. masking/warping).}
+
+\subsection{Physiological augmentation (rotation)}
+For the \textbf{bp} regime only, we optionally apply a random rotation of the frontal electrical axis. This augmentation simulates valid physiological variation by projecting the cardiac dipole onto the limb leads at a slightly perturbed angle (implementation: approximate frontal-axis rotation in VCG space and mapping back to 12-lead ECG).
+Axis rotation is enabled only in the \texttt{rot10} runs (maximum absolute rotation $10^\circ$, applied with probability 1), and kept off for \textbf{bp\_sc} and \textbf{bp\_sc\_norm} because the nonlinear preprocessing steps can break the linearity assumptions required for a physically meaningful rotation.
+\todo{insert a graphic here how the signal changes per lead when rotated}
+
+\section{Experiment Tracks}
+\label{sec:track-definitions}
+\subsection{Track 1: Supervised Classification}
+Track~1 trains a binary classifier end-to-end. We evaluate combinations of loss functions (weighted BCE, Focal Loss, RAT), preprocessing regimes, and augmentation strategies.
+Performance is primarily measured using the challenge-aligned TPR at 5\% FPR, alongside AUROC and Average Precision (AP).
+We also compare against a random forest baseline trained on simple per-channel mean/std statistics to quantify the value of learning from raw waveforms.
+
+\subsection{Track 2: Representation Learning}
+Track~2 focuses on optimizing the geometric structure of the embedding space without direct classification supervision. We compare:
+\begin{itemize}
+  \item \textbf{SupCon (standard)}: A baseline supervised contrastive loss.
+  \item \textbf{SupCon (imbalanced)}: A variant incorporating imbalance-handling logic.
+  \item \textbf{Prototype-based}: An objective using learnable class prototypes.
+\end{itemize}
+Embedding quality is monitored using the TTC metrics defined in Section~\ref{sec:ttc-metrics} (SAD, SAA, CAC, CAD).
+
+\subsection{Track 3: Linear Probing}
+Track~3 evaluates the representations learned in Track~2 by freezing the encoder and training a simple linear classifier on top. This isolates the quality of the learned features from the end-to-end optimization capability of Track~1.
+
+\section{Dataset Splits and Evaluation}
+Given the lack of a suitable external dataset, we use a stratified 5-fold cross-validation scheme.
+Splits are stratified by both patient and dataset source to prevent leakage and ensure consistent label distributions.
+Folds 0--3 are used for training and validation, while fold 4 is strictly held out for final testing.
+
+\section{Analysis Pipeline}
+All post-hoc analysis is performed on the held-out test set (fold 4).
+The evaluation pipeline generates:
+\begin{itemize}
+  \item \textbf{Clinical Metrics:} Classification performance (AUROC, TPR@5\%, AP) is calculated on the full test fold.
+  \item \textbf{Embedding Diagnostics:} A fixed subset of the test fold (the "probe set") is used to compute geometric metrics (CAC, CAD) and visualize the latent space using UMAP and PCA.
+  \item \textbf{Consistency Analysis:} We measure the agreement between different models using ranking correlations and intersection-over-union of the top-5\% predictions.
+\end{itemize}
+This ensures that all reported comparisons between tracks and preprocessing methods are based on identical test data and metric definitions.
+
+\section{ST-DFT-LRP for XAI}
+\paragraph{Implementation source.}
+ST-DFT-LRP is implemented using the official DFT-LRP repository (integrated as a submodule) to ensure fidelity to the method definition.
+\todo{Insert repository citation and URL.}
+The method is applied to model relevance in the time domain and mapped into a short-time frequency grid using window width $H$ and shift $D$.
+For interpretability and comparability, the analysis uses non-overlapping windows ($D=H$) \todo{Confirm the exact window width used (e.g., 125 samples at 400\,Hz).}
+
+\paragraph{Qualitative per-sample composites.}
+For individual ECGs, we visualize a composite view consisting of:
+(i) the ST-DFT magnitude with a signed relevance overlay,
+(ii) the time-domain signal with signed relevance overlay, and
+(iii) the frequency spectrum with signed relevance overlay.
+These panels provide a compact visual summary of where relevance concentrates in time and frequency.
+\missingfigure{Composite ST-DFT-LRP visualization for representative samples from each dataset.}
+
+\paragraph{Quantitative aggregation into 4$\times$4 grids.}
+To enable comparisons across samples and groups, ST-DFT-LRP relevance is aggregated into a fixed 4$\times$4 matrix:
+\begin{itemize}
+  \item \textbf{Time structure (rows):} P, QRS, T, and Between-beats (assigned via NeuroKit2 delineation with midpoint-based disambiguation to ensure full coverage).
+  \item \textbf{Frequency bands (columns):} 0.67--4\,Hz, 4--12\,Hz, 12--25\,Hz, 25--45\,Hz (consistent with preprocessing range).
+\end{itemize}
+Within each cell, relevance is summarized using a signed-balance statistic
+\[
+  \mathrm{balance} = \frac{\sum R}{\sum |R| + \epsilon},
+\]
+yielding values in $[-1,1]$ that encode directional relevance while normalizing magnitude across beats.
+Beat-level matrices are normalized and averaged across beats; per-sample matrices are aggregated across leads using a relevance-mass-weighted mean.
+\todo{Cite the exact delineation method (e.g., NeuroKit2 DWT) and any QC filtering applied.}
+\missingfigure{Example 4$\times$4 relevance grid and group-mean comparisons.}
+
+\paragraph{Lead diagnostics.}
+For each sample, lead relevance mass is summarized to compute lead-importance statistics (per-lead mass distribution, entropy, and top-$k$ leads).
+These provide a lightweight check for lead dominance effects and are used as descriptive diagnostics rather than diagnostic claims.

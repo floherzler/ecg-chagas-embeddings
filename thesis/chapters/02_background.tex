@@ -1,35 +1,61 @@
 \chapter{Background}
 
-This chapter introduces the core concepts needed to understand the experimental design in Chapter~\ref{ch:methods-results}.
+This chapter introduces the core concepts needed to understand the experimental design in Chapter~\ref{ch:methods}.
 The work is conducted in the context of the PhysioNet/Computing in Cardiology Challenge 2025 on Chagas disease detection from ECGs \parencite{2025ChallengePreprint,2025ChallengeCinC}, building on prior deep-learning approaches for ECG-based screening \parencite{jidling_screening_2023}.
 
+The core idea is to investigate the interplay between signal preprocessing (harmonization) and learning objectives, analyzing how these factors influence both downstream task performance and the geometric structure of the learned embedding space.
+All experiments utilize a ResNet-18 backbone adapted for 1D time-series data.
+To ensure comparability across tracks, the encoder architecture remains identical; only the final layer is swapped between a classification head (for Tracks 1 and 3) and a projection head (for Track 2).
+This design allows theoretical insights about the embedding space to be directly related to the practical performance of the classifier.
+
+These tracks are evaluated through two complementary lenses: screening-oriented ranking metrics (TPR@5\%, pAUC@5\%, AP) which measure utility for the specific clinical use-case, and representation diagnostics (CAC, GPU, SAA) which quantify the geometric quality of the latent space.
+
+A critical challenge in multi-source ECG datasets (and any dataset for that matter) is the presence of dataset bias, where site-specific acquisition artifacts (e.g., specific noise profiles, lead placement variations, or device filtering) correlate with disease prevalence.
+If a model exploits these spurious correlations rather than physiological signals, it may achieve high internal validation scores while failing to generalize to new clinical settings.
+Consequently, robust embedding diagnostics and groupwise evaluations are essential; they help verify that the model's latent representation clusters examples based on pathology and morphology rather than acquisition source, ensuring that the learned features capture legitimate cardiac electrophysiology.
+
 \section{ECGs, Leads, and Preprocessing}
-This thesis uses standard 12-lead resting ECGs. The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb-xl_nodate}, distributed via PhysioNet \parencite{goldberger2000physiobank}.
+This thesis uses standard 12-lead resting ECGs snippets of approximately 7 seconds length. \todo{research which ecg acquisition was used here}
+The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb_xl}.
 The dataset is preprocessed into multiple variants to study the trade-off between signal standardization and potential loss of physiologically meaningful variation:
 \begin{itemize}
-  \item \textbf{bp}: band-pass filtered signals (approximately linear processing).
-  \item \textbf{bp\_sc}: additional soft clipping (nonlinear amplitude transform).
-  \item \textbf{bp\_sc\_norm}: additional z-score normalization (per-record standardization).
+  \item \textbf{bp}: band-pass filtered signals (aiming for removal of noise and baseline drift).
+  \item \textbf{bp\_sc}: additional soft clipping (aiming for artifact attenuation).
+  \item \textbf{bp\_sc\_norm}: additional robust per-lead normalization (median/IQR; aiming to reduce amplitude scale differences across leads).
 \end{itemize}
 These variants are treated as different experimental regimes rather than interchangeable inputs.
+
+The goal of these harmonization regimes is not to maximize absolute performance in isolation, but to \emph{probe what the models rely on}: progressively stronger standardization should reduce dataset-specific acquisition cues and encourage attention to waveform morphology. Exact filter parameters and normalization definitions are specified in the Methods section to keep the Background focused on motivation.
+\missingfigure{Preprocessing illustration: same ECG segment under bp vs bp\_sc vs bp\_sc\_norm (one lead or multi-lead summary).}
 
 \paragraph{Why study multiple preprocessing regimes?}
 In multi-source ECG collections, preprocessing serves two partially competing goals: (i) removing nuisance variation such as baseline wander and high-frequency noise, and (ii) preserving diagnostically relevant morphology.
 Nonlinear transforms (e.g., clipping and per-record normalization) can reduce amplitude-related source differences, but may also suppress physiologically meaningful variation (e.g., global axis-dependent amplitude patterns) and can interact with downstream augmentations.
 
+Stronger harmonization is hypothesized to act as a regularizer against dataset bias: by mathematically removing source-specific variations (e.g., gain differences or baseline wandering), the model is forced to learn features based on waveform morphology rather than acquisition artifacts.
+However, this introduces a risk of signal loss; for instance, robust normalization removes absolute amplitude information, which can be clinically relevant for diagnosing cardiomyopathies characterized by specified relationships between leads.
+
+To ensure rigorous comparability and prevent preprocessing leakage, these transformations are applied offline before training.
+This guarantees that the exact same signal conditioning pipeline is applied deterministically across training, validation, and test splits, isolating the effect of the preprocessing regime from stochastic training variations.
+
 \section{Augmentations for Deep Learning}
-Data augmentation is used for two distinct reasons in deep learning pipelines:
+Data augmentation is used for two distinct reasons in deep learning pipelines \todo{do i need another citation apart from jabareen 2026?}:
 \begin{enumerate}
   \item \textbf{Teach the model what \emph{not} to learn (invariances).} Augmentations inject realistic nuisance factors (noise, small gain changes, minor timing perturbations), encouraging the representation to be indifferent to acquisition artefacts and non-diagnostic variability.
   \item \textbf{Teach the model what to learn (effective dataset expansion).} Augmentations can also represent plausible physiological variation that is underrepresented in the data, increasing coverage of the target distribution and improving generalization.
 \end{enumerate}
-This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while others are designed to mimic specific physiological variability.
+This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while the following is designed to mimic specific physiological variability.
 
 \subsection{Physiological motivation for frontal axis rotation}
 One example of physiologically plausible augmentation is variation in the heart's frontal electrical axis.
 Clinically, the limb leads can be viewed as projections of the cardiac dipole onto different axes in the frontal plane; the \emph{Cabrera circle} (hexaxial reference system) provides a convenient visualization of these lead axes as angles around the frontal plane.
 Rotating the frontal axis therefore produces systematic changes in the limb-lead amplitudes and apparent morphology (e.g., relative QRS polarity and magnitude across leads I, II, III, aVR, aVL, aVF), while precordial leads are less directly affected because they primarily capture the horizontal plane and local chest projections.
-In these experiments, the axis-rotation augmentation is treated as dataset expansion: different individuals can have different physiological axis orientations, so moderate rotations can improve robustness without corrupting ECG semantics.
+In these experiments, the axis-rotation augmentation is treated as dataset expansion: different individuals can have different physiological axis orientations, so moderate rotations are hypothesized to improve robustness without corrupting ECG semantics.
+
+\subsubsection{Vector Cardiogram (VCG)}
+To implement frontal axis rotation, the 12-lead ECG is first transformed into a 3D vector cardiogram (VCG) representation using the inverse Dower transform \todo{add citation here}.
+\missingfigure{side-by-side visualizations of rotated VCG - or rather in methods?}
+
 
 \section{Learning Tracks}
 The thesis is organized into three learning tracks:
@@ -38,29 +64,101 @@ The thesis is organized into three learning tracks:
   \item \textbf{Track 2 (projection/embeddings)}: supervised contrastive learning to shape the embedding space.
   \item \textbf{Track 3 (classification with pretrained encoder)}: linear probing (or partial fine-tuning) on an encoder pretrained in Track~2.
 \end{enumerate}
-Concrete per-track experimental variables (losses, preprocessing regimes, augmentation schemes, and stopping criteria) are summarized in Chapter~\ref{ch:methods-results}, Section~\ref{sec:track-definitions}.
+Concrete per-track experimental variables (losses, preprocessing regimes, augmentation schemes, and stopping criteria) are summarized in Chapter~\ref{ch:methods}, Section~\ref{sec:track-definitions}.
+\missingfigure{Figure summarizing how preprocessing regimes and learning objectives connect to post-hoc analysis.}
+
+\section{Representation learning and embedding diagnostics (TTC)}
+\label{sec:ttc-metrics}
+Standard supervised contrastive learning can degrade as class imbalance increases.
+Mildenberger et al.\ study this effect in \emph{A Tale of Two Classes (TTC)} and introduce metrics that better diagnose representation quality in binary imbalanced settings \parencite{ttc_2025}.
+Figure~\ref{fig:ttc-imbalance} provides the overall motivation.
+In this thesis, TTC provides the \emph{foundation} of the embedding analysis: the metrics quantify local neighborhood structure in the learned representation space and are therefore largely model- and modality-agnostic.
+Although TTC evaluates multiple 2D image datasets, the same diagnostics are applied to embeddings produced by a 1D CNN encoder for ECGs.
+This assumes that the geometric failure modes TTC targets (e.g., partial collapse and misleading distance-based alignment) also arise in time-series encoders; this is assessed by monitoring TTC metrics across all tracks and objectives.
+All figures reproduced from \textcite{ttc_2025} (Figures \ref{fig:ttc-imbalance}--\ref{fig:ttc-methods}) are used with explicit permission by the authors.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_imbalance.png}
+  \caption{Overview from TTC: standard SupCon performance degrades with increasing binary imbalance, motivating imbalance-aware objectives and embedding diagnostics \parencite{ttc_2025}.}
+  \label{fig:ttc-imbalance}
+\end{figure}
+
+\subsection{Traditional diagnostics: SAD and CAD}
+TTC discusses two intuitive diagnostics that are commonly used to summarize contrastive representation quality:
+\begin{itemize}
+  \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
+  \item \textbf{Class Alignment Distance (CAD)}: how close embeddings are within the \emph{same class} (smaller suggests class-wise clustering).
+\end{itemize}
+However, these distances can be misleading under partial collapse: distances may look ``good'' even when the embedding space is poorly structured for downstream separation.
+
+\subsection{Improved diagnostics: SAA and CAC}
+To better detect collapse and capture separability, TTC introduces metrics based on local-neighborhood structure:
+\begin{itemize}
+  \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
+  \item \textbf{Class Alignment Consistency (CAC)}: measures how label-pure local neighborhoods are while still reflecting proximity to the opposite class; it correlates more directly with downstream classification performance in TTC.
+\end{itemize}
+Figure~\ref{fig:ttc-metrics} summarizes why SAD/CAD can be overly optimistic and how SAA/CAC address this failure mode \parencite{ttc_2025}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_metrics.png}
+  \caption{Embedding-space diagnostics from TTC: SAD/CAD can appear favorable even for representations with undesirable structure, while SAA/CAC are more robust to collapse and better reflect neighborhood quality \parencite{ttc_2025}.}
+  \label{fig:ttc-metrics}
+\end{figure}
+
+\subsection{Uniformity: Gaussian Potential Uniformity (GPU)}
+In addition to alignment, representation learning benefits from \emph{uniformity}: embeddings should not collapse into a small region of the space.
+TTC uses Gaussian potential uniformity (GPU), which penalizes high potential under a Gaussian kernel (lower indicates a more uniformly spread set of embeddings) \parencite{ttc_2025}.
+
+\subsection{Imbalance-aware SupCon methods}
+Finally, TTC proposes two strategies to adapt supervised contrastive learning to binary imbalance.
+These are treated as baselines for Track~2 and compared to standard SupCon; Figure~\ref{fig:ttc-methods} provides the conceptual overview \parencite{ttc_2025}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ttc/ttc_methods.png}
+  \caption{Methods overview from TTC: two modifications intended to improve supervised contrastive learning under binary class imbalance \parencite{ttc_2025}.}
+  \label{fig:ttc-methods}
+\end{figure}
+
+\paragraph{Learning and Loss strategies compared}
+To disentangle the effect of optimization objective from the effect of preprocessing, this thesis compares a small set of representative strategies:
+\begin{itemize}
+  \item \textbf{Track~1 losses (classification head):} weighted BCE, focal loss, and a ranking-aware Tversky variant (RAT). These are evaluated primarily by TPR@5\%, pAUC@5\%, and AP.
+  \item \textbf{Track~2 objectives (projection head):} supervised contrastive learning (SupCon), a minority-focused variant (SupMin), and a prototype-based variant (SupProto). These are evaluated primarily by embedding-space diagnostics such as GPU, CAC, and SAA.
+  \item \textbf{Post-hoc qualitative analysis:} PCA/UMAP visualization and cross-model agreement analyses are used to relate performance to embedding structure and dataset effects.
+  \item \textbf{Robust Rank Aggregation (RRA):} applied to obtain consensus robust ranks from model predictions, serving as a basis for further analysis in the time-frequency domain.
+\end{itemize}
+
+\section{Interpretability via ST-DFT-LRP}
+To probe \emph{how} models attend to ECG morphology and frequency content, this thesis uses Short-Time Discrete Fourier Transform Layer-wise Relevance Propagation (ST-DFT-LRP).
+ST-DFT-LRP extends LRP to the time--frequency domain, allowing relevance to be visualized and summarized over physiologically meaningful signal regions.
+This is particularly useful in multi-source ECG settings where spurious dataset cues can dominate: time--frequency relevance maps provide an additional check for plausible attention patterns.
+\todo{Add citations to the DFT-LRP / ST-DFT-LRP paper and the official code repository.}
+\missingfigure{DFT-LRP composite: time--frequency relevance with time trace and spectrum.}
+\missingfigure{Example 4$\times$4 relevance summary heatmap (P/QRS/T/Between $\times$ frequency bands).}
 
 \section{Imbalanced Binary Classification and Loss Functions}
 The Track~1 label distribution is highly imbalanced, so a standard (unweighted) binary cross entropy objective tends to be dominated by easy negatives.
 Therefore, loss functions are used that (i) counter class imbalance directly and/or (ii) focus learning on the high-score region that matters most for the challenge-aligned operating point (TPR at a fixed low false-positive rate).
-This section summarizes the three objectives used in Track~1: weighted binary cross entropy (wBCE), focal loss, and the ranking-aware Tversky (RAT) loss proposed in \textcite{rat2025}.
+This section summarizes the three objectives used in Track~1: weighted binary cross entropy (wBCE), focal loss, and the ranking-aware Tversky (RAT) loss proposed for the PhysioNet Challenge (\textcite{rat2025}).
 
 \subsection{Weighted binary cross entropy (wBCE)}
 Let $y \in \{0,1\}$ be the label, $z \in \mathbb{R}$ the model logit, and $p=\sigma(z)$ the predicted probability.
-Weighted BCE with a positive-class weight $w_{+}>0$ is defined as
+Weighted BCE with a positive-class weight $w_{+}>0$ is defined as \todo{queck if correct}
 \begin{equation}
   \mathcal{L}_{\text{wBCE}}(z,y)
   = - \left( w_{+}\, y \log p + (1-y)\log(1-p) \right).
   \label{eq:wbce}
 \end{equation}
-In this implementation, this corresponds to PyTorch's \texttt{BCEWithLogitsLoss(pos\_weight=$w_{+}$)}, i.e., a numerically stable BCE computed on logits with the positive term up-weighted.
-The weight $w_{+}$ is commonly set to approximately the class imbalance ratio,
-\begin{equation}
-  w_{+} \approx \frac{N_{-}}{N_{+}},
-\end{equation}
-so that positive and negative examples contribute gradients on a similar scale.
-In Track~1, $w_{+}=49$ is used (roughly corresponding to a positive prevalence of about $2\%$).%
-\todo{Confirm whether $w_{+}$ is computed per training split or fixed globally (and report the exact prevalence that motivates $w_{+}=49$).}
+using PyTorch's \texttt{BCEWithLogitsLoss(pos\_weight=$w_{+}$)}, i.e., a numerically stable BCE computed on logits with the positive term up-weighted.
+% The weight $w_{+}$ is set to approximately the class imbalance ratio,
+% \begin{equation}
+%   w_{+} \approx \frac{N_{-}}{N_{+}},
+% \end{equation}
+% so that positive and negative examples contribute gradients on a similar scale.
+In Track~1, $w_{+}=49$ is used (roughly corresponding to a positive prevalence of about $2\%$ over the entire dataset).%
 
 \subsection{Focal loss}
 Focal loss reshapes the BCE objective such that well-classified samples receive less weight, preventing the large number of easy negatives from overwhelming the gradient \parencite{focal_2018}.
@@ -86,13 +184,13 @@ The focal loss for a single example is
   \label{eq:focal}
 \end{equation}
 which reduces to standard (balanced) BCE when $\gamma=0$.
-In Track~1, $\alpha=0.75$ and $\gamma=1.5$ are used, matching the concrete implementation in the codebase (BCE-with-logits multiplied by the modulating factor $(1-p_t)^{\gamma}$).
+In Track~1, $\alpha=0.75$ and $\gamma=1.5$ are used.
 
 \subsection{Ranking-aware Tversky (RAT) loss}
 The challenge metric emphasizes performance at a low false-positive operating point, so the model should primarily be optimized for \emph{ranking quality} in the high-score region rather than minimizing average error uniformly over all samples.
 RAT operationalizes this idea by three design choices: (i) emphasizing the most confident predictions via a soft top-$k$ mechanism, (ii) discouraging premature overconfidence through an entropy regularizer, and (iii) maintaining training stability with an auxiliary BCE anchor term \parencite{rat2025}.
 
-\paragraph{Tversky coefficient and focal-Tversky form.}
+\paragraph{Tversky coefficient and Focal-Tversky form.}
 Let $p_i=\sigma(z_i)$ be the predicted probability for sample $i$ and $y_i\in\{0,1\}$ its label.
 With (soft) true positives (TP), false positives (FP), and false negatives (FN), the Tversky coefficient is
 \begin{equation}
@@ -154,7 +252,6 @@ The default RAT configuration uses
   \item $\gamma_{\mathrm{tv}}=1.0$, $s=0.1$, $k=0.05$ (top 5\% of the batch), and $\tau=0.1$,
   \item $\lambda_{\text{ent}}=0.005$ and $\lambda_{\text{bce}}=0.1$, with $w_{+}=49$ for the anchor term.
 \end{itemize}
-\todo{The bibliography entry for \texttt{rat2025} appears inconsistent; update it to the correct Herzler et al.\ (2025) RAT loss reference (title/venue/doi/arXiv).}
 
 \section{Representation Learning: Supervised Contrastive Learning and Prototypes}
 Track~2 uses a projection head and contrastive objectives to encourage embeddings of the same class to cluster and different classes to separate. The following variants are considered:
@@ -167,9 +264,9 @@ Track~2 uses a projection head and contrastive objectives to encourage embedding
 \subsection{Track~2 contrastive objectives (sketch)}
 \label{sec:track2-objectives}
 This section summarizes the key contrastive objectives used in Track~2 and highlights the differences between the standard supervised contrastive objective and the imbalance-oriented variants proposed in TTC \parencite{ttc_2025}.
-\todo{Add citations for NT-Xent/InfoNCE (e.g., SimCLR) and supervised contrastive learning (SupCon).}
+\todo{add citations for NT-Xent/InfoNCE (e.g., SimCLR) and supervised contrastive learning (SupCon)?}
 
-\paragraph{Notation.}
+\paragraph{Notation.}\todo{is this overkill?}
 Let a minibatch contain $N$ original samples $\{x_i\}_{i=1}^{N}$ with labels $y_i \in \{0,1\}$ and $V$ augmented ``views'' per sample.
 Let $z_{i}^{(v)} \in \mathbb{R}^{d}$ denote the normalized projection embedding of view $v$ of sample $i$ (so that $z^\top z'$ is cosine similarity), and let $\tau>0$ denote a temperature parameter.
 For convenience, let $\mathcal{A}$ index all augmented instances in the batch, i.e., $|\mathcal{A}| = NV$.
@@ -197,19 +294,17 @@ Then the per-anchor SupCon loss is
 \end{equation}
 In imbalanced binary settings, this objective can be dominated by the majority class because it contributes many more positive pairs and anchors.
 
-\paragraph{TTC ``Supervised Minority'' (and the implementation used here).}
-TTC proposes restricting the use of label supervision to the minority class and using an unsupervised objective for the majority class to mitigate class collapse and improve uniformity \parencite{ttc_2025}.
-In this codebase, the corresponding effect is approximated by reducing or disabling majority--majority positive pairs in the SupCon numerator mask.
-Concretely, for anchors in the majority class, only a controlled subset of majority-class positives is retained (or none when the ratio is set to 0), while minority anchors continue to use the standard supervised positives.
-In the provided experiment configs, this is controlled via \texttt{model.ratio\_supervised\_majority}:
+\paragraph{TTC: Supervised Minority (SupMin)}
+To mitigate majority class collapse and improve uniformity, TTC proposes \emph{Supervised Minority} (SupMin), a strategy that restricts label supervision to the minority class while treating the majority class with an unsupervised objective \parencite{ttc_2025}.
+The experiments in this thesis rely directly on the reference implementation provided by TTC.
+In this codebase, the distinction between standard SupCon and SupMin is established via the configuration parameter \texttt{model.ratio\_supervised\_majority}, which determines the subset of majority-class positives retained in the loss mask:
 \begin{itemize}
-  \item \texttt{configs/track2\_sup\_standard.yaml}: \texttt{ratio\_supervised\_majority = -1.0} disables this branch and uses standard SupCon positives for both classes.
-  \item \texttt{configs/track2\_sup\_min.yaml}: \texttt{ratio\_supervised\_majority = 0.0} removes majority--majority positive pairs from the numerator mask, approximating TTC's ``Supervised Minority'' idea.
+  \item \textbf{Standard SupCon (\texttt{ratio = -1.0}):} This setting disables the imbalance-aware logic. Full label supervision is applied to both classes (standard SupCon).
+  \item \textbf{SupMin (\texttt{ratio = 0.0}):} This setting activates the SupMin objective. Majority-class anchors do not pull other majority samples (effectively reverting to unsupervised NT-Xent for the majority), while minority anchors retain full supervision.
 \end{itemize}
-Note that \texttt{configs/base.yaml} sets \texttt{ratio\_supervised\_majority = 0.0} by default, so the standard SupCon baseline must explicitly override it to \texttt{-1.0}.
-\todo{Clarify how this approximation differs from TTC's original ``SupMin'' formulation (SupCon on minority + NT-Xent on majority), and cite the corresponding TTC section/equation.}
+By toggling this parameter, the exact same training pipeline is used to evaluate both the baseline and the proposed imbalance mitigation strategy.
 
-\paragraph{TTC ``Supervised Prototypes'' (and the implementation used here).}
+\paragraph{TTC: Supervised Prototypes}
 TTC also introduces a prototype-based variant in which class prototypes act as additional anchors in representation space \parencite{ttc_2025}.
 Let $p_0, p_1 \in \mathbb{R}^{d}$ denote unit-norm class prototypes.
 For a sample of class $i$, a prototype pull term of the form
@@ -221,22 +316,20 @@ For a sample of class $i$, a prototype pull term of the form
 \end{equation}
 can be added to encourage alignment with $p_i$.
 To avoid collapsing all samples onto the prototypes, TTC applies the prototype term only when the current embedding is not yet sufficiently aligned (e.g., when $z_a^\top p_i$ is below a threshold).
-In \texttt{configs/track2\_sup\_proto.yaml}, training uses the prototype-based objective (\texttt{use\_prototypes=true}), so \texttt{ratio\_supervised\_majority} is not used for the loss in this mode.
-\todo{Align this description with the exact gating rule used in the implementation (\texttt{eps\_0}/\texttt{eps\_1}) and state how the prototypes are initialised/updated (random antipodal initialisation is used in the current code).}
 
 \section{Classification Metrics for Imbalanced Screening}
-All Track~1 classification metrics are logged to Weights \& Biases (W\&B) at validation time to support rapid comparison across runs and preprocessing regimes.
+All Track~1 classification metrics were logged to Weights \& Biases (W\&B) at validation time to support rapid comparison across runs and preprocessing regimes.
 Because the positive class is rare, these metrics are treated primarily as \emph{ranking and operating-point} diagnostics rather than as measures of overall accuracy.
 
 \subsection{Why accuracy is not informative}
 In extremely imbalanced problems, standard accuracy can be misleading: a classifier that predicts the majority class for all samples can achieve high accuracy while being clinically useless.
 Accuracy is therefore logged mainly as a sanity check, while reporting focuses on metrics that reflect ranking quality and low-false-positive screening use cases.
 
-\subsection{Clinical screening interpretation (sketch)}
-The evaluation setting corresponds to a screening workflow in which only a small subset of patients can be referred for confirmatory testing.
-Under such constraints, false positives increase clinical workload and cost, while false negatives correspond to missed cases and delayed treatment.
-This motivates a focus on low false-positive operating points and on metrics that reflect ``how many true cases are found among the few flagged cases'' rather than overall correctness.
-\todo{Add a clinical screening / confirmatory testing citation appropriate for ECG-based population screening.}
+% \subsection{Clinical screening interpretation (sketch)}
+% The evaluation setting corresponds to a screening workflow in which only a small subset of patients can be referred for confirmatory testing.
+% Under such constraints, false positives increase clinical workload and cost, while false negatives correspond to missed cases and delayed treatment.
+% This motivates a focus on low false-positive operating points and on metrics that reflect ``how many true cases are found among the few flagged cases'' rather than overall correctness.
+% \todo{Add a clinical screening / confirmatory testing citation appropriate for ECG-based population screening.}
 
 \subsection{Challenge metric: TPR@5\% (fixed screening capacity)}
 The PhysioNet Challenge score corresponds to a fixed-capacity screening scenario \parencite{2025ChallengePreprint,2025ChallengeCinC}.
@@ -249,8 +342,11 @@ The challenge score is then the true positive rate (TPR, sensitivity) achieved a
 \end{equation}
 where TP/FN are computed with respect to the top-$k$ selection.
 This score is closely related to \emph{recall@k}: it measures how many true positives are captured among the few cases that the system would forward to confirmatory testing.
-In this codebase this is logged as \texttt{val/score}.
-\todo{State explicitly how ties are handled in the official evaluation and in this implementation (expected confusion matrix via random permutations when many identical scores exist).}
+% \todo{State explicitly how ties are handled in the official evaluation and in this implementation (expected confusion matrix via random permutations when many identical scores exist).}
+\subsection{Auxiliary metric: TPR@10\%}
+To complement the challenge-specific operating point, TPR at a 10\% capacity cut-off is also monitored.
+While not used for formal model selection or quality ranking, this metric provides a diagnostic glimpse into the score distribution immediately below the primary decision boundary.
+A large gap between TPR@5\% and TPR@10\% would indicate that many true positives receive scores just slightly too low to be flagged by the stricter criterion; conversely, a small gap suggests that the model separates positives well or that the remaining positives are buried deep in the low-score region.
 
 \subsection{AUROC and partial AUROC at 5\% FPR (pAUC5)}
 To provide a standard machine-learning view of ranking performance, the area under the ROC curve (AUROC) is additionally reported; it integrates sensitivity over all false-positive rates:
@@ -265,7 +361,9 @@ We therefore also log a \emph{partial} AUROC restricted to the low-FPR regime:
   \label{eq:pauc5}
 \end{equation}
 which is normalized to $[0,1]$.
-This metric (logged as \texttt{val/pauc5}) provides a ROC-based analogue to the challenge score by focusing on performance when only few false positives can be tolerated.
+
+Where the official challenge score (TPR@5\%) evaluates a single operating point, pAUC@5\% summarizes ranking quality over the entire high-specificity interval.
+By integrating performance across the range $[0, 0.05]$, it acts as a more robust and informative metric than the single-point snapshot, measuring how well the model ranks positives consistently across all strict screening thresholds.
 
 \subsection{Average precision (AP)}
 Finally, average precision (AP), i.e., the area under the precision--recall curve, is reported.
@@ -276,87 +374,3 @@ AP is computed by sorting samples by predicted score and averaging precision at 
   \label{eq:ap}
 \end{equation}
 where $y_{(i)}$ denotes the label at rank $i$ and $N_{+}$ is the number of positives.
-AP is logged as \texttt{val/ap}.
-
-\section{Early Stopping and Monitoring}
-Across tracks, early stopping is used to prevent overfitting and reduce compute spent on unpromising runs.
-Because both classification metrics (under heavy imbalance) and embedding metrics (under stochastic augmentations) can be noisy from epoch to epoch, per-epoch logging is combined with short-horizon smoothing and diagnostic plots.
-
-\subsection{Smoothed metrics}
-To stabilize early stopping decisions, a short rolling mean (window size 3) of key metrics is monitored:
-\begin{itemize}
-  \item \textbf{Track~1}: early stopping monitors \texttt{val/ap\_mean3}, a 3-epoch rolling mean of AP.
-  \item \textbf{Track~2}: early stopping monitors \texttt{emb\_CAC\_mean3}, a 3-epoch rolling mean of the mean CAC embedding metric.
-\end{itemize}
-\todo{Mention that rolling means are logged via a callback (and that missing/NaN values are mapped to 0.0 to keep early stopping finite on dev splits without positives).}
-
-\subsection{Embedding diagnostics}
-Track~2 relies on embedding-space diagnostics such as class alignment consistency (CAC) and qualitative visualization (e.g., UMAP) to judge whether representations improve.
-Early stopping in Track~2 is based on the smoothed CAC signal \texttt{emb\_CAC\_mean3}, while TTC diagnostics provide a broader view of embedding geometry (Section~\ref{sec:ttc-metrics}).
-
-\subsection{Calibration, thresholding, and model selection protocol (sketch)}
-For deployment, a binary decision requires choosing an operating point (threshold or fixed-capacity rule) on top of a continuous score.
-Although the challenge metric is ranking-based, score calibration can matter for interpretability and for selecting stable thresholds under dataset shift.
-\todo{Add calibration-related citations (e.g., modern neural network calibration; calibration under shift) and state whether calibration was evaluated or applied.}
-
-Model selection in this thesis is based on early stopping monitored on smoothed validation metrics (Section above), while final reporting uses the corresponding best checkpoint evaluated on held-out data.
-\todo{Clarify which metric is used for checkpoint selection vs. early stopping vs. final reporting, and add a short reference to best practices for model selection under class imbalance.}
-
-\subsection{Dataset shift and label uncertainty (sketch)}
-Multi-source ECG datasets can exhibit dataset shift (acquisition devices, patient populations, and preprocessing pipelines), and labels can be noisy or weakly defined depending on the cohort and annotation process.
-This motivates reporting metrics stratified by source and interpreting absolute performance with caution when the validation distribution does not perfectly match the target deployment setting.
-\todo{Add citations on dataset shift in ECG / clinical ML and on label noise or weak labels in medical datasets.}
-
-\section{Embedding-Space Metrics for Binary Imbalance (TTC)}
-\label{sec:ttc-metrics}
-Standard supervised contrastive learning can degrade as class imbalance increases.
-Mildenberger et al.\ study this effect in \emph{A Tale of Two Classes (TTC)} and introduce metrics that better diagnose representation quality in binary imbalanced settings \parencite{ttc_2025}.
-Figure~\ref{fig:ttc-imbalance} provides the overall motivation.
-In this thesis, TTC provides the \emph{foundation} of the embedding analysis: the metrics quantify local neighborhood structure in the learned representation space and are therefore largely model- and modality-agnostic.
-Although TTC evaluates multiple 2D image datasets, the same diagnostics are applied to embeddings produced by a 1D CNN encoder for ECGs.
-This assumes that the geometric failure modes TTC targets (e.g., partial collapse and misleading distance-based alignment) also arise in time-series encoders; this is assessed by monitoring TTC metrics across all tracks and objectives.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{ttc/ttc_imbalance.png}
-  \caption{Overview from TTC: standard SupCon performance degrades with increasing binary imbalance, motivating imbalance-aware objectives and embedding diagnostics \parencite{ttc_2025}.}
-  \label{fig:ttc-imbalance}
-\end{figure}
-
-\subsection{Traditional diagnostics: SAD and CAD}
-TTC discusses two intuitive diagnostics that are commonly used to summarize contrastive representation quality:
-\begin{itemize}
-  \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
-  \item \textbf{Class Alignment Distance (CAD)}: how close embeddings are within the \emph{same class} (smaller suggests class-wise clustering).
-\end{itemize}
-However, these distances can be misleading under partial collapse: distances may look ``good'' even when the embedding space is poorly structured for downstream separation.
-
-\subsection{Improved diagnostics: SAA and CAC}
-To better detect collapse and capture separability, TTC introduces metrics based on local-neighborhood structure:
-\begin{itemize}
-  \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
-  \item \textbf{Class Alignment Consistency (CAC)}: measures how label-pure local neighborhoods are while still reflecting proximity to the opposite class; it correlates more directly with downstream classification performance in TTC.
-\end{itemize}
-Figure~\ref{fig:ttc-metrics} summarizes why SAD/CAD can be overly optimistic and how SAA/CAC address this failure mode \parencite{ttc_2025}.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{ttc/ttc_metrics.png}
-  \caption{Embedding-space diagnostics from TTC: SAD/CAD can appear favorable even for representations with undesirable structure, while SAA/CAC are more robust to collapse and better reflect neighborhood quality \parencite{ttc_2025}.}
-  \label{fig:ttc-metrics}
-\end{figure}
-
-\subsection{Uniformity: Gaussian Potential Uniformity (GPU)}
-In addition to alignment, representation learning benefits from \emph{uniformity}: embeddings should not collapse into a small region of the space.
-TTC uses Gaussian potential uniformity (GPU), which penalizes high potential under a Gaussian kernel (lower indicates a more uniformly spread set of embeddings) \parencite{ttc_2025}.
-
-\subsection{Imbalance-aware SupCon methods}
-Finally, TTC proposes two strategies to adapt supervised contrastive learning to binary imbalance.
-These are treated as baselines for Track~2 and compared to standard SupCon; Figure~\ref{fig:ttc-methods} provides the conceptual overview \parencite{ttc_2025}.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{ttc/ttc_methods.png}
-  \caption{Methods overview from TTC: two modifications intended to improve supervised contrastive learning under binary class imbalance \parencite{ttc_2025}.}
-  \label{fig:ttc-methods}
-\end{figure}

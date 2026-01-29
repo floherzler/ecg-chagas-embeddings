@@ -120,6 +120,28 @@ def main() -> None:
     from ecg_chagas_embeddings.data.dataset import TorchDataset, collate_dict_batch
     from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18
 
+    REQUIRED_SCORE_COLS = {
+        # Global
+        "auroc",
+        "ap",
+        "pauc_fpr0.05",
+        "tpr_top0.05",
+        "tpr_top0.10",
+        # Verified vs self-reported/mixed splits
+        "N_verified",
+        "N_code15",
+        "auroc_verified",
+        "ap_verified",
+        "pauc_fpr0.05_verified",
+        "tpr_top0.05_verified",
+        "tpr_top0.10_verified",
+        "auroc_code15",
+        "ap_code15",
+        "pauc_fpr0.05_code15",
+        "tpr_top0.05_code15",
+        "tpr_top0.10_code15",
+    }
+
     parser = argparse.ArgumentParser(
         description="Evaluate each run on the full held-out test fold (fold4 by default)."
     )
@@ -164,14 +186,124 @@ def main() -> None:
     if args.overwrite and scores_path.exists():
         scores_path.unlink()
     existing_run_ids: set[str] = set()
+    existing_cols: set[str] = set()
     if scores_path.exists() and not args.overwrite:
         try:
             import pandas as pd
 
-            df_existing = pd.read_csv(scores_path, usecols=["run_id"])
-            existing_run_ids = set(df_existing["run_id"].astype(str).tolist())
+            df_existing = pd.read_csv(scores_path)
+            if "run_id" in df_existing.columns:
+                existing_run_ids = set(df_existing["run_id"].astype(str).tolist())
+            existing_cols = set(df_existing.columns)
         except Exception:
             existing_run_ids = set()
+            existing_cols = set()
+
+    # Optional fast-path: if full-test logits already exist (and test_index is available),
+    # recompute missing/new score columns without re-running inference.
+    test_index_path = out_dir / "test_index.csv"
+    test_index = None
+    if test_index_path.exists():
+        try:
+            import pandas as pd
+
+            test_index = pd.read_csv(test_index_path).sort_values("row_idx").reset_index(drop=True)
+            if "chagas" not in test_index.columns and "y_true" in test_index.columns:
+                test_index = test_index.rename(columns={"y_true": "chagas"})
+            if not {"row_idx", "dataset_source", "chagas"}.issubset(set(test_index.columns)):
+                test_index = None
+        except Exception:
+            test_index = None
+
+    def _test_logits_path_for_run(run_id: str, *, n: int) -> Path | None:
+        # New layout: per-run memmaps
+        p = run_memmap_dir(out_dir, run_id) / f"{run_id}__logits__N{n}.fp32.mmap"
+        if p.exists():
+            return p
+        # Legacy fallback
+        p2 = out_dir / "memmap" / f"{run_id}__logits__N{n}.fp32.mmap"
+        if p2.exists():
+            return p2
+        return None
+
+    def _scores_from_arrays(
+        *,
+        run: Any,
+        y_true: np.ndarray,
+        y_score: np.ndarray,
+        dataset_source: np.ndarray,
+    ) -> dict[str, Any]:
+        y_true = np.asarray(y_true, dtype=int).reshape(-1)
+        y_score = np.asarray(y_score, dtype=float).reshape(-1)
+        ds = np.asarray(dataset_source, dtype=object).reshape(-1)
+        if y_true.size != y_score.size or y_true.size != ds.size:
+            raise ValueError("Mismatched y_true/y_score/dataset_source lengths")
+
+        n_pos = int((y_true == 1).sum())
+        n_neg = int((y_true == 0).sum())
+        row: dict[str, Any] = {
+            "run_id": run.run_id,
+            "track": run.track,
+            "preprocessing": run.preprocessing,
+            "checkpoint_path": str(run.checkpoint_path),
+            "N": int(y_true.size),
+            "N_pos": n_pos,
+            "N_neg": n_neg,
+        }
+        row.update({k: v for k, v in getattr(run, "meta", {}).items()})
+
+        m = np.isfinite(y_score)
+        yt = y_true[m]
+        ys = y_score[m]
+        ds_m = ds[m]
+
+        try:
+            row["auroc"] = float(roc_auc_score(yt, ys))
+        except Exception:
+            row["auroc"] = float("nan")
+        try:
+            row["ap"] = float(average_precision_score(yt, ys))
+        except Exception:
+            row["ap"] = float("nan")
+        row["pauc_fpr0.05"] = float(compute_binary_pauc(yt, ys, max_fpr=0.05))
+        row["tpr_top0.05"] = float(compute_tpr_at_top_fraction(yt, ys, fraction=0.05))
+        row["tpr_top0.10"] = float(compute_tpr_at_top_fraction(yt, ys, fraction=0.10))
+
+        is_code15 = ds_m == "CODE15"
+        is_ptbxl = ds_m == "PTBXL"
+        is_samitrop = ds_m == "SAMITROP"
+        is_verified = is_ptbxl | is_samitrop
+
+        def _add_split(prefix: str, mask: np.ndarray) -> None:
+            mask = np.asarray(mask, dtype=bool)
+            ytp = yt[mask]
+            ysp = ys[mask]
+            row[f"N_{prefix}"] = int(ytp.size)
+            row[f"N_pos_{prefix}"] = int((ytp == 1).sum())
+            row[f"N_neg_{prefix}"] = int((ytp == 0).sum())
+            if ytp.size == 0:
+                row[f"auroc_{prefix}"] = float("nan")
+                row[f"ap_{prefix}"] = float("nan")
+                row[f"pauc_fpr0.05_{prefix}"] = float("nan")
+                row[f"tpr_top0.05_{prefix}"] = float("nan")
+                row[f"tpr_top0.10_{prefix}"] = float("nan")
+                return
+            try:
+                row[f"auroc_{prefix}"] = float(roc_auc_score(ytp, ysp))
+            except Exception:
+                row[f"auroc_{prefix}"] = float("nan")
+            try:
+                row[f"ap_{prefix}"] = float(average_precision_score(ytp, ysp))
+            except Exception:
+                row[f"ap_{prefix}"] = float("nan")
+            row[f"pauc_fpr0.05_{prefix}"] = float(compute_binary_pauc(ytp, ysp, max_fpr=0.05))
+            row[f"tpr_top0.05_{prefix}"] = float(compute_tpr_at_top_fraction(ytp, ysp, fraction=0.05))
+            row[f"tpr_top0.10_{prefix}"] = float(compute_tpr_at_top_fraction(ytp, ysp, fraction=0.10))
+
+        _add_split("verified", is_verified)
+        _add_split("code15", is_code15)
+
+        return row
 
     download_dir = out_dir / "wandb_downloads"
     download_dir.mkdir(parents=True, exist_ok=True)
@@ -182,11 +314,36 @@ def main() -> None:
             print(f"Skipping {run.run_id}: empty checkpoint_path")
             continue
 
-        # If --save_logits is enabled we may need to run inference even when scores exist.
-        need_scores = bool(args.overwrite) or (run.run_id not in existing_run_ids)
+        # If the score schema changed, recompute (preferably from persisted logits).
+        schema_ok = REQUIRED_SCORE_COLS.issubset(existing_cols) if existing_cols else False
+        need_scores = bool(args.overwrite) or (run.run_id not in existing_run_ids) or (not schema_ok)
         memmap_dir = run_memmap_dir(out_dir, run.run_id)
         logits_path = memmap_dir / f"{run.run_id}__logits__N{{N}}.fp32.mmap"  # placeholder for messages
         need_logits = bool(args.save_logits)
+
+        # Fast scoring from existing full-test logits (no model/data loading).
+        if (
+            need_scores
+            and not args.overwrite
+            and test_index is not None
+            and len(test_index) > 0
+        ):
+            n_test = int(len(test_index))
+            lp = _test_logits_path_for_run(run.run_id, n=n_test)
+            if lp is not None:
+                logits = np.memmap(lp, mode="r", dtype="float32", shape=(n_test,))
+                row = _scores_from_arrays(
+                    run=run,
+                    y_true=test_index["chagas"].to_numpy(dtype=int),
+                    y_score=np.asarray(logits, dtype=np.float32),
+                    dataset_source=test_index["dataset_source"].astype(str).to_numpy(dtype=object),
+                )
+                rows.append(row)
+                print(
+                    f"{run.run_id}: scored from existing logits (N={n_test}) "
+                    f"auroc={row['auroc']:.4f} ap={row['ap']:.4f} tpr_top0.05={row['tpr_top0.05']:.4f}"
+                )
+                continue
 
         ckpt = _resolve_checkpoint(run.checkpoint_path, download_dir=download_dir)
         if not ckpt.exists():
@@ -263,6 +420,7 @@ def main() -> None:
 
         ys: list[np.ndarray] = []
         ps: list[np.ndarray] = []
+        srcs: list[np.ndarray] = []
         logits_mm: np.memmap | None = None
         offset = 0
         if need_logits:
@@ -281,6 +439,12 @@ def main() -> None:
                 leave=False,
             ):
                 y = batch["chagas"].view(-1).detach().cpu().numpy().astype(int)
+                src = batch.get("source", None)
+                if src is None:
+                    raise KeyError(
+                        "Batch missing 'source'. Ensure TorchDataset(return_age_and_sex=True) is used."
+                    )
+                src = np.asarray(src).astype(np.float32).reshape(-1)
                 x = batch["ecg_views"][:, 0].to(device, non_blocking=True)
                 _feats, _proj, logits = model(x)
                 if logits.ndim == 2 and logits.shape[1] == 1:
@@ -289,6 +453,7 @@ def main() -> None:
                 probs = torch.sigmoid(logits).detach().cpu().numpy().astype(np.float64)
                 ys.append(y)
                 ps.append(probs.reshape(-1))
+                srcs.append(src)
                 if logits_mm is not None:
                     b = int(logits_cpu.shape[0])
                     logits_mm[offset : offset + b] = logits_cpu.reshape(-1)
@@ -303,6 +468,7 @@ def main() -> None:
 
         y_true = np.concatenate(ys, axis=0)
         y_score = np.concatenate(ps, axis=0)
+        src_code = np.concatenate(srcs, axis=0).astype(np.int32)
 
         n_pos = int((y_true == 1).sum())
         n_neg = int((y_true == 0).sum())
@@ -320,6 +486,7 @@ def main() -> None:
         m = np.isfinite(y_score)
         y_true_m = y_true[m]
         y_score_m = y_score[m]
+        src_code_m = src_code[m]
         try:
             row["auroc"] = float(roc_auc_score(y_true_m, y_score_m))
         except Exception:
@@ -331,6 +498,43 @@ def main() -> None:
 
         row["pauc_fpr0.05"] = float(compute_binary_pauc(y_true_m, y_score_m, max_fpr=0.05))
         row["tpr_top0.05"] = float(compute_tpr_at_top_fraction(y_true_m, y_score_m, fraction=0.05))
+        row["tpr_top0.10"] = float(compute_tpr_at_top_fraction(y_true_m, y_score_m, fraction=0.10))
+
+        # --- Group splits: verified labels vs self-reported labels ---
+        # source codes from TorchDataset: CODE-15%=0, PTB-XL=1, SaMi-Trop=2
+        is_code15 = src_code_m == 0
+        is_ptbxl = src_code_m == 1
+        is_samitrop = src_code_m == 2
+        is_verified = is_ptbxl | is_samitrop
+
+        def _add_split(prefix: str, mask: np.ndarray) -> None:
+            mask = np.asarray(mask, dtype=bool)
+            yt = y_true_m[mask]
+            ys = y_score_m[mask]
+            row[f"N_{prefix}"] = int(yt.size)
+            row[f"N_pos_{prefix}"] = int((yt == 1).sum())
+            row[f"N_neg_{prefix}"] = int((yt == 0).sum())
+            if yt.size == 0:
+                row[f"auroc_{prefix}"] = float("nan")
+                row[f"ap_{prefix}"] = float("nan")
+                row[f"pauc_fpr0.05_{prefix}"] = float("nan")
+                row[f"tpr_top0.05_{prefix}"] = float("nan")
+                row[f"tpr_top0.10_{prefix}"] = float("nan")
+                return
+            try:
+                row[f"auroc_{prefix}"] = float(roc_auc_score(yt, ys))
+            except Exception:
+                row[f"auroc_{prefix}"] = float("nan")
+            try:
+                row[f"ap_{prefix}"] = float(average_precision_score(yt, ys))
+            except Exception:
+                row[f"ap_{prefix}"] = float("nan")
+            row[f"pauc_fpr0.05_{prefix}"] = float(compute_binary_pauc(yt, ys, max_fpr=0.05))
+            row[f"tpr_top0.05_{prefix}"] = float(compute_tpr_at_top_fraction(yt, ys, fraction=0.05))
+            row[f"tpr_top0.10_{prefix}"] = float(compute_tpr_at_top_fraction(yt, ys, fraction=0.10))
+
+        _add_split("verified", is_verified)
+        _add_split("code15", is_code15)
 
         if need_scores:
             rows.append(row)
