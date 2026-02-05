@@ -5,20 +5,27 @@ This chapter summarizes empirical findings from the evaluation pipeline describe
 Unless stated otherwise, all reported metrics are computed on the held-out test fold~4.
 
 \section{Clinical task performance (ranking under screening constraints)}
-\begin{itemize}
-  \item Primary endpoint: TPR@5\% (screening capacity).
-  \item Supporting endpoints: pAUC@5\% FPR, AP, AUROC, and TPR@10\%.
-  \item \missingfigure{Table: per-run test performance (global metrics) for all runs.}
-  \item \todo{Summarize: best/worst runs and differences across preprocessing regimes and objectives.} \missingfigure{Plot: performance by preprocessing regime (small multiples or grouped bars).}
-\end{itemize}
+Primary endpoint is TPR@5\% (screening capacity), with supporting metrics pAUC@5\% FPR, AP, AUROC, and TPR@10\%.
+Per-run results are reported with compact model labels (\texttt{track / preprocessing / objective}) to keep the full model list readable.
+\input{tables/classification_per_run.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_by_preproc.png}
+  \caption{Overview of TPR@5\% across preprocessing regimes and tracks.}
+  \label{fig:overview_tpr5}
+\end{figure}
 
 \subsection{Verified vs.\ self-reported labels (label-strength split)}
-\begin{itemize}
-  \item Verified labels: PTB-XL (negative) + SaMi-Trop (positive).
-  \item Self-reported/mixed labels: CODE-15.
-  \item \missingfigure{Table: global vs.\ verified-only vs.\ CODE-15-only metrics (TPR@5\%, pAUC@5\%, AP).}
-  \item \todo{Report whether the verified-only performance drops relative to the global score and discuss possible causes (domain shift vs.\ label noise) in Chapter~\ref{ch:discussion}.} \missingfigure{Plot: verified-only vs.\ CODE-15-only performance deltas per run.}
-\end{itemize}
+Verified labels are defined as PTB-XL (negative) + SaMi-Trop (positive), and contrasted against CODE-15 as the self-reported/mixed-label subset.
+\input{tables/classification_labelsplit_by_group.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_labelsplit.png}
+  \caption{TPR@5\% split by verified vs.\ CODE-15 labels across preprocessing regimes.}
+  \label{fig:overview_labelsplit}
+\end{figure}
 
 \begin{table}[t]
   \centering
@@ -53,41 +60,41 @@ Unless stated otherwise, all reported metrics are computed on the held-out test 
 \end{table}
 
 \section{Embedding-space diagnostics (probe set)}
-\begin{itemize}
-  \item Primary comparable space: encoder embeddings (\texttt{enc}) for all tracks.
-  \item Metrics: GPU/CAC (collapse and global separation) and SAA (two-view consistency on the probe set).
-  \item \missingfigure{Table: embedding metrics for all runs.}
-  \item \todo{Summarize: which objectives/regimes show signs of collapse (GPU) and how this relates to ranking performance.} \missingfigure{Plot: GPU vs.\ TPR@5\% scatter (colored by preprocessing).}
-\end{itemize}
+Primary comparable space is encoder embeddings (\texttt{enc}) for all tracks.
+Metrics include GPU/CAC (collapse and global separation) and SAA (two-view consistency on the probe set).
+\input{tables/embedding_by_group.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.72\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_gpu_vs_tpr5.png}
+  \caption{Embedding uniformity (GPU class 1) versus clinical utility (TPR@5\%).}
+  \label{fig:overview_gpu_tpr}
+\end{figure}
 
 \subsection{Probe group splits}
-\begin{itemize}
-  \item Probe metrics are additionally computed on:
-        \begin{itemize}
-          \item verified subset (PTB-XL + SaMi-Trop) vs.\ CODE-15 subset.
-        \end{itemize}
-  \item \todo{Summarize whether CAC/SAA differ between verified and CODE-15 subsets and how this aligns with dataset clustering.} \missingfigure{Plot: CAC/SAA split by verified vs.\ CODE-15 for each run.}
-\end{itemize}
+Probe metrics are additionally computed on verified (PTB-XL + SaMi-Trop) versus CODE-15 subsets.
+Absolute PCA-correlation summaries are reported by track and preprocessing:
+\input{tables/pca_corr_by_group.tex}
 
 \section{Qualitative embedding visualization (PCA/UMAP hex-multipanels)}
 \begin{itemize}
   \item PCA and UMAP are computed on the stored probe embeddings and visualized with hex-tiling multipanels.
   \item Panels emphasize: geometry density, Chagas enrichment, RBBB enrichment, abnormal ECG enrichment, age/$\Delta$age, and PTB-XL control flags (e.g.\ CRBBB).
-  \item \missingfigure{Main figure: exemplar multipanel for selected representative runs (UMAP).}
-  \item \missingfigure{Appendix: full set of multipanels for all runs (UMAP and PCA).}
+  \item Representative examples are included in the appendix; full generated panel sets are provided in the analysis output directory.
   \item \todo{Describe consistent qualitative patterns (e.g.\ dataset clustering, phenotype enrichment locations) without over-interpreting.} \missingfigure{Callouts: annotated examples highlighting key regions (one per dataset).}
   \item \todo{Optional: add quantitative summaries of embedding geometry (e.g., dataset-centroid distances, within/between-dataset dispersion, or density overlap statistics) to complement the visual panels.} \missingfigure{Plot: centroid distances or dispersion ratios by dataset for UMAP/PCA.}
 \end{itemize}
 
 \section{Cross-model agreement and screening set overlap}
-\begin{itemize}
-  \item Global agreement: model$\times$model Spearman $\rho$ on the full-test ranking vectors.
-  \item Screening agreement: top-5\% set overlap via Jaccard (IoU).
-  \item Within-overlap agreement: Kendall's $\tau$ on the intersection of top-5\% sets (with intersection size reported).
-  \item \missingfigure{Heatmap: Spearman rho across models.}
-  \item \missingfigure{Heatmap: top-5\% IoU across models.}
-  \item \todo{Summarize whether agreement clusters by preprocessing regime, loss/objective, or track.}
-\end{itemize}
+Global agreement is quantified by model$\times$model Spearman $\rho$ on full-test ranking vectors.
+Screening agreement is measured via top-5\% Jaccard (IoU), and within-overlap ordering via Kendall's $\tau$.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_spearman_heatmap.png}
+  \caption{Cross-model ranking agreement (Spearman $\rho$).}
+  \label{fig:overview_spearman}
+\end{figure}
+\todo{Summarize whether agreement clusters by preprocessing regime, loss/objective, or track.}
 
 \section{Consensus sets for sample selection (preparation for DFT-LRP)}
 \begin{itemize}
@@ -96,6 +103,65 @@ Unless stated otherwise, all reported metrics are computed on the held-out test 
   \item \missingfigure{Table: examples of high-consensus, low-consensus, and non-consensus candidates (with dataset and QC).}
   \item \todo{State final thresholds $\alpha,\beta$ used for consensus-high/low (if used) and the rationale.} \missingfigure{Histogram: distribution of consensus scores c\_i (and normalized consensus).}
 \end{itemize}
+
+\begin{table}[t]
+  \centering
+  \caption{Overlap between the probe subset and RRA robust sets (test fold).}
+  \label{tab:rra_probe_overlap}
+  \begin{tabular}{lrrr}
+    \toprule
+    \textbf{Group}   & \textbf{Total} & \textbf{In probe} & \textbf{\% in probe} \\
+    \midrule
+    Robust positives & 7{,}411        & 605               & 8.16                 \\
+    Robust negatives & 11{,}456       & 999               & 8.72                 \\
+    Probe total      & 4{,}893        & 4{,}893           & 100                  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{ST-DFT-LRP summaries on the probe set}
+\begin{itemize}
+  \item For each run, per-sample ST-DFT-LRP outputs are stored in \texttt{stdftlrp\_beat\_agg.csv} and include:
+        4$\times$4 time$\times$frequency relevance grids (mean and mass-weighted), lead-importance statistics, and QC metadata.
+  \item \todo{Summarize the distribution of lead-importance statistics (entropy, top-1 lead) and whether lead dominance varies across datasets or labels.}
+        \missingfigure{Plot: lead-importance heatmap or barplot across dataset$\times$label groups.}
+  \item \todo{Report groupwise 4$\times$4 matrices aggregated over samples for at least: dataset$\times$label, and (optional) dataset$\times$RBBB for CODE-15/PTB-XL.}
+        \missingfigure{Figure: mean 4$\times$4 grids for dataset$\times$label groups (one representative run + aggregated across model families).}
+  \item \todo{Clarify whether model-family aggregation (track/preprocessing/loss) yields consistent relevance patterns or distinct profiles.}
+        \missingfigure{Plot: comparison of 4$\times$4 grids across model families for a fixed group.}
+\end{itemize}
+
+\paragraph{Lead-importance summaries across model families.}
+Per-sample lead masses are normalized to sum to 1, so each heatmap cell can be interpreted as the fraction of total relevance mass assigned to a lead.
+Across all four dataset$\times$label conditions, models consistently emphasize precordial leads (V1--V6), particularly under the mild bandpass regime (\texttt{bp}).
+In contrast, the stronger preprocessing (\texttt{bp-sc-norm}) shows a flatter, more uniform distribution of lead mass across the 12 leads.
+Figure~\ref{fig:lead_mass_heatmaps} shows the lead-mass heatmaps by model family for the four dataset$\times$label conditions.
+
+\begin{table}[t]
+  \centering
+  \caption{Lead mass share by preprocessing regime (averaged across models).}
+  \label{tab:lead_mass_preproc_share}
+  \begin{tabular}{lrrr}
+    \toprule
+    Preprocessing       & Limb share & Precordial share & Precordial/Limb \\
+    \midrule
+    \texttt{bp}         & 0.400323   & 0.599677         & 1.497985        \\
+    \texttt{bp-sc}      & 0.495007   & 0.504993         & 1.020172        \\
+    \texttt{bp-sc-norm} & 0.499954   & 0.500046         & 1.000182        \\
+    \bottomrule
+  \end{tabular}
+  \vspace{0.2em}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_PTBXL_0.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_CODE15_0.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_CODE15_1.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_SAMITROP_1.png}
+  \caption{Mean lead-mass distributions by model family for the four dataset$\times$label conditions (CODE15$\pm$, PTB-XL negative, SaMi-Trop positive).}
+  \label{fig:lead_mass_heatmaps}
+\end{figure}
 
 \subsection{Robust rank aggregation (RRA) by dataset}
 RRA \parencite{rra_kolde_2012}is applied to the full-test rankings to identify samples that are \emph{robustly} ranked high or low across models using the python package \texttt{PyFLAGR}\parencite{pyflagr_2023} (version 1.0.21).
@@ -126,5 +192,5 @@ RRA provides an ordering \emph{within} each robust set; samples not included in 
 
 \section{Summary of key results}
 \begin{itemize}
-  \item \todo{One paragraph: main takeaways for (i) ranking performance, (ii) embedding health, (iii) dataset/label effects, (iv) agreement/consensus.} \missingfigure{One consolidated summary figure (optional): performance vs.\ embedding metrics.}
+  \item \todo{One paragraph: main takeaways for (i) ranking performance, (ii) embedding health, (iii) dataset/label effects, and (iv) agreement/consensus.}
 \end{itemize}

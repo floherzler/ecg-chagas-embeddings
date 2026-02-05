@@ -464,54 +464,43 @@ def main() -> None:
         )
 
     if args.stdftlrp:
-        from ecg_chagas_embeddings.analysis.run_specs import load_run_specs, resolve_data_dir
-
-        global_cfg, runs = load_run_specs(run_specs)
-        processed_root_raw = str(global_cfg.get("processed_root", "")).strip()
-        processed_root = Path(processed_root_raw) if processed_root_raw else Path(args.processed_root)
-        meta_path_raw = str(global_cfg.get("meta_path", "")).strip()
-        meta_path = Path(meta_path_raw) if meta_path_raw else Path(args.meta_path)
-        exam_ids_csv = out_dir / ("probe_index.csv" if args.stdftlrp_exam_ids == "probe" else "test_index.csv")
-
-        for run in runs:
-            out_root = out_dir / "runs" / run.run_id / "xai"
-            out_path = out_root / "stdftlrp_beat_agg.csv"
-            if out_path.exists() and not args.overwrite:
-                continue
-
-            data_dir = resolve_data_dir(run, processed_root=processed_root)
-            _run(
-                [
-                    py,
-                    "scripts/analysis/compute_stdftlrp_beat_aggregates.py",
-                    "--checkpoint",
-                    str(run.checkpoint_path),
-                    "--run_id",
-                    str(run.run_id),
-                    "--meta_path",
-                    str(meta_path),
-                    "--data_dir",
-                    str(data_dir),
-                    "--exam_ids_csv",
-                    str(exam_ids_csv),
-                    "--out_dir",
-                    str(out_dir / "runs"),
-                    "--fold",
-                    str(args.test_fold),
-                    "--lead_index",
-                    str(args.stdftlrp_lead_index),
-                    *(
-                        ["--all_leads"]
-                        if args.stdftlrp_all_leads
-                        else []
-                    ),
-                    *(
-                        ["--write_per_lead"]
-                        if args.stdftlrp_write_per_lead
-                        else []
-                    ),
-                ]
-            )
+        _run(
+            [
+                py,
+                "scripts/analysis/run_stdftlrp_pipeline.py",
+                "--run_specs",
+                str(run_specs),
+                "--out_dir",
+                str(out_dir),
+                "--processed_root",
+                str(args.processed_root),
+                "--meta_path",
+                str(args.meta_path),
+                "--test_fold",
+                str(args.test_fold),
+                "--stdftlrp_exam_ids",
+                str(args.stdftlrp_exam_ids),
+                "--stdftlrp_lead_index",
+                str(args.stdftlrp_lead_index),
+                "--stdftlrp_crop_size",
+                str(args.crop_size),
+                *(
+                    ["--stdftlrp_all_leads"]
+                    if args.stdftlrp_all_leads
+                    else []
+                ),
+                *(
+                    ["--stdftlrp_write_per_lead"]
+                    if args.stdftlrp_write_per_lead
+                    else []
+                ),
+                *(
+                    ["--overwrite"]
+                    if args.overwrite
+                    else []
+                ),
+            ]
+        )
 
 
 if __name__ == "__main__":

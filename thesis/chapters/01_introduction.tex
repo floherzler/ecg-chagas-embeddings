@@ -1,30 +1,32 @@
 \chapter{Introduction}
 
 \section{Clinical Motivation}
-Chagas disease (ChD) is a neglected tropical disease caused by parasite \textit{Trypanosoma cruzi} infection, predominantly in Latin America.
-It can progress to chronic Chagas cardiomyopathy, which is associated with conduction abnormalities, arrhythmias, and heart failure.
-\todo{disease importance: prevalence, morbidity/mortality, and relevance for screening in non-endemic settings needed?}
-The infection with chagas disease starts with an acute phase with fever and mild symptoms.
-After this phase, infected individuals enter the indeterminate phase, which can last for decades without symptoms while the ECG appears normal.
-The chronic phase can develop in approximately 30\% of infected individuals, potentially leading to serious cardiac complications.
-\todo{citation needed here. how in depth do i have to go?}.
-Early identification of infected individuals enables confirmatory serological testing and timely follow-up, but population-wide screening is challenging in resource-constrained settings.
+Chagas disease (ChD) is a longstanding neglected tropical disease.
+It is a systemic infection caused by the parasite \textit{Trypanosoma cruzi}.
+
+Chagas cardiomyopathy (CCC) is the cardiac manifestation that develops in a subset of chronically infected patients and is associated with conduction abnormalities, arrhythmias, and heart failure \parencite{chagas_progression_2022,chagas_review_lancet_2024,chagas_ecg_abnormalities_2018}.
+After an often mild or asymptomatic acute phase, roughly 60--70\% of infected patients remain in a chronic indeterminate form with normal Electrocardiogram (ECG) and no organ damage, while about 20--30\% progress over years to decades to CCC \parencite{chagas_progression_2022,chagas_review_lancet_2024}.
+ECG abnormalities often mark the transition from indeterminate infection to cardiac disease and reflect conduction system injury and myocardial fibrosis, with typical findings such as Right Bundle Branch Block (RBBB), Left Anterior Fascicular Block (LAFB) and ventricular ectopy \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+Because ECG changes reflect cardiac involvement rather than early infection, ECG-based screening cannot detect all infected individuals; instead, it can triage who should receive confirmatory serology when testing capacity is limited (e.g., a 5\% serological screening budget in the PhysioNet Challenge setting \parencite{2025ChallengeCinC}).
 
 \subsection*{Electrocardiogram as Screening Modality}
 The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
 Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
 Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
-\missingfigure{Cabrera circle / lead intuition, is this needed?}
 
 \subsection*{George B.~Moody PhysioNet Challenge 2025}
 The experimental classification task in this thesis originates from the George B.~Moody PhysioNet Challenge 2025, which focused on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
 
 The task is therefore interpreted as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
 The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
+
+Specifically, it defines the operating point as a fixed-capacity screening scenario where only the top $K\%$ (set to $K=5\%$ in the challenge) are flagged for follow-up.
+Evaluation therefore focuses on ranking quality under strict false-positive constraints.
+The dataset combines three sources:
 \begin{itemize}
-  \item \textbf{Operating point:} fixed-capacity screening (top $K\%$ flagged for follow-up; $K=5\%$ in the challenge setting).
-  \item \textbf{Evaluation emphasis:} ranking quality under strict false-positive constraints.
-  \item \textbf{Data sources:} large-scale CODE-15\%\parencite{ribeiro_code-15_2021} cohort (self-reported labels from Brazil), SaMi-Trop\parencite{ribeiro_sami-trop_2021} (clinically confirmed positives from Brazil), PTB-XL\parencite{wagner_ptb_xl} (confirmed negatives from Germany).
+  \item \textbf{CODE-15\%} large-scale cohort \parencite{ribeiro_code-15_2021} with self-reported labels from Brazil.
+  \item \textbf{SaMi-Trop} \parencite{ribeiro_sami-trop_2021} containing clinically confirmed positives from Brazil.
+  \item \textbf{PTB-XL} \parencite{wagner_ptb_xl}, which is taken as safe negatives due to geography (Germany).
 \end{itemize}
 
 

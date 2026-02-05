@@ -36,6 +36,26 @@ def _choose_window_width(*, signal_length: int, preferred: int) -> int:
     return min(candidates, key=lambda w: abs(w - int(preferred)))
 
 
+def _center_crop_or_pad(signal: torch.Tensor, target_length: int) -> torch.Tensor:
+    if signal.ndim != 2:
+        raise ValueError(f"Expected [C,T], got {tuple(signal.shape)}")
+    if target_length <= 0:
+        return signal
+    T = int(signal.shape[-1])
+    if T == target_length:
+        return signal
+    if T > target_length:
+        start = max(0, (T - target_length) // 2)
+        end = start + target_length
+        return signal[:, start:end]
+    pad = target_length - T
+    left = pad // 2
+    right = pad - left
+    import torch.nn.functional as F
+
+    return F.pad(signal, (left, right))
+
+
 def _overlap_weights_for_segment(
     *,
     t_on: int,
@@ -256,6 +276,12 @@ def main() -> None:
         help="Upstream dft-lrp uses a shift factor; effective hop D = H // window_shift_factor. Use 1 for D=H (no overlap).",
     )
     parser.add_argument("--window_shape", type=str, default="rectangle", choices=["rectangle", "halfsine"])
+    parser.add_argument(
+        "--crop_size",
+        type=int,
+        default=2500,
+        help="Center-crop/pad signals to this length before STDFT-LRP.",
+    )
     parser.add_argument("--write_per_beat", action="store_true", help="Also write a per-beat long table.")
     parser.add_argument(
         "--write_per_lead",
@@ -267,11 +293,18 @@ def main() -> None:
     _add_src_to_path()
     import torch
     import neurokit2 as nk
+    import warnings
 
     from ecg_chagas_embeddings.models.resnet18_ecg_flex import LitResNet18
     from ecg_chagas_embeddings.callbacks.xai_probe import compute_lrp_relevance_time, _import_dft_lrp
 
     dft_lrp = _import_dft_lrp()
+    warnings.filterwarnings(
+        "ignore",
+        message=r"To copy construct from a tensor, it is recommended to use sourceTensor\.detach",
+        category=UserWarning,
+        module=r".*dft_lrp.*",
+    )
 
     meta = pd.read_csv(args.meta_path, low_memory=False)
     meta = meta.copy()
@@ -280,14 +313,38 @@ def main() -> None:
         meta = meta[pd.to_numeric(meta["fold"], errors="coerce").fillna(-1).astype(int) == int(args.fold)]
     meta = meta.drop_duplicates(subset=["exam_id"], keep="first").reset_index(drop=True)
     meta_idx = meta.set_index("exam_id", drop=False)
+    extra_meta_idx: pd.DataFrame | None = None
+    probe_meta_path = args.out_dir.parent / "probe_metadata.csv"
+    if probe_meta_path.exists():
+        probe_meta = pd.read_csv(probe_meta_path, low_memory=False)
+        if "exam_id" in probe_meta.columns:
+            probe_meta["exam_id"] = probe_meta["exam_id"].astype(str)
+            extra_meta_idx = probe_meta.set_index("exam_id", drop=False)
 
     exam_ids = _load_exam_ids(args.exam_ids_csv)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = LitResNet18.load_from_checkpoint(str(args.checkpoint), map_location="cpu", log_umap=False)
+    try:
+        model = LitResNet18.load_from_checkpoint(
+            str(args.checkpoint),
+            map_location="cpu",
+            log_umap=False,
+            strict=True,
+        )
+    except RuntimeError as exc:
+        print(
+            f"Warning: strict checkpoint load failed for {args.run_id}; retrying strict=False.\n{exc}"
+        )
+        model = LitResNet18.load_from_checkpoint(
+            str(args.checkpoint),
+            map_location="cpu",
+            log_umap=False,
+            strict=False,
+        )
     model.to(device).eval()
 
-    out_root = args.out_dir / args.run_id
+    lead_tag = f"lead_{args.lead_index}" if args.lead_index is not None else "lead_all"
+    out_root = args.out_dir / args.run_id / "xai" / lead_tag
     out_root.mkdir(parents=True, exist_ok=True)
 
     freq_bands_hz = {
@@ -316,6 +373,8 @@ def main() -> None:
             continue
 
         row_meta = meta_idx.loc[exam_id].to_dict() if exam_id in meta_idx.index else {}
+        if extra_meta_idx is not None and exam_id in extra_meta_idx.index:
+            row_meta.update(extra_meta_idx.loc[exam_id].to_dict())
 
         x0 = torch.load(pt_path, map_location="cpu")
         if isinstance(x0, dict):
@@ -328,6 +387,7 @@ def main() -> None:
         if not torch.is_tensor(x0) or x0.ndim != 2:
             continue
         x0 = x0.to(torch.float32)
+        x0 = _center_crop_or_pad(x0, int(args.crop_size))
         T = int(x0.shape[-1])
 
         if cached_T is None:
@@ -514,13 +574,27 @@ def main() -> None:
             freq_mean = lead_freq.mean(axis=0)
             freq_weighted = np.average(lead_freq, axis=0, weights=lead_w_freq)
 
+        source_val = row_meta.get("dataset_source", row_meta.get("source", None))
+        code15_rbbb = row_meta.get("RBBB", row_meta.get("code15_rbbb", None))
+        ptb_crbbb = row_meta.get("ptb_crbbb", None)
+        rbbb_equiv = None
+        if source_val is not None:
+            src = str(source_val).upper()
+            if "CODE" in src:
+                rbbb_equiv = code15_rbbb
+            elif "PTB" in src:
+                rbbb_equiv = ptb_crbbb
+
         out_row: dict[str, object] = {
             "exam_id": exam_id,
             "patient_id": row_meta.get("patient_id", None),
-            "source": row_meta.get("source", None),
+            "source": source_val,
             "chagas": row_meta.get("chagas", None),
             "qc_zhao2018_bp": row_meta.get("qc_zhao2018_bp", None),
             "qc_templatematch_bp": row_meta.get("qc_templatematch_bp", None),
+            "rbbb_code15": code15_rbbb,
+            "ptb_crbbb": ptb_crbbb,
+            "rbbb_equiv": rbbb_equiv,
             "T": int(T),
             "window_width": int(H),
             "n_windows": int(T // H),

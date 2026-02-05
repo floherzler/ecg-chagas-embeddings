@@ -1,5 +1,25 @@
 \chapter{Appendix}
 
+\section{Supplementary Results}
+
+\subsection{Per-run Metric Tables}
+\input{tables/classification_by_group.tex}
+\input{tables/embedding_per_run.tex}
+
+\subsection{Additional Agreement Figure}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/support_iou_heatmap.png}
+  \caption{Top-5\% screening-set overlap (IoU) across models.}
+  \label{fig:appendix_iou}
+\end{figure}
+
+\subsection{Qualitative Embedding Panels and XAI Grids}
+\begin{itemize}
+  \item Full UMAP/PCA hex-panel outputs for all runs are stored under \texttt{analysis/embeddings\_probe/runs/<run\_id>/plots}.
+  \item Per-model ST-DFT-LRP 4$\times$4 overview grids are stored under \texttt{analysis/embeddings\_probe/xai\_summary/plots}.
+\end{itemize}
+
 \section{AI Usage Documentation}
 This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by Freie Universität Berlin).
 

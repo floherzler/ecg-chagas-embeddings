@@ -8,6 +8,7 @@ An individual run combines a base configuration, a track configuration, and an o
 
 \section{Model Architecture}
 A 1D adaptation of the ResNet-18 architecture \parencite{resnet_2015} that operates directly on 12-lead ECG waveforms (Figure~\ref{fig:model_arch}) was implemented.
+\todo{ausführlichere beschreibung der gewählten architektur}
 The network consists of an initial convolutional layer followed by four residual stages, each containing two blocks with 1D convolutions and internal temporal downsampling.
 Global average pooling aggregates the features into a fixed-size vector.
 Depending on the track, this backbone is followed by either a classification head (for classification learning) or a projection head (for contrastive learning).
@@ -121,6 +122,20 @@ For the \textbf{bp} regime only, we optionally apply a random rotation of the fr
 Axis rotation is enabled only in the \texttt{rot10} runs (maximum absolute rotation $10^\circ$, applied with probability 1), and kept off for \textbf{bp\_sc} and \textbf{bp\_sc\_norm} because the nonlinear preprocessing steps can break the linearity assumptions required for a physically meaningful rotation.
 \todo{insert a graphic here how the signal changes per lead when rotated}
 
+\paragraph{Implementation details and lead usage.}
+The implementation assumes the standard 12-lead order
+$[\mathrm{I}, \mathrm{II}, \mathrm{III}, \mathrm{aVR}, \mathrm{aVL}, \mathrm{aVF}, \mathrm{V1}, \mathrm{V2}, \mathrm{V3}, \mathrm{V4}, \mathrm{V5}, \mathrm{V6}]$.
+We form a linear VCG approximation from the subset
+$[\mathrm{I}, \mathrm{II}, \mathrm{V1}\text{--}\mathrm{V6}]$ using a fixed transform to XYZ (Frank-style orthogonal lead space) and its pseudoinverse \parencite{frank_vcg_1956,vcg_conversion_2007}.
+Although the signals are embedded in a three-dimensional vector space, the augmentation operates in the frontal plane by rotating the $(X,Y)$ components around the $Z$ axis, corresponding to variations in the electrical heart axis.
+The residual between the original lead subset and its least-squares projection is preserved such that a rotation of $0^\circ$ recovers the input exactly.
+The rotated lead subset is then mapped back, and the remaining limb leads are recomputed using standard identities:
+$\mathrm{III}=\mathrm{II}-\mathrm{I}$,
+$\mathrm{aVR}=-(\mathrm{I}+\mathrm{II})/2$,
+$\mathrm{aVL}=\mathrm{I}-\mathrm{II}/2$,
+$\mathrm{aVF}=\mathrm{II}-\mathrm{I}/2$.
+For contrastive training with multiple views, the rotation angle is sampled independently per view; otherwise a single angle is applied per record.
+
 \section{Experiment Tracks}
 \label{sec:track-definitions}
 \subsection{Track 1: Supervised Classification}
@@ -181,10 +196,20 @@ Within each cell, relevance is summarized using a signed-balance statistic
   \mathrm{balance} = \frac{\sum R}{\sum |R| + \epsilon},
 \]
 yielding values in $[-1,1]$ that encode directional relevance while normalizing magnitude across beats.
-Beat-level matrices are normalized and averaged across beats; per-sample matrices are aggregated across leads using a relevance-mass-weighted mean.
+Beat-level matrices are normalized and averaged across beats.
+For this thesis, ST-DFT-LRP is computed on a single lead (Lead II; index 1) for all models; lead-importance statistics (mass, entropy, top-$k$) are still computed across all 12 leads from time-domain relevance.
 \todo{Cite the exact delineation method (e.g., NeuroKit2 DWT) and any QC filtering applied.}
 \missingfigure{Example 4$\times$4 relevance grid and group-mean comparisons.}
 
 \paragraph{Lead diagnostics.}
 For each sample, lead relevance mass is summarized to compute lead-importance statistics (per-lead mass distribution, entropy, and top-$k$ leads).
 These provide a lightweight check for lead dominance effects and are used as descriptive diagnostics rather than diagnostic claims.
+
+\paragraph{Per-model outputs and aggregation.}
+For each run, the pipeline writes a per-sample CSV (\texttt{stdftlrp\_beat\_agg.csv}) containing:
+(i) metadata (exam\_id, dataset source, label, QC),
+(ii) lead-importance statistics (per-lead mass, entropy, top-$k$),
+(iii) the 4$\times$4 relevance matrix (mean and mass-weighted variants), and
+(iv) frequency-only relevance summaries.
+A separate summarization script aggregates these per-model CSVs into non-overlapping group comparisons (e.g., dataset $\times$ label) to facilitate cross-model comparisons without re-running ST-DFT-LRP.
+\todo{Add a short description of the chosen grouping strategy and any excluded models.}

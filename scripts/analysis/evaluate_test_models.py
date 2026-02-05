@@ -345,11 +345,6 @@ def main() -> None:
                 )
                 continue
 
-        ckpt = _resolve_checkpoint(run.checkpoint_path, download_dir=download_dir)
-        if not ckpt.exists():
-            print(f"Skipping {run.run_id}: checkpoint not found: {ckpt}")
-            continue
-
         data_dir = resolve_data_dir(run, processed_root=processed_root)
         if not data_dir.exists():
             print(f"Skipping {run.run_id}: data_dir not found: {data_dir}")
@@ -380,6 +375,18 @@ def main() -> None:
             logits_path = memmap_dir / f"{run.run_id}__logits__N{N_total}.fp32.mmap"
             if logits_path.exists() and not args.overwrite:
                 need_logits = False
+
+        if not need_scores and not need_logits:
+            tqdm.write(
+                f"Skipping {run.run_id}: scores present and logits memmap already exists "
+                f"({scores_path.name}; {logits_path.name})"
+            )
+            continue
+
+        ckpt = _resolve_checkpoint(run.checkpoint_path, download_dir=download_dir)
+        if not ckpt.exists():
+            print(f"Skipping {run.run_id}: checkpoint not found: {ckpt}")
+            continue
         loader = DataLoader(
             dataset,
             batch_size=int(args.batch_size),
@@ -410,13 +417,6 @@ def main() -> None:
             )
         model.eval()
         model.to(device)
-
-        if not need_scores and not need_logits:
-            tqdm.write(
-                f"Skipping {run.run_id}: scores present and logits memmap already exists "
-                f"({scores_path.name}; {logits_path.name})"
-            )
-            continue
 
         ys: list[np.ndarray] = []
         ps: list[np.ndarray] = []

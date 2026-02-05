@@ -28,6 +28,17 @@ def _nanmedian_any(x: np.ndarray | list[float]) -> float:
     return _nanmedian(np.asarray(x, dtype=float))
 
 
+def _nanmean(x: np.ndarray) -> float:
+    if x.size == 0:
+        return float("nan")
+    return float(np.nanmean(x))
+
+
+def _nanmean_any(x: np.ndarray | list[float]) -> float:
+    """Accept either ndarray or list[float] and delegate to _nanmean."""
+    return _nanmean(np.asarray(x, dtype=float))
+
+
 def _prep_binary(series: pd.Series) -> np.ndarray:
     if pd.api.types.is_bool_dtype(series):
         return series.astype(float).to_numpy(dtype=float)
@@ -354,7 +365,8 @@ def _add_colorbar(ax: "Axes", mappable: Any, *, label: str) -> None:
     lbl.set_bbox({"facecolor": "white", "edgecolor": "none", "pad": 0.6})
 
 
-def _draw_underlay(ax: "Axes", ctx: PlotContext, *, alpha: float = 0.18) -> None:
+def _draw_underlay(ax: "Axes", ctx: PlotContext, *, alpha: float = 0.35) -> None:
+    # Match the density panel style (Greys + log bins), but lighter.
     ax.hexbin(
         ctx.x,
         ctx.y,
@@ -397,19 +409,25 @@ def _draw_subset_density(
     if show_background:
         _draw_underlay(ax, ctx)
 
-    sub = ctx.df.loc[mask, ["x", "y"]].to_numpy(dtype=float)
-    if sub.shape[0] == 0:
+    # Use relative density: fraction of samples in each hex that match `mask`.
+    # This avoids empty-looking panels when the subset is small.
+    if mask.sum() == 0:
         return
     rgba0 = (1.0, 1.0, 1.0, 0.0)
     rgba1 = mcolors.to_rgba(color, 1.0)
     ax.hexbin(
-        sub[:, 0],
-        sub[:, 1],
+        ctx.x,
+        ctx.y,
+        C=mask.astype(float),
+        reduce_C_function=cast(
+            Callable[[np.ndarray | list[float]], float], _nanmean_any
+        ),
         gridsize=int(ctx.gridsize),
         extent=ctx.extent,
         mincnt=int(ctx.mincnt),
         cmap=mcolors.LinearSegmentedColormap.from_list("overlay", [rgba0, rgba1]),
-        bins="log",
+        vmin=0.0,
+        vmax=1.0,
         linewidths=0.0,
         alpha=0.95,
         zorder=1,
@@ -582,6 +600,8 @@ def _render_figure(
                 _axes_label(ax, f"{p.label}\n(missing)")
                 continue
             vals = pd.to_numeric(ctx.df[p.col], errors="coerce").to_numpy(dtype=float)
+            if p.show_background:
+                _draw_underlay(ax, ctx)
             _draw_continuous_median(
                 ax,
                 ctx,
@@ -636,9 +656,9 @@ def _default_figures() -> list[
     return [
         (
             "multipanel_main",
-            (3, 2),
-            (7.6, 11.0),
-            "Embedding geometry & ECG phenotype alignment",
+            (1, 4),
+            (14.8, 3.9),
+            "Chagas / RBBB localization",
             [
                 PanelSpec("density", "Density (geometry)", show_background=False),
                 PanelSpec("subset_density", "Chagas", col="chagas", color="#F58518"),
@@ -649,67 +669,13 @@ def _default_figures() -> list[
                     col="abnormal_ecg",
                     color="#54A24B",
                 ),
-                PanelSpec(
-                    "continuous_median",
-                    "Δage (median)",
-                    col="delta_age",
-                    cmap="RdBu_r",
-                    colorbar_label="years",
-                    show_background=False,
-                ),
-                PanelSpec(
-                    "continuous_median",
-                    "Predicted p(Chagas) (median)",
-                    col="pred_prob",
-                    cmap="magma",
-                    vmin=0.0,
-                    vmax=1.0,
-                    colorbar_label="p",
-                    show_background=False,
-                ),
-            ],
-        ),
-        (
-            "multipanel_conduction",
-            (2, 2),
-            (7.6, 7.6),
-            "Conduction / rhythm alignment",
-            [
-                PanelSpec("subset_density", "RBBB", col="RBBB", color="#4C78A8"),
-                PanelSpec("subset_density", "1dAVb", col="1dAVb", color="#9467BD"),
-                PanelSpec("subset_density", "LBBB", col="LBBB", color="#54A24B"),
-                PanelSpec("subset_density", "AF", col="AF", color="#F58518"),
-            ],
-        ),
-        (
-            "multipanel_outcome",
-            (2, 2),
-            (7.6, 7.6),
-            "Clinical outcome alignment",
-            [
-                PanelSpec("density", "Density (geometry)", show_background=False),
-                PanelSpec("subset_density", "Death", col="death", color="#D62728"),
-                PanelSpec(
-                    "continuous_median",
-                    "Follow-up time (median)",
-                    col="timey",
-                    cmap="viridis",
-                    colorbar_label="years",
-                    show_background=False,
-                ),
-                PanelSpec(
-                    "subset_density",
-                    "Follow-up available",
-                    col="timey_present",
-                    color="#7F7F7F",
-                ),
             ],
         ),
         (
             "sm_dataset_conditions",
             (1, 4),
             (14.8, 3.9),
-            "Dataset conditions (domain shift)",
+            "Dataset × Chagas conditions",
             [
                 PanelSpec(
                     "subset_density",
@@ -753,7 +719,7 @@ def _default_figures() -> list[
                     vmin=0.9,
                     vmax=1.0,
                     colorbar_label="qc_templatematch_bp",
-                    show_background=False,
+                    show_background=True,
                 ),
                 PanelSpec(
                     "subset_density",

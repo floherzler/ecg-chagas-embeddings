@@ -1,0 +1,35 @@
+\begin{table}[t]
+    \centering
+    \caption{Per-run clinical metrics (compact model labels: track / preprocessing / objective).}
+    \label{tab:cls_per_run}
+    \begin{tabular}{lrrrrr}
+        \toprule
+        model                             & TPR@5\%  & pAUC@5\% & AP       & TPR@10\% & AUROC    \\
+        \midrule
+        \shortstack{t1-bp-bce}            & 0.429185 & 0.311103 & 0.187876 & 0.564071 & 0.833916 \\
+        \shortstack{t1-bp-bce+rot10}      & 0.146536 & 0.112510 & 0.058263 & 0.187002 & 0.600172 \\
+        \shortstack{t1-bp-focal}          & 0.433476 & 0.331012 & 0.208047 & 0.565297 & 0.838842 \\
+        \shortstack{t1-bp-focal+rot10}    & 0.430411 & 0.325340 & 0.203300 & 0.550582 & 0.837121 \\
+        \shortstack{t1-bp-rat}            & 0.397302 & 0.288291 & 0.163050 & 0.517474 & 0.806557 \\
+        \shortstack{t1-bp-rat+rot10}      & 0.259963 & 0.200578 & 0.103194 & 0.304721 & 0.725545 \\
+        \shortstack{t1-bp-sc-bce}         & 0.415083 & 0.300099 & 0.180402 & 0.539546 & 0.825935 \\
+        \shortstack{t1-bp-sc-focal}       & 0.407112 & 0.298358 & 0.179339 & 0.529736 & 0.824108 \\
+        \shortstack{t1-bp-sc-rat}         & 0.421827 & 0.313599 & 0.179356 & 0.539546 & 0.810609 \\
+        \shortstack{t1-bp-sc-norm-bce}    & 0.221337 & 0.133720 & 0.063364 & 0.332311 & 0.696154 \\
+        \shortstack{t1-bp-sc-norm-focal}  & 0.194972 & 0.114648 & 0.052670 & 0.290006 & 0.665121 \\
+        \shortstack{t1-bp-sc-norm-rat}    & 0.133660 & 0.076940 & 0.034613 & 0.207235 & 0.565429 \\
+        \shortstack{t3-bp-supstd}         & 0.384427 & 0.289473 & 0.167758 & 0.475169 & 0.739353 \\
+        \shortstack{t3-bp-supstd+rot10}   & 0.324954 & 0.251878 & 0.148574 & 0.400368 & 0.730569 \\
+        \shortstack{t3-bp-supmin}         & 0.297977 & 0.189006 & 0.090392 & 0.423053 & 0.753015 \\
+        \shortstack{t3-bp-supmin+rot10}   & 0.340895 & 0.244198 & 0.128863 & 0.443286 & 0.743667 \\
+        \shortstack{t3-bp-proto}          & 0.337216 & 0.244772 & 0.134403 & 0.437768 & 0.740868 \\
+        \shortstack{t3-bp-proto+rot10}    & 0.233599 & 0.154540 & 0.077214 & 0.351318 & 0.682539 \\
+        \shortstack{t3-bp-sc-supstd}      & 0.433476 & 0.325637 & 0.196167 & 0.551196 & 0.827146 \\
+        \shortstack{t3-bp-sc-supmin}      & 0.358676 & 0.254263 & 0.135496 & 0.477008 & 0.802921 \\
+        \shortstack{t3-bp-sc-proto}       & 0.402207 & 0.300424 & 0.175568 & 0.524831 & 0.812855 \\
+        \shortstack{t3-bp-sc-norm-supstd} & 0.113427 & 0.058163 & 0.035936 & 0.194359 & 0.629316 \\
+        \shortstack{t3-bp-sc-norm-supmin} & 0.086450 & 0.044236 & 0.028945 & 0.153280 & 0.557511 \\
+        \shortstack{t3-bp-sc-norm-proto}  & 0.079706 & 0.040072 & 0.025226 & 0.141018 & 0.518937 \\
+        \bottomrule
+    \end{tabular}
+\end{table}

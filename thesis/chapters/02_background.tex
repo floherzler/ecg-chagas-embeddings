@@ -3,6 +3,11 @@
 This chapter introduces the core concepts needed to understand the experimental design in Chapter~\ref{ch:methods}.
 The work is conducted in the context of the PhysioNet/Computing in Cardiology Challenge 2025 on Chagas disease detection from ECGs \parencite{2025ChallengePreprint,2025ChallengeCinC}, building on prior deep-learning approaches for ECG-based screening \parencite{jidling_screening_2023}.
 
+\paragraph{Mini-journey from infection to cardiomyopathy (and why screening is hard).}
+Chagas disease begins with an acute infection that is frequently mild or asymptomatic; roughly 60--70\% of infected patients then enter a chronic indeterminate phase with positive serology but normal ECGs and no organ damage, while only a subset (about 20--30\%) develop chronic Chagas cardiomyopathy over years to decades \parencite{chagas_progression_2022,chagas_review_lancet_2024}.
+ECG changes therefore mark \emph{cardiac involvement}, not infection itself, which makes population-wide screening difficult when many infected individuals are asymptomatic and ECG-normal \parencite{chagas_ecg_abnormalities_2018}.
+The practical framing in this thesis is triage: an ECG-based model prioritizes patients for confirmatory serology under a fixed testing capacity (5\% of the population in the challenge setting \parencite{2025ChallengeCinC}).
+
 The core idea is to investigate the interplay between signal preprocessing (harmonization) and learning objectives, analyzing how these factors influence both downstream task performance and the geometric structure of the learned embedding space.
 All experiments utilize a ResNet-18 backbone adapted for 1D time-series data.
 To ensure comparability across tracks, the encoder architecture remains identical; only the final layer is swapped between a classification head (for Tracks 1 and 3) and a projection head (for Track 2).
@@ -15,8 +20,15 @@ If a model exploits these spurious correlations rather than physiological signal
 Consequently, robust embedding diagnostics and groupwise evaluations are essential; they help verify that the model's latent representation clusters examples based on pathology and morphology rather than acquisition source, ensuring that the learned features capture legitimate cardiac electrophysiology.
 
 \section{ECGs, Leads, and Preprocessing}
-This thesis uses standard 12-lead resting ECGs snippets of approximately 7 seconds length. \todo{research which ecg acquisition was used here}
+This thesis uses standard 12-lead resting ECGs snippets of approximately 6.25 seconds length. \todo{research which ecg acquisition was used here}
+\missingfigure{Cabrera circle / lead intuition, is this needed?}
+
+
 The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb_xl}.
+The largest source, CODE-15\%, uses self-reported Chagas labels and therefore introduces additional label noise beyond biological staging effects, whereas SaMi-Trop provides clinically confirmed positives \parencite{ribeiro_code-15_2021,ribeiro_sami-trop_2021}.
+PTB-XL was recorded in Germany between 1989 and 1996 \parencite{wagner_ptb_xl}; given the non-endemic setting and historical period, its labels are treated as negatives in this thesis (an epidemiological assumption rather than a clinical confirmation).
+In such short windows, models primarily rely on beat morphology and frequent rhythm disturbances; in CCC, these abnormalities reflect conduction system injury and myocardial fibrosis, with commonly reported findings including RBBB, LAFB (often combined), ventricular extrasystoles, atrial fibrillation/flutter, and diffuse ST--T or voltage changes \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+Clinical staging further complicates labels: the indeterminate form (Stage A) is seropositive with a normal ECG, whereas early cardiomyopathy (Stage B1) is defined by ECG abnormalities without heart failure, which implies biological label noise when seropositivity is used as a binary target \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
 The dataset is preprocessed into multiple variants to study the trade-off between signal standardization and potential loss of physiologically meaningful variation:
 \begin{itemize}
   \item \textbf{bp}: band-pass filtered signals (aiming for removal of noise and baseline drift).
@@ -46,15 +58,27 @@ Data augmentation is used for two distinct reasons in deep learning pipelines \t
 \end{enumerate}
 This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while the following is designed to mimic specific physiological variability.
 
-\subsection{Physiological motivation for frontal axis rotation}
-One example of physiologically plausible augmentation is variation in the heart's frontal electrical axis.
-Clinically, the limb leads can be viewed as projections of the cardiac dipole onto different axes in the frontal plane; the \emph{Cabrera circle} (hexaxial reference system) provides a convenient visualization of these lead axes as angles around the frontal plane.
-Rotating the frontal axis therefore produces systematic changes in the limb-lead amplitudes and apparent morphology (e.g., relative QRS polarity and magnitude across leads I, II, III, aVR, aVL, aVF), while precordial leads are less directly affected because they primarily capture the horizontal plane and local chest projections.
-In these experiments, the axis-rotation augmentation is treated as dataset expansion: different individuals can have different physiological axis orientations, so moderate rotations are hypothesized to improve robustness without corrupting ECG semantics.
+\subsection{Spatial interpretation of the 12-lead ECG and the cardiac electrical axis}
+The electrical activity of the heart can be modeled as a time-varying dipole vector whose projections onto the body surface are recorded by the standard 12-lead electrocardiogram (ECG).
+In this framework, individual ECG leads do not represent independent signals but rather directional measurements of a common underlying cardiac vector, arranged according to the limb-lead and precordial lead system defined by Einthoven and Goldberger \parencite{SchusterTrappe2024EKGKurs}.
 
-\subsubsection{Vector Cardiogram (VCG)}
-To implement frontal axis rotation, the 12-lead ECG is first transformed into a 3D vector cardiogram (VCG) representation using the inverse Dower transform \todo{add citation here}.
-\missingfigure{side-by-side visualizations of rotated VCG - or rather in methods?}
+Vectorcardiography (VCG) makes this geometric interpretation explicit by reconstructing the cardiac electrical activity in a three-dimensional coordinate system.
+The orthogonal lead system introduced by Frank provides a clinically practical approximation of this representation and has long served as a reference for spatial interpretations of ECG signals \parencite{frank_vcg_1956}.
+Subsequent work demonstrated how conventional ECG leads can be transformed into VCG coordinates using fixed linear projection coefficients, enabling real-time and didactic applications without requiring specialized acquisition hardware \parencite{vcg_conversion_2007}.
+While VCG is not routinely employed in clinical practice, it offers a principled geometric embedding that renders changes in the electrical heart axis explicit.
+
+Variability in cardiac orientation---arising from anatomical differences, respiration, posture, or electrode placement---primarily manifests as changes in the electrical heart axis.
+In vectorcardiographic space, such variability can be interpreted as rotations of the reconstructed cardiac vector.
+Motivated by this interpretation, controlled rotations in VCG space can be regarded as physiologically plausible transformations rather than arbitrary signal perturbations.
+Importantly, the objective of such transformations is not to generate clinically indistinguishable ECG signals, but to probe the robustness of learned representations with respect to orientation-related variability.
+
+Recent work has further reinforced this geometric view by formalizing the structure of the limb leads.
+Building on the historically used Cabrera sequence---a pedagogical reordering of limb leads according to anatomical orientation---Dathe et al.\ proposed a mathematically consistent extension to a continuous angular representation, referred to as the Cabrera Circle \parencite{completing_cabrera_2023}.
+This formulation emphasizes that limb leads can be interpreted as discrete samples of an underlying continuous angular manifold, thereby strengthening the conceptual link between ECG lead geometry and vectorcardiographic representations.
+
+In this work, VCG-based rotations were therefore employed as a data augmentation strategy to assess whether deep learning models trained on ECG data learn representations that are invariant to physiologically plausible changes in cardiac orientation.
+The impact of this augmentation is evaluated empirically through downstream classification performance and embedding-space analyses, rather than through assumptions of clinical equivalence.
+\missingfigure{Minimal Cabrera-circle schematic (schematic, not anatomical).}
 
 
 \section{Learning Tracks}
@@ -323,7 +347,9 @@ Because the positive class is rare, these metrics are treated primarily as \emph
 
 \subsection{Why accuracy is not informative}
 In extremely imbalanced problems, standard accuracy can be misleading: a classifier that predicts the majority class for all samples can achieve high accuracy while being clinically useless.
+More fundamentally, accuracy weights errors in both classes equally, which is not aligned with the screening objective: only the highest-ranked fraction is actionable, and false negatives in that top-$K\%$ region are far more consequential than additional true negatives outside the screening budget.
 Accuracy is therefore logged mainly as a sanity check, while reporting focuses on metrics that reflect ranking quality and low-false-positive screening use cases.
+\todo{erweitern: "Du gehst hauptsächlich auf die majority class Problematik ein, aber könntest nochmal explizit erwähnen, dass beide Klassen gleich behandelt werden, was hier nicht sinnvoll ist"}
 
 % \subsection{Clinical screening interpretation (sketch)}
 % The evaluation setting corresponds to a screening workflow in which only a small subset of patients can be referred for confirmatory testing.

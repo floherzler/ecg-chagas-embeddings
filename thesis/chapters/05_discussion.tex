@@ -1,0 +1,47 @@
+\chapter{Discussion}
+\label{ch:discussion}
+
+This thesis compares supervised classification (Track~1), representation learning (Track~2), and downstream probing of learned representations (Track~3).
+While the same backbone architecture is used throughout for consistency, the tracks answer different questions and should be interpreted accordingly.
+
+\paragraph{Linear probe vs.\ end-to-end classification}
+Track~3 is implemented as a linear evaluation protocol: an encoder pretrained in Track~2 is reused and (by default) frozen, and only a lightweight classifier head is trained to predict the Chagas label.
+This probes whether label information is readily accessible in the learned representation without allowing the encoder to co-adapt to the downstream objective.
+In contrast, Track~1 trains encoder and classifier jointly and therefore reflects the best achievable supervised classifier under the chosen objective and preprocessing.
+Consequently, Track~1 and Track~3 are not an apples-to-apples comparison of classifier performance; Track~3 is primarily used to connect improvements in embedding-space diagnostics to downstream separability.
+
+\paragraph{Clinical label noise and short-window ECGs.}
+The labels in this thesis are based on seropositivity, yet clinical staging defines the indeterminate form (Stage A) as seropositive with a normal ECG and early cardiomyopathy (Stage B1) as the first appearance of ECG abnormalities in a seropositive patient \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
+This creates biological label noise for ECG-based classification because a large fraction of positives may be ECG-normal, while the model's signal is driven by electrophysiological manifestations such as RBBB/LAFB and ventricular ectopy that are typical of CCC \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+In addition, the largest dataset (CODE-15\%) uses self-reported Chagas labels, which introduces extra uncertainty beyond staging effects, whereas SaMi-Trop provides clinically confirmed positives \parencite{ribeiro_code-15_2021,ribeiro_sami-trop_2021}.
+Conversely, PTB-XL provides comparatively clean negatives because it was recorded in Germany (1989--1996), a non-endemic setting, so Chagas labels are treated as negatives on epidemiological grounds \parencite{wagner_ptb_xl}.
+Given short (~6.25~s) windows, the models are inherently biased toward beat morphology and high-burden ectopy rather than low-frequency paroxysmal events, which helps explain why performance is stronger in cohorts enriched for cardiomyopathy and why ranking-based screening is the most clinically plausible objective.
+
+\paragraph{Augmentation strength as a limiting factor.}
+The augmentation suite used in this thesis was intentionally mild (small gain jitter and low-variance Gaussian noise), with stronger perturbations such as time warping, time masking, and channel masking disabled to preserve clinical interpretability.
+While this choice stabilizes supervised training and supports direct waveform interpretation, it may be suboptimal for contrastive representation learning: Track~2 objectives generally benefit from stronger or more diverse view generation to encourage invariances.
+Therefore, some of the observed limits in Track~2 (and downstream Track~3) performance could reflect underpowered augmentations rather than intrinsic limitations of the objectives.
+
+\paragraph{Lead construction and rotation fidelity.}
+All experiments operate on the 12-lead signals as provided by the source datasets; no new leads are re-derived from raw electrode potentials, and the only signal modifications are the defined preprocessing and augmentations.
+Consequently, the axis-rotation augmentation relies on a fixed linear lead model applied to potentially heterogeneous acquisition pipelines and gain calibrations.
+This means the rotation parameters are approximate and may not correspond to a precise physical change in cardiac orientation for every record, which is another reason the rotation should be interpreted as a controlled robustness probe rather than a clinically exact transformation.
+
+\paragraph{Lead selection in ST-DFT-LRP.}
+Beat-level ST-DFT-LRP aggregation in this thesis is restricted to Lead~II, which is a standard rhythm lead and provides a clear P--QRS--T morphology.
+This choice improves feasibility and interpretability but is not optimal for all Chagas-related abnormalities: several structural and conduction manifestations (e.g., bundle-branch patterns or regional ST--T changes) are known to be more prominent in precordial or alternative limb leads.
+Therefore, the lead-II focus should be interpreted as a rhythm-centric view of model attention rather than a comprehensive 12-lead characterization of Chagas cardiomyopathy.
+
+\paragraph{RBBB annotations across datasets.}
+For CODE15, RBBB flags are provided directly in the dataset metadata; for PTB-XL, the closest available analogue used here is \texttt{ptb\_crbbb} derived from \texttt{scp\_codes}.
+This mapping allows coarse, cross-dataset comparisons of bundle-branch related patterns, but should be interpreted cautiously because complete RBBB in PTB-XL is not a perfect substitute for the broader RBBB labels in CODE15.
+
+\paragraph{Architecture-specificity and generalization.}
+All results in this thesis are conditional on a fixed ResNet-18 backbone, chosen to isolate the effects of preprocessing and objective functions rather than to optimize architecture.
+This implies that the reported gains and failure modes are most directly applicable to CNN-style inductive biases that emphasize local morphology and translation invariance.
+Architectures with different temporal aggregation (e.g., attention-based models or dilated TCNs) may emphasize rhythm, interval structure, or long-range dependencies differently, which can change the sensitivity to augmentation, normalization, and dataset bias. \todo{List 1--2 alternative architecture families relevant to ECGs used in your literature scan.}
+In particular, the axis-rotation augmentation may interact differently with models that fuse leads late or model inter-lead correlations explicitly. \todo{Note any lead-fusion strategy differences observed in prior ECG architectures.}
+Future work should therefore validate the key findings (e.g., loss-function effects, preprocessing regimes, rotation robustness) on at least one non-CNN baseline to assess architectural transferability. \todo{Specify a concrete baseline to test (e.g., 1D Transformer, InceptionTime, or a dilated TCN).}
+Future work should revisit augmentation strength in Track~2 specifically, exploring moderate temporal perturbations or structured masking while validating that ECG morphology remains interpretable and physiologically plausible.
+
+\todo{beobachtungen nur für diese resnet18 architektur?}
