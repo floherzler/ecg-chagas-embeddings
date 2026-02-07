@@ -29,7 +29,6 @@ For Track~1, the effect of adding softclipping (\texttt{bp-sc}) depends on objec
 For Track~3, \texttt{bp-sc} improves over \texttt{bp} in all three objective-matched comparisons (\texttt{supstd}, \texttt{supmin}, \texttt{proto}), including the primary endpoint TPR@5\% (0.3844$\rightarrow$0.4335, 0.2980$\rightarrow$0.3587, 0.3372$\rightarrow$0.4022, respectively), with corresponding gains in pAUC@5\%, AP, TPR@10\%, and AUROC.
 Within this single fold-4 sweep, \texttt{supstd} is the strongest Track~3 objective under each preprocessing regime (best TPR@5\% per regime: \texttt{t3-exp01-bp-supstd}=0.3844, \texttt{t3-exp03-bp-sc-supstd}=0.4335, \texttt{t3-exp04-bp-sc-norm-supstd}=0.1134), while \texttt{supmin}/\texttt{proto} remain below these values on the same endpoint.
 In contrast, \texttt{bp-sc-norm} substantially degrades performance in both tracks (best values only 0.2213 TPR@5\% in Track~1 and 0.1134 in Track~3), consistent with over-harmonization removing clinically relevant ranking signal.
-
 Full per-run values are reported in Table~\ref{tab:cls_per_run}.
 
 \input{tables/classification_per_run.tex}
@@ -153,9 +152,7 @@ For GPU class asymmetry, the per-run table shows no strict track-level dominance
 In Track~1, GPU$_0<$GPU$_1$ is typical under \texttt{bp} and \texttt{bp-sc}, with the main reversals concentrated in \texttt{rat} runs (and minor reversals in \texttt{bp-sc-norm}).
 Track~3 shows a similarly mixed pattern, including reversals in selected \texttt{supstd}/\texttt{supmin} variants and near-ties under \texttt{bp-sc-norm}.
 This supports using GPU as a collapse indicator rather than a standalone class-priority metric.
-
 Overall, the per-run embedding table supports prioritizing \texttt{bp} and \texttt{bp-sc} variants for subsequent consistency and plausibility analyses.
-
 Full per-run values are reported in Table~\ref{tab:emb_per_run}.
 
 \input{tables/embedding_per_run.tex}

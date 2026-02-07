@@ -92,7 +92,7 @@
 \section{AI Usage Documentation}
 This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by Freie Universität Berlin).
 
-\subsection{Tools Used}
+\paragraph*{Tools Used}
 \begin{itemize}
   \item \textbf{Name / Provider / Version}: \emph{[e.g., ChatGPT-4 (OpenAI, as of May 2025)]}
   \item \textbf{Period of use}: \emph{[from -- to]}
@@ -111,29 +111,38 @@ This section provides a transparent record of the use of AI tools in the context
   \end{tabular}
 \end{center}
 
-\subsection{How AI Was Used (examples)}
+\paragraph*{How AI Was Used (examples)}
 Below, I document representative prompts and corresponding AI outputs that influenced the working process and/or the submitted thesis.
 The level of detail (e.g., 2--3 typical examples) can be adjusted in consultation with the supervisor.
 
 \paragraph{Example 1.}
 \begin{itemize}
-  \item \textbf{Goal}: \emph{[e.g., draft an outline for the methods section]}
-  \item \textbf{Prompt (excerpt)}: \emph{[insert here]}
-  \item \textbf{AI output (excerpt)}: \emph{[insert here]}
-  \item \textbf{Impact on process/product}: \emph{[Which steps/sections were affected? To what extent?]}
-  \item \textbf{Your revision}: \emph{[How did you verify, adapt, or discard the output?]}
+  \item \textbf{Goal}: Identify additional open-source deep-learning strategies for 1D ECG classification and augmentation beyond the current ResNet-18 setup.
+  \item \textbf{Prompt (excerpt)}: \emph{``Since you are able to search the web, can you suggest some open-source papers for other DL strategies for this 1D ECG data for me to look at?''}
+  \item \textbf{AI output (excerpt)}: A curated list of ECG SSL/representation-learning and time-series baselines with links to papers/code repositories (including augmentation-focused work such as Qiu et al., EMBC 2022).
+  \item \textbf{Impact on process/product}: Used to extend the Discussion (architecture generalization and augmentation limitations) and to add targeted literature citations in Background/Discussion.
+  \item \textbf{Your revision}: Recommendations were filtered for direct relevance to ECG settings and then integrated only where consistent with reported results and thesis scope.
 \end{itemize}
 
 \paragraph{Example 2.}
 \begin{itemize}
-  \item \textbf{Goal}: \emph{[insert here]}
-  \item \textbf{Prompt (excerpt)}: \emph{[insert here]}
-  \item \textbf{AI output (excerpt)}: \emph{[insert here]}
-  \item \textbf{Impact on process/product}: \emph{[insert here]}
-  \item \textbf{Your revision}: \emph{[insert here]}
+  \item \textbf{Goal}: Improve thesis readability and page flow by fixing table/figure placement, heading density in TOC, and oversized composite graphics in Results/Appendix.
+  \item \textbf{Prompt (excerpt)}: \emph{``Please include the referenced tables closer to their point of reference ... move the results tables closer to their place in the text in general.''} and \emph{``The ST-DFT-LRP sample figures are taking up a lot of space ... make them smaller so that 3 fit on the same page and stack them using LaTeX.''}
+  \item \textbf{AI output (excerpt)}: Suggested and applied targeted LaTeX edits (float placement options, grouped figure layouts, caption consolidation, and heading-level demotion from subsection to paragraph* where appropriate).
+  \item \textbf{Impact on process/product}: Improved visual consistency, reduced TOC clutter, better proximity of figures/tables to corresponding interpretation paragraphs, and clearer presentation of stage-wise results.
+  \item \textbf{Your revision}: Final placement and style decisions were manually checked in the compiled PDF and adjusted iteratively based on domain-specific narrative priorities.
 \end{itemize}
 
-\section{Reflection on AI Usage}
+\paragraph{Example 3.}
+\begin{itemize}
+  \item \textbf{Goal}: Verify that methodological descriptions and formulas in the thesis match the actual implementation in scripts and notebooks.
+  \item \textbf{Prompt (excerpt)}: \emph{``Please check if all components of the used formulas in background are explained ...''} and \emph{``Please do the same for methods ... check if they could be better explained.''}
+  \item \textbf{AI output (excerpt)}: Performed code-text consistency checks, identified ambiguous or undefined symbols in formulas, and proposed concrete wording patches aligned with implementation details (e.g., top-$k$ definitions, indexing, stability constants).
+  \item \textbf{Impact on process/product}: Reduced risk of method-reporting mismatch, improved reproducibility of the written methodology, and increased clarity for reviewers.
+  \item \textbf{Your revision}: Final decisions on formula scope and level of mathematical detail were retained by the author to match thesis audience and chapter goals.
+\end{itemize}
+
+\paragraph*{Reflection on AI Usage}
 Guiding questions:
 \begin{itemize}
   \item How did AI usage influence your working process?
@@ -144,7 +153,7 @@ Guiding questions:
 \end{itemize}
 \emph{[Insert 400 word reflection here\todo{write personal reflection}]}
 
-\section{Direct Attribution in the Thesis (note)}
+\paragraph*{Direct Attribution in the Thesis (note)}
 If AI-generated passages were paraphrased or partially adopted, they should be clearly marked in the thesis text (e.g., using a footnote).
 Example:
 \begin{quote}

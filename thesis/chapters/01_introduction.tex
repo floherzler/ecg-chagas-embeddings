@@ -43,10 +43,9 @@ Two properties of the training data complicate optimization and interpretation.
 
 First, the severe class imbalance with only approximately 2~\% positives can cause standard learning objectives to be dominated by easy negatives.
 
-Second, dataset bias and label noise arise because the pooled dataset combines multiple sources with different acquisition pipelines and population characteristics.\todo{look again if i can find documented differences in acquisition or noralization}
+Second, dataset bias and label noise arise because the pooled dataset combines multiple sources with different acquisition contexts (country, cohort composition, and collection period) and different label protocols (self-reported CODE-15\% labels versus clinically verified SaMi-Trop labels).
 Additionally, labels in CODE-15\% are less reliable than clinically validated labels.
 These issues can lead to inflated apparent performance on in-distribution validation while degrading generalization across sources.
-\missingfigure{Dataset overview: sample counts + labels by source, age and sex distributions (CODE-15 vs SaMi-Trop vs PTB-XL).}
 
 \section{Contributions and Thesis Structure}
 This thesis investigates practical strategies for improving model robustness under the constraints of severe class imbalance and dataset bias.
@@ -66,7 +65,7 @@ The resulting models are evaluated on two levels: first, by their clinical ranki
 
 
 Chapter~\ref{ch:methods} details the configuration system and experimental variables used in these tracks.
-\todo{Add a short roadmap sentence: what is in Background vs Methods vs Results vs Discussion.}
+Chapter~\ref{ch:background} introduces clinical and methodological foundations, Chapter~\ref{ch:methods} specifies the experimental and analysis pipeline, Chapter~\ref{ch:results} reports findings across the four-stage evaluation workflow, and Chapter~\ref{ch:discussion} interprets limitations, implications, and future work.
 
 \paragraph{Open-Source Resources}
 To support reproducibility, the codebase, experiment tracking, and project planning are publicly accessible:

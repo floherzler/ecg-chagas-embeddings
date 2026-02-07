@@ -1,6 +1,8 @@
 % Compile with LuaLaTeX (recommended) or XeLaTeX.
 % Keep this file stable; put chapter-specific macros into the chapter file.
 
+\PassOptionsToPackage{dvipsnames}{xcolor}
+
 \usepackage[onehalfspacing]{setspace}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
@@ -14,8 +16,9 @@
 
 % Graphics / tables
 \usepackage{graphicx}
+\usepackage{pdfpages}
 \graphicspath{{figures/}}
-\usepackage[dvipsnames]{xcolor}
+\usepackage{xcolor}
 \usepackage{wrapfig}
 \usepackage{float}
 \usepackage{needspace}

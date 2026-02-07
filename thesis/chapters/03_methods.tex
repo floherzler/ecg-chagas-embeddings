@@ -8,10 +8,12 @@ An individual run combines a base configuration, a track configuration, and an o
 
 \section{Model Architecture}
 A 1D adaptation of the ResNet-18 architecture \parencite{resnet_2015} that operates directly on 12-lead ECG waveforms (Figure~\ref{fig:model_arch}) was implemented.
-\todo{ausführlichere beschreibung der gewählten architektur}
 The network consists of an initial convolutional layer followed by four residual stages, each containing two blocks with 1D convolutions and internal temporal downsampling.
 Global average pooling aggregates the features into a fixed-size vector.
 Depending on the track, this backbone is followed by either a classification head (for classification learning) or a projection head (for contrastive learning).
+For Track~1/3, the classification head is a linear logit layer on the pooled embedding.
+For Track~2, the projection head maps the pooled embedding to a normalized contrastive space used by the TTC objectives.
+All tracks share the same encoder depth and channel progression so that observed differences can be attributed to preprocessing, augmentations, and loss design rather than backbone capacity.
 
 \begin{figure}[htbp]
   \centering
@@ -91,14 +93,14 @@ Experiments read preprocessed tensors directly from disk for efficiency.
 
 \paragraph{Band-pass filtering.}
 Filtering is implemented as a linear-phase FIR band-pass using \texttt{scipy.signal.firwin}, applied with zero-phase \texttt{filtfilt} to avoid phase distortion.
-Cutoffs are $0.67$--$45$\,Hz (motivated by the Zhao et al.\ ECG quality work and the defaults used in NeuroKit2/BioSPPy-style preprocessing) \todo{Add citations for Zhao et al.\ and NeuroKit2 / BioSPPy}.
+Cutoffs are $0.67$--$45$\,Hz (motivated by Zhao-style ECG quality preprocessing and the practical defaults used in NeuroKit2/BioSPPy-style workflows).
 The tap length is set to $\lfloor 1.5 \cdot f_s \rfloor$ with odd length enforced ($f_s=400$\,Hz after resampling); taps are reduced for short signals to fit the record length.
 
 \paragraph{Soft clipping.}
 Soft clipping is a smooth saturation transform \texttt{softclip}(x; a,b,c) applied per lead.
 Lower/upper bounds $(a,b)$ are estimated from training folds only (0--3) by computing per-record $p_1/p_{99}$ and then taking the global 5th percentile of $p_1$ and 95th percentile of $p_{99}$ per lead.
 The shape parameter is $c=\log(2)/\left(2/(e^2+1)\right)$ (as implemented in code), and each lead is scaled by $\max(|a|,|b|)$ to keep amplitudes comparable across leads.
-\todo{find citation for this, Nabil sent me an article}
+This transform is used here as an engineering stabilization step for extreme outliers, not as a claimed clinical signal model.
 
 \paragraph{Robust per-lead normalization.}
 The \textbf{bp\_sc\_norm} regime applies per-record, per-lead robust normalization:
@@ -108,19 +110,17 @@ The \textbf{bp\_sc\_norm} regime applies per-record, per-lead robust normalizati
 where $\mathrm{IQR} = p_{75}-p_{25}$. No population-level statistics are used.
 
 \section{Augmentations}
-\subsection{Default augmentations}
+\paragraph*{Default augmentations}
 Training uses mild augmentations to improve robustness without distorting ECG morphology:
 \begin{itemize}
   \item \textbf{Amplitude scaling:} multiplicative gain jitter. \textbf{bp} uses $[0.95,1.05]$, \textbf{bp\_sc} uses $[0.975,1.025]$, and \textbf{bp\_sc\_norm} disables scaling ($[1.0,1.0]$) to preserve the intent of robust normalization.
   \item \textbf{Gaussian noise:} additive noise with $\sigma=0.005$ (per-view by default).
 \end{itemize}
-Stronger transforms are explicitly disabled in the main experiments: time warping (max\_time\_warp $=0$), time masking (max\_mask\_duration $=0$), channel masking (mask\_prob $=0$), and baseline-wander augmentation (wandering amplitude $=0$). This preserves interpretability and avoids injecting artifacts not supported by the target clinical setting.
-\todo{Add citations for augmentation choices in ECG (e.g., mild gain/noise vs. masking/warping).}
+Stronger transforms are explicitly disabled in the main experiments: time warping (max\_time\_warp $=0$), time masking (max\_mask\_duration $=0$), channel masking (mask\_prob $=0$), and baseline-wander augmentation (wandering amplitude $=0$). This preserves interpretability and avoids injecting artifacts not supported by the target clinical setting, in line with broader ECG augmentation reviews and benchmark studies \parencite{rahman_ecg_augmentation_survey_2023,qiu_augmentation_2022}.
 
-\subsection{Physiological augmentation (rotation)}
-For the \textbf{bp} regime only, we optionally apply a random rotation of the frontal electrical axis. This augmentation simulates valid physiological variation by projecting the cardiac dipole onto the limb leads at a slightly perturbed angle (implementation: approximate frontal-axis rotation in VCG space and mapping back to 12-lead ECG).
+\paragraph*{Physiological augmentation (rotation)}
+For the \textbf{bp} regime only, we optionally apply a random rotation of the frontal electrical axis. This augmentation simulates valid physiological variation by projecting the cardiac dipole onto the limb leads at a slightly perturbed angle (implementation: approximate frontal-axis rotation in VCG space and mapping back to 12-lead ECG), consistent with recent ECG rotation-style augmentation proposals \parencite{qiu_augmentation_2022}.
 Axis rotation is enabled only in the \texttt{rot10} runs (maximum absolute rotation $10^\circ$, applied with probability 1), and kept off for \textbf{bp\_sc} and \textbf{bp\_sc\_norm} because the nonlinear preprocessing steps can break the linearity assumptions required for a physically meaningful rotation.
-\todo{insert a graphic here how the signal changes per lead when rotated}
 
 \paragraph{Implementation details and lead usage.}
 The implementation assumes the standard 12-lead order
@@ -168,7 +168,9 @@ The evaluation pipeline generates:
   \item \textbf{Embedding Diagnostics:} A fixed subset of the test fold (the "probe set") is used to compute geometric metrics (CAC, CAD) and visualize the latent space using UMAP and PCA.
   \item \textbf{Consistency Analysis:} We measure the agreement between different models using ranking correlations and intersection-over-union of the top-5\% predictions.
 \end{itemize}
-For consistency analysis, let \(s_m(i)\) denote model \(m\)'s score for sample \(i\), and let \(T_m\) be the top-5\% set of model \(m\).
+For consistency analysis, let \(s_m(i)\) denote model \(m\)'s score for sample \(i\), where \(i\in\{1,\dots,N\}\) indexes test samples and \(m\) indexes models.
+Let \(T_m\) be model \(m\)'s top-5\% screening set.
+For model pair \((a,b)\), \(\mathrm{corr}(\cdot,\cdot)\) denotes Spearman rank correlation over all \(N\) samples, and \(\mathrm{corr}_{\tau}(\cdot,\cdot)\) denotes Kendall's \(\tau\) rank correlation on a shared subset.
 We use three complementary agreement measures:
 \[
   \rho_{ab}=\mathrm{corr}\!\left(\mathrm{rank}(s_a),\,\mathrm{rank}(s_b)\right)
@@ -181,10 +183,10 @@ We use three complementary agreement measures:
 \[
   \tau_{ab}=\mathrm{corr}_{\tau}\!\left(\mathrm{rank}_{T_a\cap T_b}(s_a),\,\mathrm{rank}_{T_a\cap T_b}(s_b)\right)
 \]
-(Kendall's \(\tau\): ordering agreement inside the shared top-5\% subset).
+(Kendall's \(\tau\): ordering agreement inside the shared top-5\% subset \(T_a\cap T_b\)).
 This ensures that all reported comparisons between tracks and preprocessing methods are based on identical test data and metric definitions.
 
-\subsection{Robust rank aggregation (RRA)}
+\paragraph*{Robust rank aggregation (RRA)}
 Beyond pairwise agreement metrics, robust cross-model candidates are extracted with Robust Rank Aggregation (RRA) \parencite{rra_kolde_2012}, using the Python package \texttt{PyFLAGR} \parencite{pyflagr_2023}.
 Implementation follows the analysis script \texttt{scripts/analysis/compute\_ranking\_agreement.py} on the full held-out test fold rankings.
 
@@ -198,7 +200,7 @@ These RRA outputs are used as a conservative robustness layer for sample priorit
 Because the clinical objective is screening-oriented and focused on identifying true positives in the top-ranked fraction (TPR@5\%), embedding diagnostics for class~1 are treated as primary in downstream interpretation.
 Class~0 diagnostics are still reported for completeness, but are considered secondary because ranking quality within the large negative remainder outside the selected top fraction is not the central decision target in this task.
 
-\subsection{Label-strength split and quality analysis}
+\paragraph*{Label-strength split and quality analysis}
 For subgroup analyses, we define a \emph{verified} subset as PTB-XL negatives plus SaMi-Trop positives, and contrast it with CODE-15 (mixed/self-reported labels).
 Clinical metrics (TPR@5\%, pAUC@5\%, AP) are computed separately for verified and CODE-15 partitions and summarized by track and preprocessing.
 
@@ -216,7 +218,7 @@ These analyses are descriptive and intended to support interpretation of dataset
 \section{ST-DFT-LRP for XAI}
 \paragraph{Implementation source.}
 ST-DFT-LRP is implemented using the official DFT-LRP repository (integrated as a submodule) to ensure fidelity to the method definition.
-\todo{Insert repository citation and URL.}
+Repository URL: \url{https://github.com/jvielhaben/DFT-LRP}.
 The method is applied to model relevance in the time domain and mapped into a short-time frequency grid using window width $H$ and shift $D$.
 In this thesis, $f_s=400$\,Hz, a rectangular ST-DFT window with $H=125$ samples is used, and non-overlapping windows are enforced via $D=H$ (implemented with \texttt{window\_shift}=1 in the upstream DFT-LRP API).
 Frequency-domain summaries and perturbation checks are restricted to the same passband as preprocessing (0.67--45\,Hz) for consistency.
@@ -227,7 +229,6 @@ For individual ECGs, we visualize a composite view consisting of:
 (ii) the time-domain signal with signed relevance overlay, and
 (iii) the frequency spectrum with signed relevance overlay.
 These panels provide a compact visual summary of where relevance concentrates in time and frequency.
-\missingfigure{Composite ST-DFT-LRP visualization for representative samples from each dataset.}
 
 \paragraph{Quantitative aggregation into 4$\times$4 grids.}
 To enable comparisons across samples and groups, ST-DFT-LRP relevance is aggregated into a fixed 4$\times$4 matrix:
@@ -239,7 +240,8 @@ Within each cell, relevance is summarized using a signed-balance statistic
 \[
   \mathrm{balance} = \frac{\sum R}{\sum |R| + \epsilon},
 \]
-yielding values in $[-1,1]$ that encode directional relevance while normalizing magnitude across beats.
+where the sums run over all time-frequency bins assigned to that cell and \(\epsilon>0\) is a small numerical-stability constant.
+This yields values in $[-1,1]$ that encode directional relevance while normalizing magnitude across beats.
 Beat-level matrices are normalized and averaged across beats.
 For this thesis, ST-DFT-LRP is computed on a single representative precordial lead (V2; index 7) for all models; lead-importance statistics (mass, entropy, top-$k$) are still computed across all 12 leads from time-domain relevance.
 Beat segmentation and delineation use NeuroKit2 with DWT delineation (\texttt{ecg\_delineate}, method=\texttt{dwt}) and beat windows from \texttt{ecg\_segment}.
@@ -254,7 +256,6 @@ To avoid cherry-picking and keep comparisons reproducible, qualitative ST-DFT-LR
   \item \textbf{Deterministic ranking pick:} within each stratum, candidates are sorted by robust rank and the top \(N\) are chosen (default \(N=1\)); for \texttt{robust\_neg}, sorting is inverted to prioritize robust negatives at the corresponding rank extreme.
 \end{itemize}
 This policy is implemented in the notebook export pipeline and writes explicit metadata tables (sample ID, dataset, label, robust set, quality, robust rank, baseline predicted probability) for thesis traceability.
-\missingfigure{Example 4$\times$4 relevance grid and group-mean comparisons.}
 
 \paragraph{Lead diagnostics.}
 For each sample, lead relevance mass is summarized to compute lead-importance statistics (per-lead mass distribution, entropy, and top-$k$ leads).
@@ -268,4 +269,5 @@ For each run, the pipeline writes a per-sample CSV (\texttt{stdftlrp\_beat\_agg.
 (iv) frequency-only relevance summaries.
 A separate summarization script aggregates these per-model CSVs into non-overlapping group comparisons (e.g., dataset $\times$ label) to facilitate cross-model comparisons without re-running ST-DFT-LRP.
 For matched cross-preprocessing case studies, robust RRA candidates are intersected with the per-run ST-DFT-LRP availability set using \texttt{scripts/analysis/select\_stdftlrp\_matched\_robust\_samples.py}, yielding samples that exist in all compared runs.
-\todo{Add a short description of the chosen grouping strategy and any excluded models.}
+For group summaries in this thesis, comparisons are reported on dataset$\times$label strata (PTBXL/chagas=0, CODE15/chagas=0, CODE15/chagas=1, SAMITROP/chagas=1), matching the available label structure across sources.
+Runs that fail ST-DFT-LRP export or do not provide the required matched samples for a given comparison are excluded from that specific summary table/figure and listed as unavailable in the generated artifacts.

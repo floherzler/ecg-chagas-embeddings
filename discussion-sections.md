@@ -1,0 +1,85 @@
+# Discussion Sections (Draft for Sören)
+
+- 1. Validity and Scope of Inference
+  - 1.1 What the tracks actually measure
+    - Track 1 (end-to-end) estimates best supervised screening utility under this pipeline.
+    - Track 3 (linear probe) tests label accessibility in frozen embeddings, not best classifier performance.
+    - Therefore, T1 vs T3 is interpretive, not a direct winner/loser benchmark.
+  - 1.2 Inference boundary of this thesis
+    - Results are conditional on one held-out fold (fold 4), challenge-aligned but not leaderboard-equivalent.
+    - Claims should be framed as within-cohort evidence and hypothesis-strengthening for external validation.
+  - 1.3 Clinical-label mismatch and asymmetry
+    - Seropositivity is not equivalent to ECG abnormality in short windows.
+    - Class 0 uncertainty can be large by volume (CODE-15 dominance, self-report noise).
+    - Class 1 can include true positives with ECG-normal windows (stage-related biological ambiguity).
+  - 1.4 Dataset provenance and epidemiologic assumptions
+    - CODE-15: self-reported labels; SaMi-Trop: verified positives; PTB-XL: epidemiologic negatives.
+    - This asymmetry is core context for interpreting both utility and embedding behavior.
+  - 1.5 Metadata normality vs computed quality are distinct constructs
+    - `normal_ecg` (metadata coding) and Zhao2018 quality (signal quality) should not be conflated.
+    - PTB-XL strict `NORM=100` is conservative and may undercount mostly-normal records.
+
+- 2. Methodological Robustness
+  - 2.1 Agreement metrics and top-5% stability limits
+    - Spearman: global ranking agreement.
+    - IoU: overlap of selected top-5% cohort.
+    - Kendall tau: ordering stability within overlap.
+    - Key finding: global agreement can coexist with unstable boundary selection near top-5%.
+  - 2.2 Consensus and threshold interpretation
+    - Consensus thresholds (`c_i >= 8`, `c_i >= 16`) are pragmatic operating filters, not theoretical optima.
+    - Borderline candidates around cutoff are model/preprocessing sensitive.
+  - 2.3 RRA interpretation and dependency on model pool
+    - RRA robust sets are robust relative to input ranked lists only.
+    - Including all runs improves consistency across stages but allows weak/collapsed runs to affect robust sets.
+    - Filtered-pool RRA sensitivity analysis is a high-priority next test.
+  - 2.4 Distribution-shape caution for RRA ridges
+    - Dataset-specific ridge differences are descriptive evidence of heterogeneity.
+    - Strong shape claims are limited by severe subset size imbalance (especially SaMi-Trop/PTB-XL subsets).
+  - 2.5 Preprocessing regime robustness
+    - `bp` and `bp-sc` remain viable for utility and embedding health.
+    - `bp-sc-norm` repeatedly shows collapse-like behavior and degraded screening utility.
+  - 2.6 Augmentation regime as bottleneck
+    - Mild views improved interpretability but likely underpowered contrastive invariance learning.
+    - SAA can be brittle under very mild view generation; CAC + downstream ranking are stronger anchors.
+  - 2.7 TTC transferability caveat
+    - TTC objective ordering (proto strongest in their setting) did not transfer to this ECG setting on fold 4.
+    - Objective rankings are domain/task/augmentation dependent and must be validated in-task.
+
+- 3. Interpretability and Mechanistic Plausibility
+  - 3.1 Scope of ST-DFT-LRP evidence
+    - Used as plausibility evidence, not causal proof of mechanism.
+    - Perturbation curves support sensitivity, not standalone robustness certification.
+  - 3.2 Lead focus and mechanistic limits
+    - Stage-4 aggregation is centered on V2 for feasibility/consistency.
+    - V2 is consistently high but not uniformly dominant (V3 often top-1 under mild preprocessing).
+    - Conclusions should be framed as targeted precordial plausibility, not full 12-lead mechanistic mapping.
+  - 3.3 Sample selection transparency
+    - Main qualitative set uses rule-based, predeclared robust+quality filters to reduce cherry-picking.
+    - Appendix adds raw score-extreme examples to show what per-model extremes look like.
+    - Robust consensus examples and score extremes are complementary and should not be treated as equivalent.
+  - 3.4 Cross-dataset phenotype proxy caveat
+    - RBBB mapping is approximate across datasets (`rbbb` vs PTB-XL SCP-derived proxy), useful but not identical.
+
+- 4. External Validity and Next Extensions
+  - 4.1 Architecture boundary
+    - Findings are tied to fixed ResNet-18 settings in this thesis.
+    - Replication on at least one non-ResNet baseline (e.g., InceptionTime/TCN/Transformer) is needed.
+  - 4.2 Shortcut/leakage checks before scaling capacity
+    - Add source-ID probe on frozen embeddings for each run.
+    - Report source predictability jointly with CAC/SAA and screening metrics.
+    - If source predictability stays high without utility gains, treat gains as potential shortcut amplification.
+  - 4.3 Uncertainty quantification
+    - Add repeated-split/bootstrap intervals for agreement metrics and RRA stability.
+    - Quantify top-5% boundary instability with confidence intervals.
+  - 4.4 RRA sensitivity and pool composition
+    - Compare all-model RRA vs filtered-model RRA (exclude collapse-prone runs).
+    - Measure overlap/divergence of selected robust sets and downstream XAI conclusions.
+  - 4.5 Augmentation redesign
+    - Test stronger but physiologically constrained augmentations for Track 2.
+    - Reassess objective ordering under revised view difficulty and preprocessing controls.
+
+- 5. Practical Message for This Thesis
+  - The strongest levers observed here are preprocessing regime and objective behavior, not architecture scaling.
+  - Quality/metadata context must be treated as first-class covariates in interpretation.
+  - Robust sample selection is useful operationally, but remains conditional on model-pool quality.
+  - Stage-4 XAI results are meaningful as structured plausibility evidence when framed with these limits.

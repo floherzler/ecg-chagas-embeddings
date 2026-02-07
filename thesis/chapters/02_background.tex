@@ -21,8 +21,8 @@ If a model exploits these spurious correlations rather than physiological signal
 Consequently, robust embedding diagnostics and groupwise evaluations are essential; they help verify that the model's latent representation clusters examples based on pathology and morphology rather than acquisition source, ensuring that the learned features capture legitimate cardiac electrophysiology.
 
 \section{ECGs, Leads, and Preprocessing}
-This thesis uses standard 12-lead resting ECGs snippets of approximately 6.25 seconds length. \todo{research which ecg acquisition was used here}
-\missingfigure{Cabrera circle / lead intuition, is this needed?}
+This thesis uses standard 12-lead resting ECG snippets of approximately 6.25 seconds after harmonization.
+Source datasets use slightly different acquisition settings (e.g., PTB-XL provides 10-second recordings at 500\,Hz, with an additional 100\,Hz version \parencite{wagner_ptb_xl}); in this thesis, all sources are standardized to a common 400\,Hz representation and fixed-length windows for consistent cross-dataset training and analysis.
 
 
 The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb_xl}.
@@ -30,6 +30,41 @@ The largest source, CODE-15\%, uses self-reported Chagas labels and therefore in
 PTB-XL was recorded in Germany between 1989 and 1996 \parencite{wagner_ptb_xl}; given the non-endemic setting and historical period, its labels are treated as negatives in this thesis (an epidemiological assumption rather than a clinical confirmation).
 In such short windows, models primarily rely on beat morphology and frequent rhythm disturbances; in CCC, these abnormalities reflect conduction system injury and myocardial fibrosis, with commonly reported findings including RBBB, LAFB (often combined), ventricular extrasystoles, atrial fibrillation/flutter, and diffuse ST--T or voltage changes \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
 Clinical staging further complicates labels: the indeterminate form (Stage A) is seropositive with a normal ECG, whereas early cardiomyopathy (Stage B1) is defined by ECG abnormalities without heart failure, which implies biological label noise when seropositivity is used as a binary target \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
+
+\paragraph{Dataset composition and metadata baseline.}
+To ground later model-level results, fold-level dataset composition and metadata baselines are summarized in Figure~\ref{fig:bg-datasets-overview}.
+The fold-share heatmap checks that source proportions are broadly stable across folds.
+The fold-4 label-balance plot makes the mono-label nature of PTB-XL (negative-only) and SaMi-Trop (positive-only) explicit, while showing the mixed-label CODE-15 partition.
+Finally, the metadata-only normal-ECG baseline shows that SaMi-Trop has a lower normal-ECG share than CODE-15 and PTB-XL, which motivates later separation of metadata effects from model-derived quality and relevance analyses.
+
+\IfFileExists{figures/generated/datasets_overview/fold_share_by_source_heatmap.png}{
+  \begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/generated/datasets_overview/fold_share_by_source_heatmap.png}{
+      \begin{minipage}{0.95\textwidth}
+        \centering
+        \includegraphics[width=0.72\textwidth]{figures/generated/datasets_overview/fold_share_by_source_heatmap.png}
+      \end{minipage}
+      \par\vspace{0.6em}
+    }{}
+    \IfFileExists{figures/generated/datasets_overview/fold4_label_balance_by_source.png}{
+      \begin{minipage}{0.95\textwidth}
+        \centering
+        \includegraphics[width=0.72\textwidth]{figures/generated/datasets_overview/fold4_label_balance_by_source.png}
+      \end{minipage}
+      \par\vspace{0.6em}
+    }{}
+    \IfFileExists{figures/generated/datasets_overview/fold4_metadata_normal_ecg_by_source.png}{
+      \begin{minipage}{0.95\textwidth}
+        \centering
+        \includegraphics[width=0.72\textwidth]{figures/generated/datasets_overview/fold4_metadata_normal_ecg_by_source.png}
+      \end{minipage}
+    }{}
+    \caption{Metadata overview used as context for later model analyses (top-to-bottom): (i) within-source fold share across all folds, (ii) fold-4 Chagas label share by source, and (iii) fold-4 metadata-defined normal-ECG share by source. PTB-XL normal ECG is defined with a strict \texttt{NORM=100.0} criterion from \texttt{scp\_codes}.}
+    \label{fig:bg-datasets-overview}
+  \end{figure}
+}{}
+
 The dataset is preprocessed into multiple variants to study the trade-off between signal standardization and potential loss of physiologically meaningful variation:
 \begin{itemize}
   \item \textbf{bp}: band-pass filtered signals (aiming for removal of noise and baseline drift).
@@ -52,14 +87,14 @@ To ensure rigorous comparability and prevent preprocessing leakage, these transf
 This guarantees that the exact same signal conditioning pipeline is applied deterministically across training, validation, and test splits, isolating the effect of the preprocessing regime from stochastic training variations.
 
 \section{Augmentations for Deep Learning}
-Data augmentation is used for two distinct reasons in deep learning pipelines \todo{do i need another citation apart from jabareen 2026?}:
+Data augmentation is used for two distinct reasons in deep learning pipelines \parencite{rahman_ecg_augmentation_survey_2023,qiu_augmentation_2022}:
 \begin{enumerate}
   \item \textbf{Teach the model what \emph{not} to learn (invariances).} Augmentations inject realistic nuisance factors (noise, small gain changes, minor timing perturbations), encouraging the representation to be indifferent to acquisition artefacts and non-diagnostic variability.
   \item \textbf{Teach the model what to learn (effective dataset expansion).} Augmentations can also represent plausible physiological variation that is underrepresented in the data, increasing coverage of the target distribution and improving generalization.
 \end{enumerate}
 This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while the following is designed to mimic specific physiological variability.
 
-\subsection{Spatial interpretation of the 12-lead ECG and the cardiac electrical axis}
+\subsection{Spatial Interpretation of the 12-Lead ECG and the Cardiac Electrical Axis}
 The electrical activity of the heart can be modeled as a time-varying dipole vector whose projections onto the body surface are recorded by the standard 12-lead electrocardiogram (ECG).
 In this framework, individual ECG leads do not represent independent signals but rather directional measurements of a common underlying cardiac vector, arranged according to the limb-lead and precordial lead system defined by Einthoven and Goldberger \parencite{SchusterTrappe2024EKGKurs}.
 
@@ -79,6 +114,7 @@ This formulation emphasizes that limb leads can be interpreted as discrete sampl
 
 In this work, VCG-based rotations were therefore employed as a data augmentation strategy to assess whether deep learning models trained on ECG data learn representations that are invariant to physiologically plausible changes in cardiac orientation.
 The impact of this augmentation is evaluated empirically through downstream classification performance and embedding-space analyses, rather than through assumptions of clinical equivalence.
+\todo{Add an illustrative figure showing the same ECG before vs.\ after VCG heart-axis rotation (e.g., lead-wise overlay for a representative sample).}
 \missingfigure{Minimal Cabrera-circle schematic (schematic, not anatomical).}
 
 
@@ -109,7 +145,7 @@ All figures reproduced from \textcite{ttc_2025} (Figures \ref{fig:ttc-imbalance}
   \label{fig:ttc-imbalance}
 \end{figure}
 
-\subsection{Traditional diagnostics: SAD and CAD}
+\subsection{Traditional Diagnostics: SAD and CAD}
 TTC discusses two intuitive diagnostics that are commonly used to summarize contrastive representation quality:
 \begin{itemize}
   \item \textbf{Sample Alignment Distance (SAD)}: how close two augmented views of the \emph{same} sample are in embedding space (smaller is better alignment).
@@ -117,7 +153,7 @@ TTC discusses two intuitive diagnostics that are commonly used to summarize cont
 \end{itemize}
 However, these distances can be misleading under partial collapse: distances may look ``good'' even when the embedding space is poorly structured for downstream separation.
 
-\subsection{Improved diagnostics: SAA and CAC}
+\subsection{Improved Diagnostics: SAA and CAC}
 To better detect collapse and capture separability, TTC introduces metrics based on local-neighborhood structure:
 \begin{itemize}
   \item \textbf{Sample Alignment Accuracy (SAA)}: a nearest-neighbor retrieval accuracy that tests whether a view's nearest neighbor corresponds to the \emph{other view of the same sample}. This is harder to satisfy under collapse than simply minimizing distances.
@@ -136,7 +172,7 @@ Figure~\ref{fig:ttc-metrics} summarizes why SAD/CAD can be overly optimistic and
 In addition to alignment, representation learning benefits from \emph{uniformity}: embeddings should not collapse into a small region of the space.
 TTC uses Gaussian potential uniformity (GPU), which penalizes high potential under a Gaussian kernel (lower indicates a more uniformly spread set of embeddings) \parencite{ttc_2025}.
 
-\subsection{Imbalance-aware SupCon methods}
+\subsection{Imbalance-Aware SupCon Methods}
 Finally, TTC proposes two strategies to adapt supervised contrastive learning to binary imbalance.
 These are treated as baselines for Track~2 and compared to standard SupCon; Figure~\ref{fig:ttc-methods} provides the conceptual overview \parencite{ttc_2025}.
 
@@ -177,9 +213,7 @@ This is particularly useful in multi-source ECG settings where spurious dataset 
 To motivate later beat-level aggregation, this thesis uses NeuroKit2 beat-structure primitives:
 \texttt{ecg\_segment} (beat-aligned windows around detected R-peaks) and \texttt{ecg\_delineate} (P/QRS/T onset-offset markers).
 Conceptually, delineation defines physiologic segment boundaries while segmentation provides a beat-consistent indexing frame, which together justify aggregation from dense ST-DFT-LRP maps into fixed segment$\times$band summaries.
-\todo{Add citations to the DFT-LRP / ST-DFT-LRP paper and the official code repository.}
-\missingfigure{DFT-LRP composite: time--frequency relevance with time trace and spectrum.}
-\missingfigure{Example 4$\times$4 relevance summary heatmap (P/QRS/T/Between $\times$ frequency bands).}
+In this thesis, ST-DFT-LRP is applied via the official DFT-LRP implementation used in the project codebase (Git submodule: \url{https://github.com/jvielhaben/DFT-LRP}).
 \IfFileExists{figures/generated/xai_rule_based/xai_rule_based_background.tex}{
   \input{figures/generated/xai_rule_based/xai_rule_based_background.tex}
 }{}
@@ -189,9 +223,9 @@ The Track~1 label distribution is highly imbalanced, so a standard (unweighted) 
 Therefore, loss functions are used that (i) counter class imbalance directly and/or (ii) focus learning on the high-score region that matters most for the challenge-aligned operating point (TPR at a fixed low false-positive rate).
 This section summarizes the three objectives used in Track~1: weighted binary cross entropy (wBCE), focal loss, and the ranking-aware Tversky (RAT) loss proposed for the PhysioNet Challenge (\textcite{rat2025}).
 
-\subsection{Weighted binary cross entropy (wBCE)}
+\paragraph*{Weighted binary cross entropy (wBCE)}
 Let $y \in \{0,1\}$ be the label, $z \in \mathbb{R}$ the model logit, and $p=\sigma(z)$ the predicted probability.
-Weighted BCE with a positive-class weight $w_{+}>0$ is defined as \todo{queck if correct}
+Weighted BCE with a positive-class weight $w_{+}>0$ is defined as
 \begin{equation}
   \mathcal{L}_{\text{wBCE}}(z,y)
   = - \left( w_{+}\, y \log p + (1-y)\log(1-p) \right).
@@ -205,7 +239,7 @@ using PyTorch's \texttt{BCEWithLogitsLoss(pos\_weight=$w_{+}$)}, i.e., a numeric
 % so that positive and negative examples contribute gradients on a similar scale.
 In Track~1, $w_{+}=49$ is used (roughly corresponding to a positive prevalence of about $2\%$ over the entire dataset).%
 
-\subsection{Focal loss}
+\paragraph*{Focal loss}
 Focal loss reshapes the BCE objective such that well-classified samples receive less weight, preventing the large number of easy negatives from overwhelming the gradient \parencite{focal_2018}.
 Define
 \begin{equation}
@@ -231,7 +265,7 @@ The focal loss for a single example is
 which reduces to standard (balanced) BCE when $\gamma=0$.
 In Track~1, $\alpha=0.75$ and $\gamma=1.5$ are used.
 
-\subsection{Ranking-aware Tversky (RAT) loss}
+\paragraph*{Ranking-aware Tversky (RAT) loss}
 The challenge metric emphasizes performance at a low false-positive operating point, so the model should primarily be optimized for \emph{ranking quality} in the high-score region rather than minimizing average error uniformly over all samples.
 RAT operationalizes this idea by three design choices: (i) emphasizing the most confident predictions via a soft top-$k$ mechanism, (ii) discouraging premature overconfidence through an entropy regularizer, and (iii) maintaining training stability with an auxiliary BCE anchor term \parencite{rat2025}.
 
@@ -251,6 +285,7 @@ Following the focal-Tversky idea \parencite{focal_tversky_2018}, a focal exponen
 
 \paragraph{Soft top-$k$ selection (ranking awareness).}
 To focus the objective on the region that influences thresholded metrics, RAT computes TP/FP/FN only on a soft approximation of the top-$k$ predictions in the batch.
+Let $B$ be the batch size, let $r\in(0,1]$ denote the selected top fraction, and set $k=\lfloor rB \rfloor$.
 Let $q$ be the $k$-th largest predicted probability in a batch (i.e., the minimum of the top-$k$ values), and define a differentiable selection mask
 \begin{equation}
   m_i = \sigma\!\left(\frac{p_i - q}{\tau}\right),
@@ -273,7 +308,7 @@ RAT therefore adds two stabilizers:
   \item \textbf{Entropy regularization} on the prediction distribution to discourage premature saturation of $p_i$ to 0/1 and keep the soft mask informative.
         We use the Bernoulli entropy
         \begin{equation}
-          H(p) = -\frac{1}{B}\sum_i \Bigl( p_i\log(p_i+\varepsilon) + (1-p_i)\log(1-p_i+\varepsilon)\Bigr),
+          H(p) = -\frac{1}{B}\sum_{i=1}^{B} \Bigl( p_i\log(p_i+\varepsilon) + (1-p_i)\log(1-p_i+\varepsilon)\Bigr),
           \label{eq:rat-entropy}
         \end{equation}
         with small $\varepsilon$ for numerical stability, and subtract it from the loss (equivalently, maximize $H(p)$) to prevent the model from collapsing to extreme probabilities too early.
@@ -294,7 +329,7 @@ The full RAT objective is then
 The default RAT configuration uses
 \begin{itemize}
   \item $\alpha_{\mathrm{tv}}=0.6$ and $\beta_{\mathrm{tv}}=0.4$ (stronger penalty on false positives to reflect the low-FPR operating point),
-  \item $\gamma_{\mathrm{tv}}=1.0$, $s=0.1$, $k=0.05$ (top 5\% of the batch), and $\tau=0.1$,
+  \item $\gamma_{\mathrm{tv}}=1.0$, $s=0.1$, $r=0.05$ (top 5\% of the batch, with $k=\lfloor rB \rfloor$), and $\tau=0.1$,
   \item $\lambda_{\text{ent}}=0.005$ and $\lambda_{\text{bce}}=0.1$, with $w_{+}=49$ for the anchor term.
 \end{itemize}
 
@@ -306,12 +341,10 @@ Track~2 uses a projection head and contrastive objectives to encourage embedding
   \item \textbf{Prototype-based supervision}: class prototypes that act as anchors in representation space.
 \end{itemize}
 
-\subsection{Track~2 contrastive objectives (sketch)}
+\subsection{Track~2 Contrastive Objectives (Sketch)}
 \label{sec:track2-objectives}
 This section summarizes the key contrastive objectives used in Track~2 and highlights the differences between the standard supervised contrastive objective and the imbalance-oriented variants proposed in TTC \parencite{ttc_2025}.
-\todo{add citations for NT-Xent/InfoNCE (e.g., SimCLR) and supervised contrastive learning (SupCon)?}
-
-\paragraph{Notation.}\todo{is this overkill?}
+\paragraph{Notation.}
 Let a minibatch contain $N$ original samples $\{x_i\}_{i=1}^{N}$ with labels $y_i \in \{0,1\}$ and $V$ augmented ``views'' per sample.
 Let $z_{i}^{(v)} \in \mathbb{R}^{d}$ denote the normalized projection embedding of view $v$ of sample $i$ (so that $z^\top z'$ is cosine similarity), and let $\tau>0$ denote a temperature parameter.
 For convenience, let $\mathcal{A}$ index all augmented instances in the batch, i.e., $|\mathcal{A}| = NV$.
@@ -366,19 +399,18 @@ To avoid collapsing all samples onto the prototypes, TTC applies the prototype t
 All Track~1 classification metrics were logged to Weights \& Biases (W\&B) at validation time to support rapid comparison across runs and preprocessing regimes.
 Because the positive class is rare, these metrics are treated primarily as \emph{ranking and operating-point} diagnostics rather than as measures of overall accuracy.
 
-\subsection{Why accuracy is not informative}
+\subsection{Why Accuracy Is Not Informative}
 In extremely imbalanced problems, standard accuracy can be misleading: a classifier that predicts the majority class for all samples can achieve high accuracy while being clinically useless.
 More fundamentally, accuracy weights errors in both classes equally, which is not aligned with the screening objective: only the highest-ranked fraction is actionable, and false negatives in that top-$K\%$ region are far more consequential than additional true negatives outside the screening budget.
 Accuracy is therefore logged mainly as a sanity check, while reporting focuses on metrics that reflect ranking quality and low-false-positive screening use cases.
-\todo{erweitern: "Du gehst hauptsächlich auf die majority class Problematik ein, aber könntest nochmal explizit erwähnen, dass beide Klassen gleich behandelt werden, was hier nicht sinnvoll ist"}
+This mismatch is amplified because accuracy treats both classes symmetrically: each false positive and false negative contributes equally, independent of screening capacity and independent of the substantially different clinical value of recovering positives in the top-ranked fraction.
 
 % \subsection{Clinical screening interpretation (sketch)}
 % The evaluation setting corresponds to a screening workflow in which only a small subset of patients can be referred for confirmatory testing.
 % Under such constraints, false positives increase clinical workload and cost, while false negatives correspond to missed cases and delayed treatment.
 % This motivates a focus on low false-positive operating points and on metrics that reflect ``how many true cases are found among the few flagged cases'' rather than overall correctness.
-% \todo{Add a clinical screening / confirmatory testing citation appropriate for ECG-based population screening.}
 
-\subsection{Challenge metric: TPR@5\% (fixed screening capacity)}
+\subsection{Challenge Metric: TPR@5\% (Fixed Screening Capacity)}
 The PhysioNet Challenge score corresponds to a fixed-capacity screening scenario \parencite{2025ChallengePreprint,2025ChallengeCinC}.
 Given validation scores $\{p_i\}_{i=1}^{N}$, the model is allowed to flag only a fraction $c=0.05$ of the cohort for follow-up (``capacity'').
 Operationally, samples are sorted by $p_i$ in descending order and positive predictions are assigned to the top-$k$ samples, where $k=\lfloor cN \rfloor$.
@@ -389,13 +421,12 @@ The challenge score is then the true positive rate (TPR, sensitivity) achieved a
 \end{equation}
 where TP/FN are computed with respect to the top-$k$ selection.
 This score is closely related to \emph{recall@k}: it measures how many true positives are captured among the few cases that the system would forward to confirmatory testing.
-% \todo{State explicitly how ties are handled in the official evaluation and in this implementation (expected confusion matrix via random permutations when many identical scores exist).}
-\subsection{Auxiliary metric: TPR@10\%}
+\subsection{Auxiliary Metric: TPR@10\%}
 To complement the challenge-specific operating point, TPR at a 10\% capacity cut-off is also monitored.
 While not used for formal model selection or quality ranking, this metric provides a diagnostic glimpse into the score distribution immediately below the primary decision boundary.
 A large gap between TPR@5\% and TPR@10\% would indicate that many true positives receive scores just slightly too low to be flagged by the stricter criterion; conversely, a small gap suggests that the model separates positives well or that the remaining positives are buried deep in the low-score region.
 
-\subsection{AUROC and partial AUROC at 5\% FPR (pAUC5)}
+\subsection{AUROC and Partial AUROC at 5\% FPR (pAUC5)}
 To provide a standard machine-learning view of ranking performance, the area under the ROC curve (AUROC) is additionally reported; it integrates sensitivity over all false-positive rates:
 \begin{equation}
   \mathrm{AUROC} = \int_{0}^{1} \mathrm{TPR}(\mathrm{FPR})\, d\,\mathrm{FPR}.
@@ -412,7 +443,7 @@ which is normalized to $[0,1]$.
 Where the official challenge score (TPR@5\%) evaluates a single operating point, pAUC@5\% summarizes ranking quality over the entire high-specificity interval.
 By integrating performance across the range $[0, 0.05]$, it acts as a more robust and informative metric than the single-point snapshot, measuring how well the model ranks positives consistently across all strict screening thresholds.
 
-\subsection{Average precision (AP)}
+\paragraph*{Average precision (AP)}
 Finally, average precision (AP), i.e., the area under the precision--recall curve, is reported.
 PR-based metrics are often more informative than ROC-based metrics under severe class imbalance because precision directly reflects the expected burden of false positives among flagged cases.
 AP is computed by sorting samples by predicted score and averaging precision at each rank where a positive example occurs:
@@ -420,4 +451,4 @@ AP is computed by sorting samples by predicted score and averaging precision at 
   \mathrm{AP} = \frac{1}{N_{+}} \sum_{i:\,y_{(i)}=1} \mathrm{Precision@}i,
   \label{eq:ap}
 \end{equation}
-where $y_{(i)}$ denotes the label at rank $i$ and $N_{+}$ is the number of positives.
+where $y_{(i)}$ denotes the label at rank $i$, $N_{+}$ is the number of positives, and $\mathrm{Precision@}i$ is the fraction of true positives among the top-$i$ ranked samples.

@@ -5,8 +5,9 @@
 
 \begin{table}[H]
     \centering
-    \caption{Per-run TPR@5\% across label partitions (CODE-15, overall, verified) using compact model labels. Bold marks the best within each (track $\times$ preprocessing) block.}
+    \caption{Per-run TPR@5\% by label split (CODE-15, overall, verified). Bold marks best within each block.}
     \label{tab:cls_tpr_split_per_run}
+    {\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{0.94}
     \begin{tabular}{lrrr}
         \toprule
         model & TPR@5\% CODE-15 & TPR@5\% Overall & TPR@5\% Verified \\
@@ -20,23 +21,23 @@
         \shortstack{t1-bp-focal+rot10} & 0.4314 & 0.4304 & 0.4712 \\
         \shortstack{t1-bp-rat} & 0.3935 & 0.3973 & 0.3686 \\
         \shortstack{t1-bp-rat+rot10} & 0.3177 & 0.2600 & \overall{0.7436} \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
         \multicolumn{4}{l}{\textit{Track t1 \;|\; bp-sc}} \\
         \midrule
         \shortstack{t1-bp-sc-bce} & 0.4071 & 0.4151 & \best{0.5288} \\
         \shortstack{t1-bp-sc-focal} & 0.4026 & 0.4071 & 0.4776 \\
         \shortstack{t1-bp-sc-rat} & \best{0.4147} & \best{0.4218} & 0.4359 \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
         \multicolumn{4}{l}{\textit{Track t1 \;|\; bp-sc-norm}} \\
         \midrule
         \shortstack{t1-bp-sc-norm-bce} & \best{0.2388} & \best{0.2213} & 0.1218 \\
         \shortstack{t1-bp-sc-norm-focal} & 0.2108 & 0.1950 & 0.0801 \\
         \shortstack{t1-bp-sc-norm-rat} & 0.1334 & 0.1337 & \best{0.1378} \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
-        \addlinespace[6pt]\midrule\midrule
+        \midrule
 
         \multicolumn{4}{l}{\textit{Track t3 \;|\; bp}} \\
         \midrule
@@ -46,22 +47,23 @@
         \shortstack{t3-bp-supmin+rot10} & 0.3321 & 0.3409 & 0.3013 \\
         \shortstack{t3-bp-proto} & 0.3434 & 0.3372 & 0.2692 \\
         \shortstack{t3-bp-proto+rot10} & 0.2343 & 0.2336 & 0.1923 \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
         \multicolumn{4}{l}{\textit{Track t3 \;|\; bp-sc}} \\
         \midrule
         \shortstack{t3-bp-sc-supstd} & \best{0.4329} & \overall{0.4335} & \best{0.5032} \\
         \shortstack{t3-bp-sc-supmin} & 0.3601 & 0.3587 & 0.3910 \\
         \shortstack{t3-bp-sc-proto} & 0.4011 & 0.4022 & 0.4359 \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
         \multicolumn{4}{l}{\textit{Track t3 \;|\; bp-sc-norm}} \\
         \midrule
         \shortstack{t3-bp-sc-norm-supstd} & \best{0.1228} & \best{0.1134} & 0.0769 \\
         \shortstack{t3-bp-sc-norm-supmin} & 0.0811 & 0.0865 & 0.1026 \\
         \shortstack{t3-bp-sc-norm-proto} & 0.0690 & 0.0797 & \best{0.1154} \\
-        \addlinespace[4pt]\midrule
+        \midrule
 
         \bottomrule
     \end{tabular}
+    }
 \end{table}
