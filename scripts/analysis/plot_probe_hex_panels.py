@@ -88,13 +88,39 @@ def _format_run_title(*, run_id: str, space: str, method: str) -> str:
     Produce a thesis-friendly title from a run_id like:
       t1-exp01-bp-bce-rot10
     """
-    tokens = [t for t in str(run_id).split("-") if t]
+    rid = str(run_id).strip()
+    tokens = [t for t in rid.split("-") if t]
     track = None
     exp = None
     preprocessing = None
     loss = None
     rot_deg = None
     other: list[str] = []
+
+    if "-bp-sc-norm-" in rid:
+        preprocessing = "bp-sc-norm"
+    elif "-bp-sc-" in rid:
+        preprocessing = "bp-sc"
+    elif "-bp-" in rid:
+        preprocessing = "bp"
+
+    # Extract objective token robustly from canonical run_id patterns.
+    # Examples:
+    #   t1-exp03-bp-focal
+    #   t1-exp08-bp-sc-focal
+    #   t3-exp03-bp-sc-supstd
+    m_obj = None
+    try:
+        import re
+
+        m_obj = re.match(
+            r"^t\d+-exp\d+-(bp(?:-sc(?:-norm)?)?)-(.+?)(?:-rot\d+)?$",
+            rid,
+        )
+    except Exception:
+        m_obj = None
+    if m_obj:
+        loss = m_obj.group(2)
 
     for t in tokens:
         if t in {"t1", "t2", "t3"}:
@@ -110,26 +136,43 @@ def _format_run_title(*, run_id: str, space: str, method: str) -> str:
             except Exception:
                 other.append(t)
                 continue
-        if preprocessing is None and t in {"bp", "softclip", "zscore"}:
-            preprocessing = t
+        if t in {"bp", "sc", "norm", "softclip", "zscore"}:
             continue
-        if loss is None and t in {"bce", "tversky", "ce"}:
+        if loss is not None and t == loss:
+            continue
+        if loss is None and t in {"bce", "tversky", "ce", "focal", "rat", "supstd", "supmin", "proto"}:
             loss = t
             continue
         other.append(t)
 
-    pre_map = {"bp": "BP", "softclip": "Softclip", "zscore": "Z-score"}
-    loss_map = {"bce": "BCE", "tversky": "Tversky", "ce": "CE"}
+    pre_map = {
+        "bp": "BP",
+        "bp-sc": "BP + SC",
+        "bp-sc-norm": "BP + SC + Norm",
+        "softclip": "Softclip",
+        "zscore": "Z-score",
+    }
+    loss_map = {
+        "bce": "BCE",
+        "tversky": "Tversky",
+        "ce": "CE",
+        "focal": "Focal",
+        "rat": "RAT",
+        "supstd": "SupCon-Std",
+        "supmin": "SupCon-Min",
+        "proto": "Prototype",
+    }
     space_map = {"enc": "Enc", "proj": "Proj"}
     method_map = {"umap": "UMAP", "pca": "PCA"}
 
     parts: list[str] = []
     if track and exp:
-        # Compact: Exp 1-01 (track 1, experiment 01)
+        # Thesis-friendly: Track 1 · Exp 03
         try:
             tnum = int(track.lstrip("t"))
             enum = int(exp.lstrip("exp"))
-            parts.append(f"Exp {tnum}-{enum:02d}")
+            parts.append(f"Track {tnum}")
+            parts.append(f"Exp {enum:02d}")
         except Exception:
             parts.append(f"{track}-{exp}")
     else:
@@ -140,7 +183,7 @@ def _format_run_title(*, run_id: str, space: str, method: str) -> str:
     if preprocessing:
         parts.append(pre_map.get(preprocessing, preprocessing))
     if loss:
-        parts.append(loss_map.get(loss, loss.upper()))
+        parts.append(loss_map.get(loss, loss.replace("_", " ").title()))
     if rot_deg is not None:
         parts.append(f"Rot {rot_deg}°")
     if other:
@@ -148,7 +191,7 @@ def _format_run_title(*, run_id: str, space: str, method: str) -> str:
 
     emb = f"{space_map.get(space, space)} {method_map.get(method, method.upper())}"
     if parts:
-        return " · ".join(parts) + " — " + emb
+        return " · ".join(parts + [emb])
     return f"{run_id} — {emb}"
 
 
@@ -237,6 +280,8 @@ class PlotContext:
     extent: tuple[float, float, float, float]
     gridsize: int
     mincnt: int
+    overlay_mincnt: int
+    underlay_alpha: float
 
 
 PanelKind = Literal["density", "subset_density", "continuous_median"]
@@ -288,7 +333,8 @@ def _make_grid_figure(
     if engine is not None and hasattr(engine, "set"):
         try:
             cast(Any, engine).set(
-                rect=(0.02, 0.02, 0.985, rect_top),
+                # Reserve more room on the right for external colorbars/labels.
+                rect=(0.018, 0.02, 0.955, rect_top),
                 w_pad=0.006,
                 h_pad=0.006,
                 wspace=0.01,
@@ -335,37 +381,16 @@ def _axes_label(ax: "Axes", text: str) -> None:
 
 def _add_colorbar(ax: "Axes", mappable: Any, *, label: str) -> None:
     import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-    # Put the colorbar *inside* the axes so it doesn't change subplot sizes (important for equal aspect).
-    cax = inset_axes(
-        ax,
-        width="3.3%",
-        height="68%",
-        loc="center right",
-        # Keep the colorbar strictly inside the axes box so it can't spill into the neighbor subplot.
-        bbox_to_anchor=(0.0, 0.0, 0.975, 1.0),
-        bbox_transform=ax.transAxes,
-        borderpad=0.15,
-    )
-
-    # Ensure a solid background so any small misalignment doesn't reveal underlying plot.
-    cax.set_facecolor("white")
-    # Hide spines for a cleaner inset look.
-    for spine in cax.spines.values():
-        spine.set_visible(False)
-
-    cb = plt.colorbar(mappable, cax=cax)
-    # Reduce label padding (can use a negative value to move it closer)
-    cb.set_label(label, labelpad=-6)
-    cb.ax.tick_params(labelsize=7)
-
-    # Add a small white bbox behind the label to handle overlap/misalignment gracefully.
-    lbl = cb.ax.yaxis.get_label()
-    lbl.set_bbox({"facecolor": "white", "edgecolor": "none", "pad": 0.6})
+    # Place colorbar outside the axes to avoid covering the plotted hexes.
+    # Constrained layout will reserve horizontal space automatically.
+    fig = ax.figure
+    cb = fig.colorbar(mappable, ax=ax, fraction=0.040, pad=0.02)
+    cb.set_label(label, labelpad=2)
+    cb.ax.tick_params(labelsize=8)
 
 
-def _draw_underlay(ax: "Axes", ctx: PlotContext, *, alpha: float = 0.35) -> None:
+def _draw_underlay(ax: "Axes", ctx: PlotContext) -> None:
     # Match the density panel style (Greys + log bins), but lighter.
     ax.hexbin(
         ctx.x,
@@ -373,7 +398,7 @@ def _draw_underlay(ax: "Axes", ctx: PlotContext, *, alpha: float = 0.35) -> None
         gridsize=int(ctx.gridsize),
         extent=ctx.extent,
         mincnt=1,
-        alpha=float(alpha),
+        alpha=float(ctx.underlay_alpha),
         cmap="Greys",
         bins="log",
         linewidths=0.0,
@@ -424,7 +449,7 @@ def _draw_subset_density(
         ),
         gridsize=int(ctx.gridsize),
         extent=ctx.extent,
-        mincnt=int(ctx.mincnt),
+        mincnt=int(ctx.overlay_mincnt),
         cmap=mcolors.LinearSegmentedColormap.from_list("overlay", [rgba0, rgba1]),
         vmin=0.0,
         vmax=1.0,
@@ -469,7 +494,7 @@ def _draw_continuous_median(
         ),
         gridsize=int(ctx.gridsize),
         extent=ctx.extent,
-        mincnt=int(ctx.mincnt),
+        mincnt=int(ctx.overlay_mincnt),
         cmap=str(cmap),
         vmin=vmin,
         vmax=vmax,
@@ -488,6 +513,8 @@ def _load_context(
     method: str,
     gridsize: int,
     mincnt: int,
+    overlay_mincnt: int,
+    underlay_alpha: float,
 ) -> PlotContext:
     coords_path = _run_coords_dir(out_dir, run_id) / f"{run_id}__{space}__{method}.csv"
     meta_path = out_dir / "probe_metadata.csv"
@@ -531,6 +558,8 @@ def _load_context(
         extent=ext,
         gridsize=int(gridsize),
         mincnt=int(mincnt),
+        overlay_mincnt=max(1, int(overlay_mincnt)),
+        underlay_alpha=float(underlay_alpha),
     )
 
 
@@ -658,16 +687,25 @@ def _default_figures() -> list[
             "multipanel_main",
             (1, 4),
             (14.8, 3.9),
-            "Chagas / RBBB localization",
+            "Geometry, ECG abnormality, disease label, and model score",
             [
                 PanelSpec("density", "Density (geometry)", show_background=False),
-                PanelSpec("subset_density", "Chagas", col="chagas", color="#F58518"),
-                PanelSpec("subset_density", "RBBB", col="RBBB", color="#4C78A8"),
                 PanelSpec(
                     "subset_density",
                     "Abnormal ECG",
                     col="abnormal_ecg",
                     color="#54A24B",
+                ),
+                PanelSpec("subset_density", "Chagas", col="chagas", color="#F58518"),
+                PanelSpec(
+                    "continuous_median",
+                    "Predicted Chagas probability (median)",
+                    col="pred_prob",
+                    cmap="inferno",
+                    vmin=0.0,
+                    vmax=1.0,
+                    colorbar_label="pred_prob",
+                    show_background=True,
                 ),
             ],
         ),
@@ -712,16 +750,6 @@ def _default_figures() -> list[
             "Signal Quality",
             [
                 PanelSpec(
-                    "continuous_median",
-                    "Template-match QC (median)",
-                    col="qc_templatematch_bp",
-                    cmap="viridis",
-                    vmin=0.9,
-                    vmax=1.0,
-                    colorbar_label="qc_templatematch_bp",
-                    show_background=True,
-                ),
-                PanelSpec(
                     "subset_density",
                     "Excellent",
                     color="#2CA02C",
@@ -742,6 +770,16 @@ def _default_figures() -> list[
                     mask_fn=lambda df: _mask_equals(
                         df, "qc_zhao2018_bp", "Unacceptable"
                     ),
+                ),
+                PanelSpec(
+                    "continuous_median",
+                    "Template-match QC (median)",
+                    col="qc_templatematch_bp",
+                    cmap="viridis",
+                    vmin=0.9,
+                    vmax=1.0,
+                    colorbar_label="qc_templatematch_bp",
+                    show_background=True,
                 ),
             ],
         ),
@@ -792,6 +830,8 @@ def _run_plotting(
     methods: list[str],
     gridsize: int,
     mincnt: int,
+    overlay_mincnt: int,
+    underlay_alpha: float,
     dpi: int,
     clean: bool,
 ) -> None:
@@ -813,6 +853,8 @@ def _run_plotting(
                     method=method,
                     gridsize=gridsize,
                     mincnt=mincnt,
+                    overlay_mincnt=overlay_mincnt,
+                    underlay_alpha=underlay_alpha,
                 )
                 title = _format_run_title(run_id=rid, space=space, method=method)
                 axis_prefix = "UMAP" if str(method).lower() == "umap" else "PCA"
@@ -858,6 +900,18 @@ def main() -> None:
     parser.add_argument(
         "--mincnt", type=int, default=3, help="Minimum points per colored hex."
     )
+    parser.add_argument(
+        "--overlay_mincnt",
+        type=int,
+        default=1,
+        help="Minimum points per hex for overlay panels (subset/continuous). Use 1 to keep rare regions visible.",
+    )
+    parser.add_argument(
+        "--underlay_alpha",
+        type=float,
+        default=0.42,
+        help="Alpha for the grey density underlay drawn beneath overlay panels.",
+    )
     parser.add_argument("--dpi", type=int, default=250)
     parser.add_argument(
         "--clean",
@@ -883,6 +937,8 @@ def main() -> None:
         methods=methods,
         gridsize=int(args.gridsize),
         mincnt=int(args.mincnt),
+        overlay_mincnt=int(args.overlay_mincnt),
+        underlay_alpha=float(args.underlay_alpha),
         dpi=int(args.dpi),
         clean=bool(args.clean),
     )

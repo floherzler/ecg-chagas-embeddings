@@ -2,32 +2,94 @@
 \label{ch:results}
 
 This chapter summarizes empirical findings from the evaluation pipeline described in Chapter~\ref{ch:methods}.
-Unless stated otherwise, all reported metrics are computed on the held-out test fold~4.
+All reported metrics are computed on the held-out test fold~4.
+Results are organized along the same four-stage workflow:
 
-\section{Clinical task performance (ranking under screening constraints)}
-Primary endpoint is TPR@5\% (screening capacity), with supporting metrics pAUC@5\% FPR, AP, AUROC, and TPR@10\%.
-Per-run results are reported with compact model labels (\texttt{track / preprocessing / objective}) to keep the full model list readable.
+(1) clinical task utility,
+
+(2) embedding-space health,
+
+(3) cross-model consistency and consensus-based sample selection, and
+
+(4) plausibility assessment with ST-DFT-LRP.
+\\
+Accordingly, models carried into later stages are prioritized based on Stage~1/2 evidence, candidate ECGs are selected from Stage~3 consensus analyses, and channel-focused attribution summaries use the predefined representative lead setting for the XAI step.
+Unless stated otherwise, results are reported per run and grouped by preprocessing regime and learning strategy.
+
+\section{Stage 1: Clinical task utility}
+Following the challenge protocol from which this task originates, TPR@5\% is used as the primary endpoint.
+As described in Chapter~\ref{ch:background}, this is complemented by pAUC@5\% FPR, Average Precision (AP), TPR@10\%, and AUROC for a broader performance characterization.
+% Per-run results are reported with compact model labels (\texttt{track / preprocessing / objective}) to keep the full model list readable.
+
+\paragraph{Effect of preprocessing and learning strategy.}
+Across all runs, performance differences are dominated by preprocessing regime.
+The strongest model in this sweep is \texttt{t1-bp-focal} with TPR@5\%=0.4335, pAUC@5\%=0.3310, AP=0.2080, and AUROC=0.8388.
+The strongest Track~3 representation-learning model is \texttt{t3-bp-sc-supstd}, which reaches the same TPR@5\% (0.4335) as \texttt{t1-bp-focal}, while slightly underperforming on pAUC@5\% (0.3256 vs 0.3310), AP (0.1962 vs 0.2080), and AUROC (0.8271 vs 0.8388).
+For Track~1, the effect of adding softclipping (\texttt{bp-sc}) depends on objective: compared with matched \texttt{bp} runs, \texttt{rat} improves in all reported metrics, whereas \texttt{bce} and \texttt{focal} are lower in all reported metrics.
+For Track~3, \texttt{bp-sc} improves over \texttt{bp} in all three objective-matched comparisons (\texttt{supstd}, \texttt{supmin}, \texttt{proto}), including the primary endpoint TPR@5\% (0.3844$\rightarrow$0.4335, 0.2980$\rightarrow$0.3587, 0.3372$\rightarrow$0.4022, respectively), with corresponding gains in pAUC@5\%, AP, TPR@10\%, and AUROC.
+Within this single fold-4 sweep, \texttt{supstd} is the strongest Track~3 objective under each preprocessing regime (best TPR@5\% per regime: \texttt{t3-exp01-bp-supstd}=0.3844, \texttt{t3-exp03-bp-sc-supstd}=0.4335, \texttt{t3-exp04-bp-sc-norm-supstd}=0.1134), while \texttt{supmin}/\texttt{proto} remain below these values on the same endpoint.
+In contrast, \texttt{bp-sc-norm} substantially degrades performance in both tracks (best values only 0.2213 TPR@5\% in Track~1 and 0.1134 in Track~3), consistent with over-harmonization removing clinically relevant ranking signal.
+
+Full per-run values are reported in Table~\ref{tab:cls_per_run}.
+
 \input{tables/classification_per_run.tex}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.8\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_by_preproc.png}
-  \caption{Overview of TPR@5\% across preprocessing regimes and tracks.}
-  \label{fig:overview_tpr5}
-\end{figure}
+\paragraph{Rotation augmentation.}
+Pairwise comparisons of otherwise matched runs (same track, preprocessing, and objective; with vs.\ without \texttt{+rot10}) show predominantly negative effects.
+For the primary metric TPR@5\%, \texttt{+rot10} is lower in 5/6 pairs and higher in 1/6; the single improvement occurs for \texttt{t3-bp-supmin} (0.2980 $\rightarrow$ 0.3409).
+Across supporting metrics, \texttt{+rot10} is lower in 5/6 pairs for pAUC@5\%, AP, and TPR@10\%, and lower in 6/6 pairs for AUROC.
+The mean deltas across all six matched pairs are negative for every metric (TPR@5\%: $-0.0905$, pAUC@5\%: $-0.0608$, AP: $-0.0387$, TPR@10\%: $-0.1243$, AUROC: $-0.0655$).
+Overall, rotation augmentation does not provide robust gains and is therefore not pursued further as a regularizer in this study.
+Taken together, Stage~1 supports prioritizing non-rotated \texttt{bp} and \texttt{bp-sc} variants for the subsequent analyses.
 
-\subsection{Verified vs.\ self-reported labels (label-strength split)}
-Verified labels are defined as PTB-XL (negative) + SaMi-Trop (positive), and contrasted against CODE-15 as the self-reported/mixed-label subset.
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_by_preproc.png}
+%   \caption{Overview of TPR@5\% across preprocessing regimes and tracks.}
+%   \label{fig:overview_tpr5}
+% \end{figure}
+
+\paragraph{Verified vs.\ self-reported labels.}
+Using the predefined label-strength split (Methods, Chapter~\ref{ch:methods}), Table~\ref{tab:cls_split_by_group} compares verified cohorts (PTB-XL + SaMi-Trop) against CODE-15\%.
+Because the reported overall scores are computed on the entire test fold~4, they are numerically dominated by CODE-15 (roughly 68{,}592 CODE-15 vs.\ 4{,}644 verified samples in this fold).
+In Track~1, verified performance is consistently higher than CODE-15\% for \texttt{bp} and \texttt{bp-sc} at group level (median TPR@5\%: 0.506 vs 0.405 and 0.478 vs 0.407, respectively), while \texttt{bp-sc-norm} degrades both and reverses this ordering.
+At per-run level (Appendix Table~\ref{tab:cls_tpr_split_per_run}), this pattern is visible in representative models such as \texttt{t1-bp-focal} (0.484 verified vs 0.436 CODE-15) and \texttt{t1-bp-sc-bce} (0.529 vs 0.407).
+Two extreme cases stand out within Track~1 \texttt{bp}: \texttt{t1-bp-bce-rot10} and \texttt{t1-bp-rat-rot10} both reach very high verified TPR@5\% (0.7436), but simultaneously show \texttt{AUROC\_verified}=0.50 and \texttt{AP\_verified}=0.067.
+This combination suggests a split-specific threshold effect without robust ranking quality and is flagged for later discussion rather than interpreted as genuine superiority.
+In Track~3, \texttt{bp} shows the opposite tendency (median verified below CODE-15\%: 0.272 vs 0.325), but \texttt{bp-sc} restores a verified advantage (0.436 vs 0.401), and \texttt{bp-sc-norm} remains uniformly low.
+Overall, the split indicates that preprocessing not only affects absolute utility but also strongly modulates transfer between verified and mixed-label subsets.
+
 \input{tables/classification_labelsplit_by_group.tex}
 
-\begin{figure}[t]
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.9\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_labelsplit.png}
+%   \caption{TPR@5\% split by verified vs.\ CODE-15\% labels across preprocessing regimes.}
+%   \label{fig:overview_labelsplit}
+% \end{figure}
+
+\paragraph{Metadata-defined ECG normality across datasets.}
+As a descriptive baseline before computed signal-quality analyses, Figure~\ref{fig:metadata_normal_ecg} summarizes dataset metadata normality on fold~4.
+Using a strict PTB-XL definition (\texttt{NORM}=100.0 in \texttt{scp\_codes}), normal-ECG share is 39.1\% in CODE-15\%, 30.8\% in PTB-XL, and 17.9\% in SaMi-Trop.
+Equivalently, the non-normal share is highest in SaMi-Trop (82.1\%), followed by PTB-XL (69.2\%) and CODE-15\% (60.9\%).
+This metadata-level distribution is used as context for interpreting later quality effects, but should not be conflated with the NeuroKit2-based quality labels reported next.
+
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.9\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_tpr5_labelsplit.png}
-  \caption{TPR@5\% split by verified vs.\ CODE-15 labels across preprocessing regimes.}
-  \label{fig:overview_labelsplit}
+  \includegraphics[width=0.82\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/metadata_normal_ecg_by_dataset_fold4.png}
+  \caption{Metadata-defined normal ECG prevalence by dataset source (fold~4). For PTB-XL, ``Normal ECG'' is defined strictly as \texttt{NORM}=100.0 in \texttt{scp\_codes}; for CODE-15\% and SaMi-Trop, \texttt{normal\_ecg} is taken directly from metadata.}
+  \label{fig:metadata_normal_ecg}
 \end{figure}
 
-\begin{table}[t]
+\paragraph{ECG quality confounding in CODE-15\%.}
+Following the quality-analysis protocol defined in Chapter~\ref{ch:methods}, ECG quality was quantified with Zhao2018 categories.
+Within CODE-15\%, quality categories are significantly associated with the Chagas label (Table~\ref{tab:code15_quality_chagas}).
+Using the counts in Table~\ref{tab:code15_quality_chagas} and normalizing within each label column, positives contain fewer \emph{Excellent} recordings (57.9\% vs 72.0\%) and more \emph{Barely acceptable} (33.7\% vs 24.3\%) and \emph{Unacceptable} signals (8.5\% vs 3.8\%) than negatives.
+This shift is statistically supported by both tests reported in the table (2$\times$2 Fisher, Excellent vs.\ not: OR=1.870, $p=3.94\times10^{-129}$; 3$\times$2 FFH Monte-Carlo: $p\approx 0.0001$).
+This demonstrates a strong label--quality dependency that can act as a shortcut signal in both model scoring and qualitative embedding overlays.
+Therefore, quality is treated as an explicit covariate in later visualizations and groupwise analyses.
+
+\begin{table}[H]
   \centering
   \caption{CODE-15\% Zhao2018 quality vs.\ Chagas label (fold~4).}
   \label{tab:code15_quality_chagas}
@@ -44,67 +106,214 @@ Verified labels are defined as PTB-XL (negative) + SaMi-Trop (positive), and con
     \bottomrule
   \end{tabular}
 \end{table}
-\begin{table}[t]
+
+\paragraph{Counterfactual transfer to mono-labeled datasets.}
+Applying the CODE-15\% Chagas/healthy quality ratios to the PTB-XL negative distribution yields the counterfactual shown in Table~\ref{tab:qc_counterfactual}.
+Under this sensitivity scenario, the expected \emph{Excellent} share drops from 65.84\% to 51.0\%, while \emph{Unacceptable} increases from 5.08\% to 12.0\%.
+Observed SaMi-Trop positives are 48.72\% \emph{Excellent}, 41.99\% \emph{Barely acceptable}, and 9.29\% \emph{Unacceptable}, which is close to the transferred PTB-XL counterfactual profile.
+This counterfactual is not intended as a causal estimate, but as an interpretable sensitivity analysis demonstrating that even modest quality enrichment factors can translate into substantial shifts in expected quality composition across datasets.
+
+\begin{table}[H]
   \centering
   \caption{Counterfactual Zhao2018 QC distribution by applying the CODE-15\% Chagas effect to PTB-XL negatives (fold~4).}
   \label{tab:qc_counterfactual}
-  \begin{tabular}{lrrr}
+  \begin{tabular}{lrrrr}
     \toprule
-    \textbf{Quality}  & \begin{tabular}[b]{@{}r@{}}\textbf{CODE-15\% factor} \\ \textbf{(pos/neg)}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL} \\ \textbf{neg (\%)}\end{tabular} & \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL cf} \\ \textbf{pos (\%)}\end{tabular} \\
+    \textbf{Quality}                                                                        &
+    \begin{tabular}[b]{@{}r@{}}\textbf{CODE-15\% factor} \\ \textbf{(pos/neg)}\end{tabular} &
+    \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL} \\ \textbf{neg (\%)}\end{tabular}            &
+    \begin{tabular}[b]{@{}r@{}}\textbf{PTB-XL cf} \\ \textbf{pos (\%)}\end{tabular}         &
+    \begin{tabular}[b]{@{}r@{}}\textbf{SaMi-Trop} \\ \textbf{pos (\%)}\end{tabular}                                        \\
     \midrule
-    Excellent         & 0.809                                                                                   & 65.84                                                                        & 51.0                                                                            \\
-    Barely acceptable & 1.329                                                                                   & 29.09                                                                        & 37.0                                                                            \\
-    Unacceptable      & 2.455                                                                                   & 5.08                                                                         & 12.0                                                                            \\
+    Excellent                                                                               & 0.809 & 65.84 & 51.0 & 48.72 \\
+    Barely acceptable                                                                       & 1.329 & 29.09 & 37.0 & 41.99 \\
+    Unacceptable                                                                            & 2.455 & 5.08  & 12.0 & 9.29  \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\section{Embedding-space diagnostics (probe set)}
-Primary comparable space is encoder embeddings (\texttt{enc}) for all tracks.
-Metrics include GPU/CAC (collapse and global separation) and SAA (two-view consistency on the probe set).
-\input{tables/embedding_by_group.tex}
+\section{Stage 2: Embedding-space diagnostics}
+Embedding-space diagnostics are computed on the fixed probe subset (all positives plus twice as many negatives) to provide a comparable representation snapshot across runs.
+The primary analyzed space is the encoder embedding (\texttt{enc}) for all tracks.
+Metrics include GPU and CAC (collapse diagnostics and global class separation), and SAA where available (two-view consistency on the probe set).
+Per-run embedding diagnostics are reported with compact model labels.
 
-\begin{figure}[t]
+\paragraph{Effect of preprocessing and learning strategy.}
+At run level, Stage~2 follows the same decision order as Stage~1: first compare model quality within the stable preprocessing regimes (\texttt{bp}, \texttt{bp-sc}), then use collapse diagnostics to reject unstable regimes (here \texttt{bp-sc-norm}).
+Consistent with the screening objective, class~1 diagnostics are treated as primary for model selection in this stage, while class~0 diagnostics are used mainly as supporting context.
+
+For \textbf{class-separation quality} (CAC$_1$), Track~1 remains competitive under both \texttt{bp} and \texttt{bp-sc} (best values: \texttt{t1-bp-bce-rot10}=65.56 and \texttt{t1-bp-sc-bce}=64.18). In Track~3, the strongest CAC$_1$ is reached by \texttt{t3-bp-sc-proto} (70.23), indicating that the \texttt{bp-sc} setting still supports strong downstream separability.
+
+For \textbf{pair-consistency quality} (SAA), Track~3 \texttt{bp-sc-supmin} yields the strongest values (SAA$_0$=99.56, SAA$_1$=99.82), showing highly consistent local neighborhoods in the learned embedding space.
+
+The \textbf{collapse check} is most evident in \texttt{bp-sc-norm}: GPU values approach 1.0 (e.g., \texttt{t3-bp-sc-norm-supstd}: GPU$_0$=0.999, GPU$_1$=0.999) while CAC$_1$ drops to roughly 35--38.
+This reproduces the Stage~1 finding that \texttt{bp-sc-norm} is not a viable regime for robust screening models.
+
+For GPU class asymmetry, the per-run table shows no strict track-level dominance of GPU$_0$ versus GPU$_1$.
+In Track~1, GPU$_0<$GPU$_1$ is typical under \texttt{bp} and \texttt{bp-sc}, with the main reversals concentrated in \texttt{rat} runs (and minor reversals in \texttt{bp-sc-norm}).
+Track~3 shows a similarly mixed pattern, including reversals in selected \texttt{supstd}/\texttt{supmin} variants and near-ties under \texttt{bp-sc-norm}.
+This supports using GPU as a collapse indicator rather than a standalone class-priority metric.
+
+Overall, the per-run embedding table supports prioritizing \texttt{bp} and \texttt{bp-sc} variants for subsequent consistency and plausibility analyses.
+
+Full per-run values are reported in Table~\ref{tab:emb_per_run}.
+
+\input{tables/embedding_per_run.tex}
+
+\paragraph{Embedding health versus clinical utility.}
+Figure~\ref{fig:overview_cac_tpr} relates embedding class-separation quality (CAC$_1$) to screening utility (TPR@5\%).
+Across runs, stronger CAC$_1$ generally co-occurs with better downstream ranking performance, supporting CAC as a primary embedding-health indicator for model prioritization.
+Table~\ref{tab:emb_tpr_corr} shows that among diagnostics available for all runs (\(n=24\)), CAC$_1$ has the strongest association with TPR@5\% (\(r=0.777\)), stronger than GPU$_0$/GPU$_1$ and slightly stronger than CAC$_0$.
+SAA$_0$/SAA$_1$ are higher but are computed only for Track~3 (\(n=12\)), so they are reported as track-specific rather than all-run comparators.
+In the top-right region of Figure~\ref{fig:overview_cac_tpr}, the leading candidates are \texttt{exp11} in \texttt{t3-bp-sc} (\texttt{t3-exp11-bp-sc-proto}: CAC$_1$=70.23, TPR@5\%=0.402) and \texttt{exp1}/\texttt{exp3}/\texttt{exp4} in \texttt{t1-bp} (\texttt{t1-exp01-bp-bce}, \texttt{t1-exp03-bp-focal}, \texttt{t1-exp04-bp-focal-rot10}) with TPR@5\%\(\approx\)0.429--0.433 and CAC$_1$\(\approx\)63.99--65.36.
+An informative outlier is \texttt{t1-exp02-bp-bce-rot10}: high CAC$_1$ (65.56) but low TPR@5\% (0.147), indicating that strong global class-separation alone is not sufficient for robust low-FPR screening.
+The complementary GPU$_1$ view is kept as a supporting diagnostic in the appendix (Figure~\ref{fig:appendix_gpu_tpr}), where near-1.0 values highlight collapse-prone regimes such as \texttt{bp-sc-norm}.
+Since CAC$_1$ is class-1 specific, we additionally report cross-class alignment consistency in the appendix (Figure~\ref{fig:appendix_cac0_cac1}); the CAC$_0$--CAC$_1$ association is moderate (Pearson \(r=0.629\)), supporting class-specific reporting in the main text.
+In the present run set, no model shows CAC$_1$ \(>\) CAC$_0$; if such class-1-dominant cases appear in future experiments and remain clinically competitive, they would be meaningful candidates for targeted positive-class analysis.
+
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.72\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_gpu_vs_tpr5.png}
-  \caption{Embedding uniformity (GPU class 1) versus clinical utility (TPR@5\%).}
-  \label{fig:overview_gpu_tpr}
+  \includegraphics[width=0.72\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_cac1_vs_tpr5.png}
+  \caption{Embedding class separation (CAC$_1$) versus clinical utility (TPR@5\%). Point labels denote experiment IDs extracted from \texttt{run\_id} (\texttt{expXX}); colors encode track$\times$preprocessing groups.}
+  \label{fig:overview_cac_tpr}
 \end{figure}
 
-\subsection{Probe group splits}
+\begin{table}[H]
+  \centering
+  \caption{Correlation of embedding diagnostics with downstream TPR@5\%.}
+  \label{tab:emb_tpr_corr}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Metric}        & \textbf{Pearson $r$ with TPR@5\%} & \textbf{n runs} \\
+    \midrule
+    GPU$_0$                & $-0.652$                          & 24              \\
+    GPU$_1$                & $-0.627$                          & 24              \\
+    CAC$_0$                & $0.682$                           & 24              \\
+    CAC$_1$                & $\mathbf{0.777}$                  & 24              \\
+    SAA$_0$ (Track~3 only) & $0.832$                           & 12              \\
+    SAA$_1$ (Track~3 only) & $0.822$                           & 12              \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Qualitative UMAP visualization}
+UMAP is used here for qualitative geometry inspection via hex-tiling multipanels.
+Panels overlay density and metadata enrichments to assess whether the embedding geometry is structured primarily by disease signal or by dataset- and acquisition-related covariates.
+In particular, the shown main panels emphasize density geometry, abnormal-ECG enrichment, Chagas enrichment, and model score localization.
+
+Representative examples are included in the appendix; the complete generated panel sets are provided in the analysis output directory.
+Qualitative patterns are summarized here conservatively, focusing on robust, repeated observations across runs rather than individual striking samples.
+
+Two qualitative patterns are consistent across the Track~1 and Track~3 examples shown below.
+First, under \texttt{bp} and \texttt{bp-sc}, the embedding geometry remains structured and Chagas enrichment concentrates in localized regions rather than appearing uniformly across the manifold.
+Second, under \texttt{bp-sc-norm}, the manifold becomes visibly more compressed and homogeneous, and abnormal-ECG/Chagas enrichments are less distinctly localized.
+This qualitative behavior is consistent with the quantitative collapse and utility trends reported above (higher GPU, lower CAC$_1$, and reduced TPR@5\% for \texttt{bp-sc-norm}).
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__umap__multipanel_main.png}\\[0.5em]
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp08-bp-sc-focal/plots/t1-exp08-bp-sc-focal__enc__umap__multipanel_main.png}\\[0.5em]
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp11-bp-sc-norm-focal/plots/t1-exp11-bp-sc-norm-focal__enc__umap__multipanel_main.png}
+  \caption{UMAP hex-multipanel comparison for matched Track~1 focal models across preprocessing regimes (top to bottom: \texttt{t1-exp03-bp-focal}, \texttt{t1-exp08-bp-sc-focal}, \texttt{t1-exp11-bp-sc-norm-focal}). Each row shows density geometry, abnormal-ECG enrichment, Chagas enrichment, and predicted Chagas probability (median).}
+  \label{fig:qual_umap_t1_focal_preproc}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp01-bp-supstd/plots/t3-exp01-bp-supstd__enc__umap__multipanel_main.png}\\[0.5em]
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__umap__multipanel_main.png}\\[0.5em]
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp04-bp-sc-norm-supstd/plots/t3-exp04-bp-sc-norm-supstd__enc__umap__multipanel_main.png}
+  \caption{UMAP hex-multipanel comparison for matched Track~3 \texttt{supstd} models across preprocessing regimes (top to bottom: \texttt{t3-exp01-bp-supstd}, \texttt{t3-exp03-bp-sc-supstd}, \texttt{t3-exp04-bp-sc-norm-supstd}). These are the best-TPR@5\% Track~3 runs within each preprocessing regime in this fold-4 sweep.}
+  \label{fig:qual_umap_t3_supstd_preproc}
+\end{figure}
+
+For direct inspection of dataset-driven structure, representative dataset$\times$Chagas composites for the best Track~1 and Track~3 runs are provided in Appendix Figures~\ref{fig:appendix_umap_dataset_t1_best} and~\ref{fig:appendix_umap_dataset_t3_best}.
+
+\subsection{Quantitative PCA correlations}
 Probe metrics are additionally computed on verified (PTB-XL + SaMi-Trop) versus CODE-15 subsets.
-Absolute PCA-correlation summaries are reported by track and preprocessing:
+Absolute PCA-correlation summaries (PC1/PC2) are reported by track and preprocessing and serve as the primary quantitative axis-alignment analysis:
+
 \input{tables/pca_corr_by_group.tex}
 
-\section{Qualitative embedding visualization (PCA/UMAP hex-multipanels)}
-\begin{itemize}
-  \item PCA and UMAP are computed on the stored probe embeddings and visualized with hex-tiling multipanels.
-  \item Panels emphasize: geometry density, Chagas enrichment, RBBB enrichment, abnormal ECG enrichment, age/$\Delta$age, and PTB-XL control flags (e.g.\ CRBBB).
-  \item Representative examples are included in the appendix; full generated panel sets are provided in the analysis output directory.
-  \item \todo{Describe consistent qualitative patterns (e.g.\ dataset clustering, phenotype enrichment locations) without over-interpreting.} \missingfigure{Callouts: annotated examples highlighting key regions (one per dataset).}
-  \item \todo{Optional: add quantitative summaries of embedding geometry (e.g., dataset-centroid distances, within/between-dataset dispersion, or density overlap statistics) to complement the visual panels.} \missingfigure{Plot: centroid distances or dispersion ratios by dataset for UMAP/PCA.}
-\end{itemize}
+Chagas alignment is strongest on PC1 under \texttt{bp}/\texttt{bp-sc} (median \(\approx 0.55\) to \(0.60\) across tracks) and markedly reduced under \texttt{bp-sc-norm}, consistent with the collapse trend seen in Stage~2 metrics.
+Representative PCA composites for the best Track~1 and Track~3 runs are provided in Appendix Figures~\ref{fig:appendix_pca_t1_best} and~\ref{fig:appendix_pca_t3_best}, with matching PCA dataset$\times$Chagas condition views in Figures~\ref{fig:appendix_pca_dataset_t1_best} and~\ref{fig:appendix_pca_dataset_t3_best}.
 
-\section{Cross-model agreement and screening set overlap}
-Global agreement is quantified by model$\times$model Spearman $\rho$ on full-test ranking vectors.
-Screening agreement is measured via top-5\% Jaccard (IoU), and within-overlap ordering via Kendall's $\tau$.
-\begin{figure}[t]
+\section{Stage 3: Cross-model consistency and consensus sample selection}
+Cross-model agreement is quantified on the full test fold via model$\times$model Spearman $\rho$ of prediction scores, capturing global ranking similarity.
+Screening agreement is assessed using intersection over union (IoU) of each model's top-5\% set, and within-set ordering agreement using Kendall's $\tau$ on the overlapping subset.
+For candidate prioritization, Kendall's $\tau$ is treated as the key stability check inside the shared screening region, while Spearman and IoU provide complementary global and set-level context.
+
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_spearman_heatmap.png}
-  \caption{Cross-model ranking agreement (Spearman $\rho$).}
-  \label{fig:overview_spearman}
+  \begin{minipage}[t]{0.495\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_spearman_heatmap.png}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.495\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/support_iou_heatmap.png}
+  \end{minipage}
+  \caption{Cross-model agreement heatmaps: left, global ranking agreement (Spearman $\rho$); right, top-5\% screening-set overlap (IoU).}
+  \label{fig:overview_agreement_heatmaps}
 \end{figure}
-\todo{Summarize whether agreement clusters by preprocessing regime, loss/objective, or track.}
 
-\section{Consensus sets for sample selection (preparation for DFT-LRP)}
-\begin{itemize}
-  \item Models define top-5\% sets $T_m$; per-sample consensus score is $c_i=\sum_m \mathbf{1}(i\in T_m)$.
-  \item Candidate tables enforce patient-unique sampling and retain QC metadata for manual selection.
-  \item \missingfigure{Table: examples of high-consensus, low-consensus, and non-consensus candidates (with dataset and QC).}
-  \item \todo{State final thresholds $\alpha,\beta$ used for consensus-high/low (if used) and the rationale.} \missingfigure{Histogram: distribution of consensus scores c\_i (and normalized consensus).}
-\end{itemize}
+\paragraph{Agreement structure.}
+Figure~\ref{fig:overview_agreement_heatmaps} shows clear preprocessing-driven structure: agreement clusters primarily by preprocessing regime. Across all model pairs, median Spearman agreement is \(0.252\), but rises to \(0.381\) for same-preprocessing pairs versus \(0.203\) across different preprocessing regimes.
+This effect is even stronger for matched track+preprocessing comparisons (median Spearman \(0.658\)).
+Within-regime clustering is strongest for \texttt{bp-sc} (within-\texttt{bp-sc} median Spearman \(\approx 0.725\)), whereas \texttt{bp-sc-norm} shows very weak internal coherence (within-\texttt{bp-sc-norm} median Spearman \(\approx 0.092\), mean \(\approx 0.053\)).
+Cross-regime pairs involving \texttt{bp-sc-norm} are similarly weak (median \(\approx 0.049\) vs.\ \texttt{bp}, \(\approx 0.124\) vs.\ \texttt{bp-sc}), with multiple negative correlations.
+As expected, screening-set stability is stricter than global score correlation: median top-5\% IoU is \(0.175\) overall (\(0.280\) same-preprocessing vs.\ \(0.137\) different-preprocessing), and median within-overlap Kendall's \(\tau\) is \(0.143\) overall (\(0.284\) vs.\ \(0.086\)).
+Thus, Spearman confirms global clustering by preprocessing, IoU quantifies reproducibility of the selected screening cohort, and Kendall's \(\tau\) quantifies stability of candidate ordering within that shared cohort.
+The \(\tau\) contrast shows that ordering consistency inside shared candidates drops sharply across preprocessing regimes, which directly motivates using consensus thresholds before selecting representative XAI cases.
+The strongest pairwise agreement occurs between \texttt{t1-exp03-bp-focal} and \texttt{t1-exp04-bp-focal-rot10} (\(\rho=0.910\)), whereas the weakest pair (\(\rho=-0.492\)) appears between two \texttt{bp-sc-norm} models from different tracks/objectives, indicating substantial reordering in that regime.
+Notably, \texttt{t1-bp} aligns much more with \texttt{t3-bp-sc} than with \texttt{t3-bp}: median Spearman is \(0.709\) vs.\ \(0.311\), and median IoU is \(0.376\) vs.\ \(0.240\).
+For IoU specifically, \texttt{t1-bp} overlaps more with \texttt{t1-bp-sc} (median \(0.403\)) than with \texttt{t1-bp} internal pairs (median \(0.295\)), indicating that preprocessing can preserve screening-set identity across some cross-track/cross-objective pairings.
+Overall, IoU values are mostly below \(0.5\) (global median \(0.175\); typical ranges \(\approx 0.10\) to \(0.45\), maximum \(0.583\)), so exact top-5\% membership is only partially stable.
+Practically, IoU here measures how many selected candidates are shared relative to the union of both model selections; low-to-moderate IoU therefore implies that many borderline samples around the 5\% cut-off are model-dependent.
 
-\begin{table}[t]
+\begin{table}[H]
+  \centering
+  \caption{Pairwise agreement summaries (median across model pairs).}
+  \label{tab:pairwise_agreement_summary}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Pair group}                 & \textbf{n} & \textbf{Spearman \(\rho\)} & \textbf{IoU@top-5\%} & \textbf{Kendall \(\tau\)} \\
+    \midrule
+    All pairs                           & 276        & 0.252                      & 0.175                & 0.143                     \\
+    Same preprocessing                  & 96         & 0.381                      & 0.280                & 0.284                     \\
+    Different preprocessing             & 180        & 0.203                      & 0.137                & 0.086                     \\
+    Same track + preprocessing          & 42         & 0.658                      & 0.300                & 0.309                     \\
+    Same track, different preprocessing & 90         & 0.214                      & 0.143                & 0.083                     \\
+    Different track, same preprocessing & 54         & 0.311                      & 0.240                & 0.260                     \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Consensus sets for sample selection (preparation for ST-DFT-LRP).}
+Consensus is computed label-agnostically from top-5\% selections across models.
+For each model $m$, the screening set is $T_m$ and per-sample consensus score is $c_i=\sum_m \mathbf{1}(i\in T_m)$.
+Candidate tables enforce patient-unique sampling and retain QC metadata to support transparent manual selection of representative cases.
+The consensus distribution is strongly right-skewed (median \(c_i=0\), Q3 \(=1\)); no sample is selected by all 24 models.
+For practical candidate construction, we use \(c_i \ge 8\) as a high-consensus shortlist (\(n=3{,}409\), \(4.65\%\) of all test samples) and \(c_i=0\) as non-consensus.
+An even stricter tier \(c_i \ge 16\) yields \(n=932\) samples (\(1.27\%\)), useful for highly robust exemplars.
+
+\begin{table}[H]
+  \centering
+  \caption{Top-5\% consensus-score coverage across models (24-model pool).}
+  \label{tab:consensus_thresholds}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Threshold on \(c_i\)} & \textbf{Samples} & \textbf{Share} \\
+    \midrule
+    \(c_i=0\)                     & 47{,}727         & 65.17\%        \\
+    \(c_i\ge 1\)                  & 25{,}509         & 34.83\%        \\
+    \(c_i\ge 5\)                  & 5{,}339          & 7.29\%         \\
+    \(c_i\ge 8\)                  & 3{,}409          & 4.65\%         \\
+    \(c_i\ge 16\)                 & 932              & 1.27\%         \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
   \centering
   \caption{Overlap between the probe subset and RRA robust sets (test fold).}
   \label{tab:rra_probe_overlap}
@@ -119,64 +328,43 @@ Screening agreement is measured via top-5\% Jaccard (IoU), and within-overlap or
   \end{tabular}
 \end{table}
 
-\section{ST-DFT-LRP summaries on the probe set}
-\begin{itemize}
-  \item For each run, per-sample ST-DFT-LRP outputs are stored in \texttt{stdftlrp\_beat\_agg.csv} and include:
-        4$\times$4 time$\times$frequency relevance grids (mean and mass-weighted), lead-importance statistics, and QC metadata.
-  \item \todo{Summarize the distribution of lead-importance statistics (entropy, top-1 lead) and whether lead dominance varies across datasets or labels.}
-        \missingfigure{Plot: lead-importance heatmap or barplot across dataset$\times$label groups.}
-  \item \todo{Report groupwise 4$\times$4 matrices aggregated over samples for at least: dataset$\times$label, and (optional) dataset$\times$RBBB for CODE-15/PTB-XL.}
-        \missingfigure{Figure: mean 4$\times$4 grids for dataset$\times$label groups (one representative run + aggregated across model families).}
-  \item \todo{Clarify whether model-family aggregation (track/preprocessing/loss) yields consistent relevance patterns or distinct profiles.}
-        \missingfigure{Plot: comparison of 4$\times$4 grids across model families for a fixed group.}
-\end{itemize}
+\paragraph{RRA-based robust sample prioritization.}
+\textbf{Interpretation caution:} in this section, ``robust positive'' and ``robust negative'' refer to two RRA outputs (\texttt{RRA-pos} on original scores and \texttt{RRA-neg} on score-inverted rankings), \emph{not} to ground-truth Chagas labels.
+To move from broad consensus pools to robust exemplar selection, we apply Robust Rank Aggregation (RRA) on full-test rankings across all models (\(N=73{,}236\)).
+This yields \(7{,}411\) robust positives and \(11{,}456\) robust negatives, where ``robust'' means repeatedly extreme ranking across model lists rather than a single-model outlier.
+RRA therefore complements top-5\% consensus: consensus captures repeated inclusion near a fixed screening threshold, whereas RRA emphasizes globally stable extremes across full rankings.
+Figure~\ref{fig:rra_dataset_violin} and Table~\ref{tab:rra_kw} show clear dataset structure in these robust sets: robust positives are dominated by CODE-15 (92.97\%), with smaller PTB-XL (4.76\%) and SaMi-Trop (2.27\%) contributions, while robust negatives are mostly CODE-15 (84.03\%) and PTB-XL (15.87\%), with very little SaMi-Trop (0.10\%).
+The Kruskal--Wallis tests are significant for both robust positives and robust negatives, confirming that RRA-rank distributions differ across datasets rather than being exchangeable.
+Qualitatively, ridge shapes are also distinct: robust-positive densities concentrate toward the low-rank end (right side), robust-negative densities toward the high-rank end (left side), and PTB-XL/SaMi-Trop ridges appear narrower or multi-peaked relative to CODE-15, which is plausibly influenced by their much smaller subset sizes.
+This concentration at the two extremes is expected by construction: \texttt{PyFLAGR} returns ranks for robustly aggregated items only, while the majority of test samples receive no RRA rank and are therefore absent from these ridge distributions.
 
-\paragraph{Lead-importance summaries across model families.}
-Per-sample lead masses are normalized to sum to 1, so each heatmap cell can be interpreted as the fraction of total relevance mass assigned to a lead.
-Across all four dataset$\times$label conditions, models consistently emphasize precordial leads (V1--V6), particularly under the mild bandpass regime (\texttt{bp}).
-In contrast, the stronger preprocessing (\texttt{bp-sc-norm}) shows a flatter, more uniform distribution of lead mass across the 12 leads.
-Figure~\ref{fig:lead_mass_heatmaps} shows the lead-mass heatmaps by model family for the four dataset$\times$label conditions.
-
-\begin{table}[t]
+\begin{figure}[!htbp]
   \centering
-  \caption{Lead mass share by preprocessing regime (averaged across models).}
-  \label{tab:lead_mass_preproc_share}
-  \begin{tabular}{lrrr}
-    \toprule
-    Preprocessing       & Limb share & Precordial share & Precordial/Limb \\
-    \midrule
-    \texttt{bp}         & 0.400323   & 0.599677         & 1.497985        \\
-    \texttt{bp-sc}      & 0.495007   & 0.504993         & 1.020172        \\
-    \texttt{bp-sc-norm} & 0.499954   & 0.500046         & 1.000182        \\
-    \bottomrule
-  \end{tabular}
-  \vspace{0.2em}
-\end{table}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_PTBXL_0.png}\\[0.5em]
-  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_CODE15_0.png}\\[0.5em]
-  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_CODE15_1.png}\\[0.5em]
-  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/plots/lead_mass_heatmap_SAMITROP_1.png}
-  \caption{Mean lead-mass distributions by model family for the four dataset$\times$label conditions (CODE15$\pm$, PTB-XL negative, SaMi-Trop positive).}
-  \label{fig:lead_mass_heatmaps}
+  \begin{minipage}[c]{0.60\linewidth}
+    \vspace{0pt}
+    \centering
+    \includegraphics[width=0.96\linewidth]{../analysis/embeddings_probe/ranking_agreement/test/plots/rra_ridgeline.png}
+  \end{minipage}\hfill
+  \begin{minipage}[c]{0.36\linewidth}
+    \vspace{0pt}
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.1}
+    \begin{tabular}{lrr}
+      \toprule
+      \textbf{Dataset} & \textbf{Robust -} & \textbf{Robust +} \\
+      \midrule
+      CODE15           & 9{,}627           & 6{,}890           \\
+      PTBXL            & 1{,}818           & 353               \\
+      SAMITROP         & 11                & 168               \\
+      \bottomrule
+    \end{tabular}
+  \end{minipage}
+  \caption{RRA rank distributions by dataset for two separate runs: \texttt{RRA-pos} (original-score ranking; ``robust positive'') and \texttt{RRA-neg} (score-inverted ranking; ``robust negative''). The x-axis is shown on a common reversed scale from \(N=73{,}236\) (left) to \(1\) (right). Robust items therefore concentrate at opposite rank extremes (RRA-neg toward the left extreme, RRA-pos toward the right extreme). Right panel: robust-set counts by dataset.}
+  \label{fig:rra_dataset_violin}
 \end{figure}
 
-\subsection{Robust rank aggregation (RRA) by dataset}
-RRA \parencite{rra_kolde_2012}is applied to the full-test rankings to identify samples that are \emph{robustly} ranked high or low across models using the python package \texttt{PyFLAGR}\parencite{pyflagr_2023} (version 1.0.21).
-The total test set size was $N=73{,}236$, with $7{,}411$ robust positives and $11{,}456$ robust negatives.
-Figure~\ref{fig:rra_dataset_violin} summarizes the rank distributions for the robust positive and robust negative sets by dataset.
-RRA provides an ordering \emph{within} each robust set; samples not included in the robust lists are not ranked by RRA.
-
-\begin{wrapfigure}{r}{0.7\textwidth}
-  \centering
-  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/ranking_agreement/test/plots/rra_ridgeline.png}
-  \caption{RRA rank distributions by dataset and robust set. Each ridge shows the distribution of RRA ranks for robust positives or robust negatives within a dataset (lower rank = more robust).}
-  \label{fig:rra_dataset_violin}
-\end{wrapfigure}
-
-\begin{table}[t]
+\begin{table}[H]
   \centering
   \caption{Kruskal--Wallis tests for RRA rank distributions across datasets.}
   \label{tab:rra_kw}
@@ -190,7 +378,159 @@ RRA provides an ordering \emph{within} each robust set; samples not included in 
   \end{tabular}
 \end{table}
 
-\section{Summary of key results}
+\section{Stage 4: ST-DFT-LRP plausibility assessment}
+For each run, per-sample ST-DFT-LRP outputs are stored in \texttt{stdftlrp\_beat\_agg.csv} and include:
+(i) beat-aggregated 4$\times$4 time$\times$frequency relevance grids (mean and mass-weighted),
+(ii) per-lead relevance mass allocations and lead-importance statistics, and
+(iii) quality metadata for stratified aggregation and visualization.
+In this thesis, beat-structure aggregation is performed on lead V2 (index~7), while lead-mass diagnostics are still computed over all 12 leads from the same per-sample relevance outputs.
+All Stage-4 runs use the same ST-DFT-LRP setup as specified in Methods: \(f_s=400\)\,Hz, rectangular window \(H=125\), non-overlapping hop (\(D=H\)), and analysis restricted to 0.67--45\,Hz.
+
+\paragraph{Cross-preprocessing robust-sample availability for XAI.}
+RRA is computed on the full test fold (\(N=73{,}236\)), but ST-DFT-LRP is run on the probe subset.
+To compare identical ECGs across preprocessing regimes, we require that a sample is present in all 24 lead-V2 ST-DFT-LRP outputs.
+This all-run constraint retains 4{,}819 probe samples (from 4{,}893).
+The resulting matched robust candidate lists are exported to \texttt{analysis/embeddings\_probe/xai\_summary/lead\_7/matched\_robust\_*\_all\_runs.csv}.
+Table~\ref{tab:rra_xai_allrun_availability} quantifies how many robust RRA samples are available under this stricter requirement.
+
+\begin{table}[H]
+  \centering
+  \caption{Robust-set availability for matched cross-preprocessing ST-DFT-LRP comparisons (lead V2, all 24 runs).}
+  \label{tab:rra_xai_allrun_availability}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Dataset} & \textbf{Robust - total} & \textbf{Robust - all-runs} & \textbf{Robust + total} & \textbf{Robust + all-runs} \\
+    \midrule
+    CODE15           & 9{,}627                 & 304                        & 6{,}890                 & 288                        \\
+    SAMITROP         & 11                      & 10                         & 168                     & 166                        \\
+    PTBXL            & 1{,}818                 & 661                        & 353                     & 142                        \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Within CODE15, this all-run pool is strongly label-asymmetric (robust+ CODE15: \(119/120\) positives vs.\ \(169/6{,}770\) negatives; robust- CODE15: \(85/88\) positives vs.\ \(219/9{,}539\) negatives), so same-sample positive/negative comparisons are feasible but numerically imbalanced.
+For monolabel datasets (PTB-XL negative, SaMi-Trop positive), the all-run pool remains sufficiently large for representative qualitative contrasts.
+
+\paragraph{Probe-level Chagas$\times$RBBB composition (context for plausibility).}
+Because RBBB-related morphology is clinically relevant in Chagas cardiomyopathy, we use the probe-set joint distribution of Chagas and RBBB as context for later colocalization interpretation in embedding/XAI panels.
+Table~\ref{tab:probe_chagas_rbbb} shows that the \texttt{chagas=0, RBBB=1} cell is sparse (41 samples), while \texttt{RBBB} is missing for a substantial subset of probe samples.
+Accordingly, RBBB-based spatial overlays are interpreted as supportive plausibility evidence rather than a standalone criterion.
+
+\begin{table}[H]
+  \centering
+  \caption{Probe-set Chagas$\times$RBBB counts (fold~4). Percentages are within the binary-valid subset (\(n=2{,}950\)).}
+  \label{tab:probe_chagas_rbbb}
+  \begin{tabular}{lrrr}
+    \toprule
+    \textbf{Chagas} & \textbf{RBBB=0}  & \textbf{RBBB=1} & \textbf{Row total}       \\
+    \midrule
+    0               & 1{,}590 (53.9\%) & 41 (1.4\%)      & 1{,}631                  \\
+    1               & 1{,}048 (35.5\%) & 271 (9.2\%)     & 1{,}319                  \\
+    \midrule
+    \textbf{Total}  & \textbf{2{,}638} & \textbf{312}    & \textbf{2{,}950}         \\
+    \midrule
+    \multicolumn{4}{l}{RBBB missing: 1{,}943 samples (1{,}631 Ch=0; 312 for Ch=1).} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Lead-importance summaries across model families.}
+Per-sample lead masses are normalized to sum to 1, so each value is the fraction of total relevance mass assigned to a lead.
+Across dataset$\times$label conditions, the limb-vs-precordial balance is preprocessing-dependent: precordial share is high under \texttt{bp} (0.599), near parity under \texttt{bp-sc} (0.505), and effectively uniform under \texttt{bp-sc-norm} (0.500; Table~\ref{tab:lead_mass_preproc_share}).
+At lead level, V3 is most often top-1 overall, but V2 remains consistently high (median top1--V2 gap \(=0.0079\)); by preprocessing, mean V2 share is 0.110 (\texttt{bp}), 0.095 (\texttt{bp-sc}), and 0.086 (\texttt{bp-sc-norm}).
+These diagnostics support using V2 as a stable representative precordial lead for beat-level attribution while avoiding the claim that V2 is universally dominant in every run.
+
+\begin{table}[H]
+  \centering
+  \caption{Lead-mass share by preprocessing regime (lead V2 pipeline; averaged across model groups).}
+  \label{tab:lead_mass_preproc_share}
+  \begin{tabular}{lrrr}
+    \toprule
+    Preprocessing       & Limb share & Precordial share & Precordial/Limb \\
+    \midrule
+    \texttt{bp}         & 0.401      & 0.599            & 1.492           \\
+    \texttt{bp-sc}      & 0.496      & 0.504            & 1.016           \\
+    \texttt{bp-sc-norm} & 0.500      & 0.500            & 1.001           \\
+    \bottomrule
+  \end{tabular}
+  \vspace{0.2em}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/lead_mass_heatmap_PTBXL_0.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/lead_mass_heatmap_CODE15_0.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/lead_mass_heatmap_CODE15_1.png}\\[0.5em]
+  \includegraphics[width=0.69\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/lead_mass_heatmap_SAMITROP_1.png}
+  \caption{Mean lead-mass distributions by model family for the four dataset$\times$label conditions (lead V2 pipeline; CODE15$\pm$, PTB-XL negative, SaMi-Trop positive).}
+  \label{fig:lead_mass_heatmaps}
+\end{figure}
+
+\paragraph{Time--frequency relevance grids (4$\times$4).}
+To compare runs and groups on a common scale, each beat-level 4$\times$4 ST-DFT-LRP grid is normalized by total absolute beat relevance mass before aggregation.
+Group summaries use medians across samples to reduce outlier sensitivity.
+Reported signed cell values indicate directional dominance: positive values reflect predominantly positive-support relevance, negative values predominantly negative-support relevance, and values near zero mixed or weak directional evidence.
+Before group aggregation, per-sample sanity exports are inspected using the same robust-rule candidate pool.
+These exports include (i) the ST-DFT-LRP methodology view, (ii) NeuroKit2 \texttt{ecg\_delineate} markers, (iii) \texttt{ecg\_segment} beat overlays, and (iv) a perturbation sanity curve (prediction under progressive removal of most-relevant frequency bins).
+For the main text, we restrict this to one matched sample configuration and compare only preprocessing effects.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[height=0.26\textheight,keepaspectratio]{figures/generated/xai_rule_based/t1-exp03-bp-focal__S000__CODE15__ch0__robust_neg__1701814__stdft_method.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{figures/generated/xai_rule_based/t1-exp08-bp-sc-focal__S000__CODE15__ch0__robust_neg__1701814__stdft_method.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{figures/generated/xai_rule_based/t1-exp11-bp-sc-norm-focal__S000__CODE15__ch0__robust_neg__1701814__stdft_method.png}
+  \caption{Sample-level ST-DFT-LRP methodology view for the same robust CODE-15 negative sample (\texttt{exam=1701814}, lead V2) across matched Track~1 focal preprocessing regimes (top-to-bottom: \texttt{t1-exp03-bp-focal}, \texttt{t1-exp08-bp-sc-focal}, \texttt{t1-exp11-bp-sc-norm-focal}).}
+  \label{fig:stdftlrp_method_triplet_t1_focal_s000}
+\end{figure}
+
+\paragraph{Sample-level sanity exports (before group aggregation).}
+Rule-based sanity exports were generated from robust RRA candidates under the configured quality filter and compared across the selected preprocessing-matched models.
+The exact selection rules (cross-run matching, quality filter, stratum coverage, deterministic rank pick) are predefined in Methods (Section~\ref{sec:xai_rule_policy}) and applied before inspection.
+Each export combines the composite ST-DFT-LRP view, NeuroKit2 beat delineation/segmentation diagnostics, and a frequency-perturbation sanity curve; full per-sample perturbation plots are kept as supplementary material rather than in the main text.
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_background.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_background.tex}
+}{}
+Detailed per-sample metadata/quality/robust-rank tables and the cross-preprocessing evolution table for the same selected samples are provided in the Appendix (Tables~\ref{tab:xai-samples-t1-exp03-bp-focal}, \ref{tab:xai-samples-t1-exp08-bp-sc-focal}, \ref{tab:xai-samples-t1-exp11-bp-sc-norm-focal}, and \ref{tab:xai-sample-evolution-bp-triplet}).
+To complement this conservative robust pool, an appendix-only raw-score extreme mini-set (lowest/highest baseline \(p_0\) from full test-fold model predictions for \texttt{t1-exp03-bp-focal} and \texttt{t1-exp08-bp-sc-focal}) is provided in Table~\ref{tab:xai-score-extremes} with corresponding ST-DFT-LRP views in Figure~\ref{fig:xai-score-extremes}.
+Notably, one raw maximum in this comparison is a labeled negative (\texttt{t1-exp03-bp-focal}, \texttt{exam=1594916}, \(p_0\approx0.848\)), illustrating that score-extreme cases are not equivalent to robustly consensus-positive cases.
+In the current selected-sample set, the evolution table is consistent with the aggregate Stage-4 trend: moving from \texttt{bp} to \texttt{bp-sc-norm} tends to compress baseline predicted probabilities toward less extreme values.
+Across the current export set (\(n=24\) model$\times$sample curves), perturbing the most relevant frequency bins produces heterogeneous but non-trivial score responses: at the maximum removal level, 11/24 curves show a probability drop relative to baseline, while the median change is close to zero (\(\Delta p_{\text{median}}\approx -0.0019\), IQR \(\approx[-0.0067,\,0.0046]\)).
+By run, the largest median drop is observed for \texttt{t1-exp11-bp-sc-norm-focal} (\(\Delta p_{\text{median}}\approx -0.0043\)); \texttt{t1-exp03-bp-focal} and \texttt{t1-exp08-bp-sc-focal} are near-neutral to mildly positive on this coarse perturbation summary.
+Accordingly, these curves are used here as plausibility/sanity evidence that relevance-ranked spectral interventions can change model output, not as a standalone robustness metric.
+
+Using model-wise disease deltas (\(\Delta=\) CODE15 Chagas-positive minus CODE15 Chagas-negative), preprocessing-dependent attenuation is clear: median \(\Delta\)QRS decreases from \(+0.095\) (\texttt{bp}) to \(+0.061\) (\texttt{bp-sc}) to \(+0.023\) (\texttt{bp-sc-norm}), while \(\Delta\)Between moves from \(-0.061\) to \(-0.047\) to \(+0.001\).
+Analogously, the median \(\Delta\)physio-ratio declines from \(+0.524\) (\texttt{bp}) to \(+0.352\) (\texttt{bp-sc}) and becomes neutral/slightly negative under \texttt{bp-sc-norm} (\(-0.019\)).
+Thus, the same preprocessing regime that degrades Stage~1 clinical ranking also compresses class-contrast structure in the V2 relevance grids.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t1-exp03-bp-focal__lead_7.png}\\[0.5em]
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t1-exp08-bp-sc-focal__lead_7.png}\\[0.5em]
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t1-exp11-bp-sc-norm-focal__lead_7.png}
+  \caption{Per-model ST-DFT-LRP 4$\times$4 composites for matched Track~1 focal models across preprocessing (top-to-bottom: \texttt{t1-exp03-bp-focal}, \texttt{t1-exp08-bp-sc-focal}, \texttt{t1-exp11-bp-sc-norm-focal}).}
+  \label{fig:stdftlrp_4x4_t1_focal_triplet}
+\end{figure}
+For the Track~1 focal triplet, disease-delta structure weakens monotonically with stronger preprocessing (\(\Delta\)QRS: \(+0.117 \rightarrow +0.096 \rightarrow +0.031\); \(\Delta\)Between: \(-0.074 \rightarrow -0.071 \rightarrow -0.008\)), matching the Stage~1 utility drop.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t3-exp01-bp-supstd__lead_7.png}\\[0.5em]
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t3-exp03-bp-sc-supstd__lead_7.png}\\[0.5em]
+  \includegraphics[width=0.98\linewidth]{../analysis/embeddings_probe/xai_summary/lead_7/plots/stdftlrp_4x4_t3-exp04-bp-sc-norm-supstd__lead_7.png}
+  \caption{Per-model ST-DFT-LRP 4$\times$4 composites for matched Track~3 \texttt{supstd} models across preprocessing (top-to-bottom: \texttt{t3-exp01-bp-supstd}, \texttt{t3-exp03-bp-sc-supstd}, \texttt{t3-exp04-bp-sc-norm-supstd}).}
+  \label{fig:stdftlrp_4x4_t3_supstd_triplet}
+\end{figure}
+In Track~3 \texttt{supstd}, the \texttt{bp-sc} model shows a direction flip in disease deltas (\(\Delta\)QRS \(=-0.332\), \(\Delta\)Between \(=+0.318\)), whereas \texttt{bp} shows the expected sign (\(\Delta\)QRS \(=+0.116\), \(\Delta\)Between \(=-0.065\)) and \texttt{bp-sc-norm} is near-neutral.
+This indicates regime-sensitive attribution behavior in representation-learning models and supports treating ST-DFT-LRP here as a plausibility lens rather than a single definitive mechanistic readout.
+
+\paragraph{Summary of key results.}
 \begin{itemize}
-  \item \todo{One paragraph: main takeaways for (i) ranking performance, (ii) embedding health, (iii) dataset/label effects, and (iv) agreement/consensus.}
+  \item \textbf{Preprocessing dominates performance:} \texttt{bp} and \texttt{bp-sc} yield competitive screening performance, while \texttt{bp-sc-norm} substantially degrades ranking utility across learning strategies.
+  \item \textbf{Best clinical utility:} \texttt{t1-bp-focal} achieves the best TPR@5\% and also the best pAUC@5\% and AP among the evaluated runs; representation learning (\texttt{t3-bp-sc-supstd}) is competitive under \texttt{bp-sc}.
+  \item \textbf{Rotation augmentation is detrimental:} \texttt{+rot10} consistently reduces performance, suggesting the employed frontal-plane rotation is not reliably label-preserving under the dataset and transform assumptions.
+  \item \textbf{Label/quality confounding is measurable:} within CODE-15\%, Zhao2018 quality is significantly associated with the Chagas label, motivating explicit stratification and cautious interpretation of embedding overlays.
+  \item \textbf{Embedding diagnostics support validity filtering:} healthier embedding geometry (GPU/CAC) generally co-occurs with better screening utility, supporting a hierarchical evaluation workflow before interpretability analyses.
+  \item \textbf{Precordial lead emphasis is consistent:} lead-mass attribution concentrates on V1--V6 under mild preprocessing, motivating V2-based beat-structure attribution as a focused plausibility probe.
+  \item \textbf{Matched robust-XAI coverage is limited but usable:} under the strict all-run lead-V2 constraint, 596 robust positives and 975 robust negatives remain available for same-sample cross-preprocessing comparisons.
+  \item \textbf{4$\times$4 disease contrast weakens under stronger preprocessing:} median CODE15 disease deltas (\(\Delta\)QRS, \(\Delta\)Between, \(\Delta\)physio-ratio) are strongest in \texttt{bp}, reduced in \texttt{bp-sc}, and close to neutral in \texttt{bp-sc-norm}.
 \end{itemize}

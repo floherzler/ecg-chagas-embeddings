@@ -17,10 +17,57 @@ In addition, the largest dataset (CODE-15\%) uses self-reported Chagas labels, w
 Conversely, PTB-XL provides comparatively clean negatives because it was recorded in Germany (1989--1996), a non-endemic setting, so Chagas labels are treated as negatives on epidemiological grounds \parencite{wagner_ptb_xl}.
 Given short (~6.25~s) windows, the models are inherently biased toward beat morphology and high-burden ectopy rather than low-frequency paroxysmal events, which helps explain why performance is stronger in cohorts enriched for cardiomyopathy and why ranking-based screening is the most clinically plausible objective.
 
+\paragraph{Asymmetric label uncertainty across classes.}
+Because CODE-15 dominates the sample count, even a modest amount of self-report error in the negative class can materially affect aggregate metrics and embedding summaries: potentially mislabeled negatives are numerous and therefore can dilute class-separation signals.
+At the same time, clinically verified SaMi-Trop positives are not guaranteed to be ECG-abnormal in short windows; seropositivity and ECG manifestations are not equivalent, especially in earlier disease stages.
+This creates an asymmetric ambiguity: class~0 can contain hidden positives by volume, while class~1 can contain ECG-normal true positives.
+Operationally, this supports the thesis focus on ranking-oriented positive retrieval (top-fraction screening metrics) and cautious interpretation of class~0 embedding behavior.
+This interpretation is now supported by the metadata-normality summary in Results, which makes the class-asymmetric uncertainty explicit across datasets before introducing model-based quality analyses.
+
+\paragraph{ECG quality as a label confounder.}
+Beyond label noise, Results show a significant association between Zhao2018 ECG quality categories and Chagas label inside CODE-15\% (Table~\ref{tab:code15_quality_chagas}), with quality computed via the NeuroKit2-based Zhao2018 pipeline and tested using Fisher/FFH procedures as defined in Methods.
+Given the low positive prevalence and the dominance of self-reported labels in CODE-15\%, this raises a concrete shortcut risk: part of ranking performance may come from quality-correlated cues rather than disease-specific electrophysiology.
+This also affects transfer interpretation: split differences between CODE-15 and verified cohorts can partly reflect changing quality composition, not only changing pathology.
+The PTB-XL counterfactual and observed SaMi-Trop comparison supports this interpretation by showing that the transferred quality shift reproduces a substantial part of the positive-class quality profile.
+Importantly, metadata-defined ECG normality and NeuroKit2 Zhao2018 quality capture different constructs: the former reflects diagnostic coding/clinical normality labels, while the latter reflects signal-level recording quality.
+For PTB-XL, the metadata normality analysis used a strict rule (\texttt{NORM}=100.0 in \texttt{scp\_codes}), which is conservative and can undercount ``mostly normal'' records that still carry additional SCP annotations (e.g., \texttt{NORM}<100 with other codes).
+Accordingly, quality-stratified analyses are treated as mandatory context for metric interpretation, and these results are interpreted descriptively rather than causally.
+
+\paragraph{Limits of agreement metrics and top-5\% focus.}
+Stage~3 uses a complementary trio of agreement measures (Spearman, IoU, Kendall's \(\tau\)), but each has blind spots.
+Spearman captures global rank similarity and can remain moderate even when clinically relevant tail ordering differs.
+IoU captures overlap of selected top-5\% candidates, but ignores ordering within that overlap and is sensitive to small score shifts around the cut-off.
+Kendall's \(\tau\) on the overlap addresses this ordering question, yet it is conditioned on the overlap set itself and therefore depends on IoU.
+The reported pattern (moderate global agreement but substantially lower cross-preprocessing IoU/\(\tau\)) indicates that candidate selection near the 5\% boundary is comparatively unstable.
+This implies that some borderline samples may enter or leave the screening set depending on model/preprocessing choice, even when global rankings look similar.
+Consequently, consensus-based selection in this thesis should be interpreted as a robustness filter rather than a uniquely ``true'' case ranking, and threshold choices (\(c_i\geq 8\), \(c_i\geq 16\)) remain pragmatic design decisions rather than theoretically optimal constants.
+An additional limitation is that these stability estimates are from a single held-out fold; without repeated fold-level or bootstrap uncertainty bands, the tail-stability conclusions are informative but not yet fully quantified.
+
+\paragraph{Interpreting RRA distribution shapes.}
+The dataset-specific RRA ridgelines indicate non-identical rank distributions across CODE-15, PTB-XL, and SaMi-Trop in both robust-positive and robust-negative sets.
+This supports the view that robustness structure is dataset-dependent, not purely a pooled ranking artifact.
+However, ridge-shape differences should be interpreted cautiously because subset sizes are highly imbalanced (especially for SaMi-Trop and PTB-XL in selected robust subsets), which can make densities appear narrower or multi-peaked even without strong underlying multimodality.
+Accordingly, the present RRA ridgelines are used as descriptive evidence for cross-dataset heterogeneity, while stronger shape claims would require repeated-split uncertainty analysis.
+
+\paragraph{RRA robustness depends on the model pool.}
+RRA is robust only relative to the input ranked lists, so its output quality depends on the robustness of the included models.
+In this thesis, all models were intentionally included for consistency with the global pipeline; this keeps selection rules uniform across stages, but it also means collapsed or weakly stable runs (notably \texttt{bp-sc-norm}) can influence aggregate robust sets.
+Future work should test a filtered RRA pool that excludes collapse-prone runs and compare resulting robust sets against the all-model baseline.
+This is especially relevant because \texttt{bp} and, to a lesser extent, \texttt{bp-sc} still show dataset-structure effects; under such conditions, ``robust'' cross-model samples need not coincide with the highest-probability examples in the best individual models.
+The appendix score-extreme add-on therefore complements the main robust set by explicitly showing lowest/highest-\(p_0\) examples within the same quality-controlled export pool.
+
 \paragraph{Augmentation strength as a limiting factor.}
 The augmentation suite used in this thesis was intentionally mild (small gain jitter and low-variance Gaussian noise), with stronger perturbations such as time warping, time masking, and channel masking disabled to preserve clinical interpretability.
 While this choice stabilizes supervised training and supports direct waveform interpretation, it may be suboptimal for contrastive representation learning: Track~2 objectives generally benefit from stronger or more diverse view generation to encourage invariances.
+This is also relevant for interpreting SAA in Track~3: because SAA is defined through agreement between augmented views, it is highly sensitive to augmentation design.
+If per-view augmentations are too mild or too easy to match, SAA can appear artificially strong and become a brittle proxy for representation quality.
+In this setting, class-separation diagnostics (especially CAC) and downstream ranking metrics are therefore more reliable primary criteria than SAA alone.
 Therefore, some of the observed limits in Track~2 (and downstream Track~3) performance could reflect underpowered augmentations rather than intrinsic limitations of the objectives.
+
+\paragraph{Relation to TTC objective ranking.}
+In the TTC paper's medical imaging experiments, the supervised prototype objective was reported as the strongest of the compared representation-learning objectives.
+In this thesis, that ordering did not transfer to the downstream clinical classification metrics on fold~4: within Track~3, \texttt{supstd} consistently outperformed \texttt{proto} (and \texttt{supmin}) on the primary endpoint TPR@5\% across preprocessing regimes.
+This should not be over-generalized from a single held-out split, but it is an important negative-transfer result: objective rankings from one modality/task family do not automatically carry over to ECG screening under the present label mix, preprocessing pipeline, and augmentation strength.
 
 \paragraph{Lead construction and rotation fidelity.}
 All experiments operate on the 12-lead signals as provided by the source datasets; no new leads are re-derived from raw electrode potentials, and the only signal modifications are the defined preprocessing and augmentations.
@@ -28,9 +75,10 @@ Consequently, the axis-rotation augmentation relies on a fixed linear lead model
 This means the rotation parameters are approximate and may not correspond to a precise physical change in cardiac orientation for every record, which is another reason the rotation should be interpreted as a controlled robustness probe rather than a clinically exact transformation.
 
 \paragraph{Lead selection in ST-DFT-LRP.}
-Beat-level ST-DFT-LRP aggregation in this thesis is restricted to Lead~II, which is a standard rhythm lead and provides a clear P--QRS--T morphology.
+Beat-level ST-DFT-LRP aggregation in this thesis is restricted to lead V2 (index~7), chosen as a representative precordial lead from the lead-mass analysis.
 This choice improves feasibility and interpretability but is not optimal for all Chagas-related abnormalities: several structural and conduction manifestations (e.g., bundle-branch patterns or regional ST--T changes) are known to be more prominent in precordial or alternative limb leads.
-Therefore, the lead-II focus should be interpreted as a rhythm-centric view of model attention rather than a comprehensive 12-lead characterization of Chagas cardiomyopathy.
+Moreover, in the present runs V2 is consistently high but not uniformly dominant (V3 is more often top-1 in mild preprocessing), so lead-specific interpretations should not be over-generalized.
+Therefore, the V2 focus should be interpreted as a targeted plausibility view rather than a comprehensive 12-lead characterization of Chagas cardiomyopathy.
 
 \paragraph{RBBB annotations across datasets.}
 For CODE15, RBBB flags are provided directly in the dataset metadata; for PTB-XL, the closest available analogue used here is \texttt{ptb\_crbbb} derived from \texttt{scp\_codes}.

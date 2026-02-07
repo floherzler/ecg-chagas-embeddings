@@ -1,35 +1,67 @@
-\begin{table}[t]
+% --- begin: local helpers for this table file (safe to keep here) ---
+\providecommand{\best}[1]{\textbf{#1}}
+\providecommand{\overall}[1]{\underline{\textbf{#1}}}
+% --- end: local helpers ---
+
+\begin{table}[H]
     \centering
-    \caption{Per-run clinical metrics (compact model labels: track / preprocessing / objective).}
+    \caption{Per-run clinical metrics (compact model labels: track / preprocessing / objective). Bold marks the best within each (track $\times$ preprocessing) block.}
     \label{tab:cls_per_run}
     \begin{tabular}{lrrrrr}
         \toprule
-        model                             & TPR@5\%  & pAUC@5\% & AP       & TPR@10\% & AUROC    \\
+        model & TPR@5\% & pAUC@5\% & AP & TPR@10\% & AUROC \\
         \midrule
-        \shortstack{t1-bp-bce}            & 0.429185 & 0.311103 & 0.187876 & 0.564071 & 0.833916 \\
-        \shortstack{t1-bp-bce+rot10}      & 0.146536 & 0.112510 & 0.058263 & 0.187002 & 0.600172 \\
-        \shortstack{t1-bp-focal}          & 0.433476 & 0.331012 & 0.208047 & 0.565297 & 0.838842 \\
-        \shortstack{t1-bp-focal+rot10}    & 0.430411 & 0.325340 & 0.203300 & 0.550582 & 0.837121 \\
-        \shortstack{t1-bp-rat}            & 0.397302 & 0.288291 & 0.163050 & 0.517474 & 0.806557 \\
-        \shortstack{t1-bp-rat+rot10}      & 0.259963 & 0.200578 & 0.103194 & 0.304721 & 0.725545 \\
-        \shortstack{t1-bp-sc-bce}         & 0.415083 & 0.300099 & 0.180402 & 0.539546 & 0.825935 \\
-        \shortstack{t1-bp-sc-focal}       & 0.407112 & 0.298358 & 0.179339 & 0.529736 & 0.824108 \\
-        \shortstack{t1-bp-sc-rat}         & 0.421827 & 0.313599 & 0.179356 & 0.539546 & 0.810609 \\
-        \shortstack{t1-bp-sc-norm-bce}    & 0.221337 & 0.133720 & 0.063364 & 0.332311 & 0.696154 \\
-        \shortstack{t1-bp-sc-norm-focal}  & 0.194972 & 0.114648 & 0.052670 & 0.290006 & 0.665121 \\
-        \shortstack{t1-bp-sc-norm-rat}    & 0.133660 & 0.076940 & 0.034613 & 0.207235 & 0.565429 \\
-        \shortstack{t3-bp-supstd}         & 0.384427 & 0.289473 & 0.167758 & 0.475169 & 0.739353 \\
-        \shortstack{t3-bp-supstd+rot10}   & 0.324954 & 0.251878 & 0.148574 & 0.400368 & 0.730569 \\
-        \shortstack{t3-bp-supmin}         & 0.297977 & 0.189006 & 0.090392 & 0.423053 & 0.753015 \\
-        \shortstack{t3-bp-supmin+rot10}   & 0.340895 & 0.244198 & 0.128863 & 0.443286 & 0.743667 \\
-        \shortstack{t3-bp-proto}          & 0.337216 & 0.244772 & 0.134403 & 0.437768 & 0.740868 \\
-        \shortstack{t3-bp-proto+rot10}    & 0.233599 & 0.154540 & 0.077214 & 0.351318 & 0.682539 \\
-        \shortstack{t3-bp-sc-supstd}      & 0.433476 & 0.325637 & 0.196167 & 0.551196 & 0.827146 \\
-        \shortstack{t3-bp-sc-supmin}      & 0.358676 & 0.254263 & 0.135496 & 0.477008 & 0.802921 \\
-        \shortstack{t3-bp-sc-proto}       & 0.402207 & 0.300424 & 0.175568 & 0.524831 & 0.812855 \\
-        \shortstack{t3-bp-sc-norm-supstd} & 0.113427 & 0.058163 & 0.035936 & 0.194359 & 0.629316 \\
-        \shortstack{t3-bp-sc-norm-supmin} & 0.086450 & 0.044236 & 0.028945 & 0.153280 & 0.557511 \\
-        \shortstack{t3-bp-sc-norm-proto}  & 0.079706 & 0.040072 & 0.025226 & 0.141018 & 0.518937 \\
+
+        \multicolumn{6}{l}{\textit{Track t1 \;|\; bp}} \\
+        \midrule
+        \shortstack{t1-bp-bce} & 0.4292 & 0.3111 & 0.1879 & 0.5641 & 0.8339 \\
+        \shortstack{t1-bp-bce+rot10} & 0.1465 & 0.1125 & 0.0583 & 0.1870 & 0.6002 \\
+        \shortstack{t1-bp-focal} & \overall{0.4335} & \overall{0.3310} & \overall{0.2080} & \overall{0.5653} & \overall{0.8388} \\
+        \shortstack{t1-bp-focal+rot10} & 0.4304 & 0.3253 & 0.2033 & 0.5506 & 0.8371 \\
+        \shortstack{t1-bp-rat} & 0.3973 & 0.2883 & 0.1630 & 0.5175 & 0.8066 \\
+        \shortstack{t1-bp-rat+rot10} & 0.2600 & 0.2006 & 0.1032 & 0.3047 & 0.7255 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{6}{l}{\textit{Track t1 \;|\; bp-sc}} \\
+        \midrule
+        \shortstack{t1-bp-sc-bce} & 0.4151 & 0.3001 & \best{0.1804} & \best{0.5395} & \best{0.8259} \\
+        \shortstack{t1-bp-sc-focal} & 0.4071 & 0.2984 & 0.1793 & 0.5297 & 0.8241 \\
+        \shortstack{t1-bp-sc-rat} & \best{0.4218} & \best{0.3136} & 0.1794 & \best{0.5395} & 0.8106 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{6}{l}{\textit{Track t1 \;|\; bp-sc-norm}} \\
+        \midrule
+        \shortstack{t1-bp-sc-norm-bce} & \best{0.2213} & \best{0.1337} & \best{0.0634} & \best{0.3323} & \best{0.6962} \\
+        \shortstack{t1-bp-sc-norm-focal} & 0.1950 & 0.1146 & 0.0527 & 0.2900 & 0.6651 \\
+        \shortstack{t1-bp-sc-norm-rat} & 0.1337 & 0.0769 & 0.0346 & 0.2072 & 0.5654 \\
+        \addlinespace[4pt]\midrule
+
+        \addlinespace[6pt]\midrule\midrule
+
+        \multicolumn{6}{l}{\textit{Track t3 \;|\; bp}} \\
+        \midrule
+        \shortstack{t3-bp-supstd} & \best{0.3844} & \best{0.2895} & \best{0.1678} & \best{0.4752} & 0.7394 \\
+        \shortstack{t3-bp-supstd+rot10} & 0.3250 & 0.2519 & 0.1486 & 0.4004 & 0.7306 \\
+        \shortstack{t3-bp-supmin} & 0.2980 & 0.1890 & 0.0904 & 0.4231 & \best{0.7530} \\
+        \shortstack{t3-bp-supmin+rot10} & 0.3409 & 0.2442 & 0.1289 & 0.4433 & 0.7437 \\
+        \shortstack{t3-bp-proto} & 0.3372 & 0.2448 & 0.1344 & 0.4378 & 0.7409 \\
+        \shortstack{t3-bp-proto+rot10} & 0.2336 & 0.1545 & 0.0772 & 0.3513 & 0.6825 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{6}{l}{\textit{Track t3 \;|\; bp-sc}} \\
+        \midrule
+        \shortstack{t3-bp-sc-supstd} & \overall{0.4335} & \best{0.3256} & \best{0.1962} & \best{0.5512} & \best{0.8271} \\
+        \shortstack{t3-bp-sc-supmin} & 0.3587 & 0.2543 & 0.1355 & 0.4770 & 0.8029 \\
+        \shortstack{t3-bp-sc-proto} & 0.4022 & 0.3004 & 0.1756 & 0.5248 & 0.8129 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{6}{l}{\textit{Track t3 \;|\; bp-sc-norm}} \\
+        \midrule
+        \shortstack{t3-bp-sc-norm-supstd} & \best{0.1134} & \best{0.0582} & \best{0.0359} & \best{0.1944} & \best{0.6293} \\
+        \shortstack{t3-bp-sc-norm-supmin} & 0.0865 & 0.0442 & 0.0289 & 0.1533 & 0.5575 \\
+        \shortstack{t3-bp-sc-norm-proto} & 0.0797 & 0.0401 & 0.0252 & 0.1410 & 0.5189 \\
+        \addlinespace[4pt]\midrule
+
         \bottomrule
     \end{tabular}
 \end{table}

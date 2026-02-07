@@ -4,7 +4,8 @@
 
 \subsection{Per-run Metric Tables}
 \input{tables/classification_by_group.tex}
-\input{tables/embedding_per_run.tex}
+\input{tables/embedding_by_group.tex}
+\input{tables/classification_tpr_split_per_run.tex}
 
 \subsection{Additional Agreement Figure}
 \begin{figure}[h]
@@ -14,11 +15,79 @@
   \label{fig:appendix_iou}
 \end{figure}
 
+\subsection{Additional Embedding Figures}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_gpu_vs_tpr5.png}
+  \caption{Embedding uniformity (GPU$_1$) versus clinical utility (TPR@5\%). Point labels denote experiment IDs extracted from \texttt{run\_id} (\texttt{expXX}).}
+  \label{fig:appendix_gpu_tpr}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/appendix_cac0_vs_cac1.png}
+  \caption{Cross-class class-alignment consistency (CAC$_0$ vs CAC$_1$). Point labels denote experiment IDs extracted from \texttt{run\_id} (\texttt{expXX}).}
+  \label{fig:appendix_cac0_cac1}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__pca__multipanel_main.png}
+  \caption{Representative PCA composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_pca_t1_best}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__pca__multipanel_main.png}
+  \caption{Representative PCA composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_pca_t3_best}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__pca__sm_dataset_conditions.png}
+  \caption{Representative PCA dataset$\times$Chagas condition composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_pca_dataset_t1_best}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__pca__sm_dataset_conditions.png}
+  \caption{Representative PCA dataset$\times$Chagas condition composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_pca_dataset_t3_best}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__umap__sm_dataset_conditions.png}
+  \caption{Representative UMAP dataset$\times$Chagas condition composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_umap_dataset_t1_best}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__umap__sm_dataset_conditions.png}
+  \caption{Representative UMAP dataset$\times$Chagas condition composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_umap_dataset_t3_best}
+\end{figure}
+
 \subsection{Qualitative Embedding Panels and XAI Grids}
 \begin{itemize}
   \item Full UMAP/PCA hex-panel outputs for all runs are stored under \texttt{analysis/embeddings\_probe/runs/<run\_id>/plots}.
   \item Per-model ST-DFT-LRP 4$\times$4 overview grids are stored under \texttt{analysis/embeddings\_probe/xai\_summary/plots}.
 \end{itemize}
+
+\subsection{Rule-based XAI Sample Tables}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_sample_tables.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_sample_tables.tex}
+}{}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_evolution_tables.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_evolution_tables.tex}
+}{}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}
+}{}
 
 \section{AI Usage Documentation}
 This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by Freie Universität Berlin).

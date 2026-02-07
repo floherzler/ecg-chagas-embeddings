@@ -1,4 +1,5 @@
 \chapter{Background}
+\label{ch:background}
 
 This chapter introduces the core concepts needed to understand the experimental design in Chapter~\ref{ch:methods}.
 The work is conducted in the context of the PhysioNet/Computing in Cardiology Challenge 2025 on Chagas disease detection from ECGs \parencite{2025ChallengePreprint,2025ChallengeCinC}, building on prior deep-learning approaches for ECG-based screening \parencite{jidling_screening_2023}.
@@ -155,13 +156,33 @@ To disentangle the effect of optimization objective from the effect of preproces
   \item \textbf{Robust Rank Aggregation (RRA):} applied to obtain consensus robust ranks from model predictions, serving as a basis for further analysis in the time-frequency domain.
 \end{itemize}
 
+\section{Ranking consistency for screening}
+Because the task is screening-oriented (top-ranked candidates at fixed capacity), agreement between models must be assessed at three complementary levels:
+\begin{itemize}
+  \item \textbf{Global ranking agreement} (Spearman \(\rho\)): do two models order the full test set similarly?
+  \item \textbf{Screening-set overlap} (intersection over union, IoU): do they select the same top-5\% candidates?
+  \item \textbf{Within-set ordering agreement} (Kendall's \(\tau\)): when two models select overlapping candidates, do they rank those shared candidates in a similar order?
+\end{itemize}
+In this thesis, Kendall's \(\tau\) is especially important for downstream case prioritization: Spearman can remain moderate even when top candidates shift, and IoU can be moderate even when the shared candidates are ordered inconsistently.
+Using \(\tau\) on the overlap therefore provides a direct check of rank stability in the clinically relevant selection region.
+At the same time, Spearman and IoU remain necessary for complementary reasons.
+Spearman \(\rho\) captures whether models preserve a similar \emph{global} score structure across the full cohort (useful for identifying broad cross-model agreement patterns and clusters).
+IoU captures whether models agree on \emph{who enters} the limited top-5\% screening set (directly tied to candidate-set reproducibility under fixed capacity).
+Accordingly, interpretation in this thesis is hierarchical: Spearman for global structure, IoU for selection overlap, and Kendall's \(\tau\) for ordering stability inside shared selections.
+
 \section{Interpretability via ST-DFT-LRP}
 To probe \emph{how} models attend to ECG morphology and frequency content, this thesis uses Short-Time Discrete Fourier Transform Layer-wise Relevance Propagation (ST-DFT-LRP).
 ST-DFT-LRP extends LRP to the time--frequency domain, allowing relevance to be visualized and summarized over physiologically meaningful signal regions.
 This is particularly useful in multi-source ECG settings where spurious dataset cues can dominate: time--frequency relevance maps provide an additional check for plausible attention patterns.
+To motivate later beat-level aggregation, this thesis uses NeuroKit2 beat-structure primitives:
+\texttt{ecg\_segment} (beat-aligned windows around detected R-peaks) and \texttt{ecg\_delineate} (P/QRS/T onset-offset markers).
+Conceptually, delineation defines physiologic segment boundaries while segmentation provides a beat-consistent indexing frame, which together justify aggregation from dense ST-DFT-LRP maps into fixed segment$\times$band summaries.
 \todo{Add citations to the DFT-LRP / ST-DFT-LRP paper and the official code repository.}
 \missingfigure{DFT-LRP composite: time--frequency relevance with time trace and spectrum.}
 \missingfigure{Example 4$\times$4 relevance summary heatmap (P/QRS/T/Between $\times$ frequency bands).}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_background.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_background.tex}
+}{}
 
 \section{Imbalanced Binary Classification and Loss Functions}
 The Track~1 label distribution is highly imbalanced, so a standard (unweighted) binary cross entropy objective tends to be dominated by easy negatives.

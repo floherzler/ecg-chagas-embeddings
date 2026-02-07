@@ -168,14 +168,58 @@ The evaluation pipeline generates:
   \item \textbf{Embedding Diagnostics:} A fixed subset of the test fold (the "probe set") is used to compute geometric metrics (CAC, CAD) and visualize the latent space using UMAP and PCA.
   \item \textbf{Consistency Analysis:} We measure the agreement between different models using ranking correlations and intersection-over-union of the top-5\% predictions.
 \end{itemize}
+For consistency analysis, let \(s_m(i)\) denote model \(m\)'s score for sample \(i\), and let \(T_m\) be the top-5\% set of model \(m\).
+We use three complementary agreement measures:
+\[
+  \rho_{ab}=\mathrm{corr}\!\left(\mathrm{rank}(s_a),\,\mathrm{rank}(s_b)\right)
+\]
+(Spearman: global ranking agreement over all samples),
+\[
+  \mathrm{IoU}(a,b)=\frac{|T_a\cap T_b|}{|T_a\cup T_b|}
+\]
+(intersection over union: overlap of screening sets), and
+\[
+  \tau_{ab}=\mathrm{corr}_{\tau}\!\left(\mathrm{rank}_{T_a\cap T_b}(s_a),\,\mathrm{rank}_{T_a\cap T_b}(s_b)\right)
+\]
+(Kendall's \(\tau\): ordering agreement inside the shared top-5\% subset).
 This ensures that all reported comparisons between tracks and preprocessing methods are based on identical test data and metric definitions.
+
+\subsection{Robust rank aggregation (RRA)}
+Beyond pairwise agreement metrics, robust cross-model candidates are extracted with Robust Rank Aggregation (RRA) \parencite{rra_kolde_2012}, using the Python package \texttt{PyFLAGR} \parencite{pyflagr_2023}.
+Implementation follows the analysis script \texttt{scripts/analysis/compute\_ranking\_agreement.py} on the full held-out test fold rankings.
+
+For each model, a ranked list over all test samples is provided (\texttt{rra\_top\_frac}=1.0 by default).
+RRA is run twice: once on original scores (robustly high-ranked samples) and once on sign-inverted scores (robustly low-ranked samples).
+The resulting outputs are merged into per-sample robust rank columns \texttt{rra\_rank\_pos} and \texttt{rra\_rank\_neg}; samples not robustly selected by RRA remain unranked (missing in the respective column).
+In addition, a dense baseline rank \texttt{median\_rank\_full} is stored as the per-sample median rank across all models.
+
+These RRA outputs are used as a conservative robustness layer for sample prioritization: consensus-count thresholds provide broad candidate pools, while RRA identifies samples that are consistently extreme across the full model set.
+
+Because the clinical objective is screening-oriented and focused on identifying true positives in the top-ranked fraction (TPR@5\%), embedding diagnostics for class~1 are treated as primary in downstream interpretation.
+Class~0 diagnostics are still reported for completeness, but are considered secondary because ranking quality within the large negative remainder outside the selected top fraction is not the central decision target in this task.
+
+\subsection{Label-strength split and quality analysis}
+For subgroup analyses, we define a \emph{verified} subset as PTB-XL negatives plus SaMi-Trop positives, and contrast it with CODE-15 (mixed/self-reported labels).
+Clinical metrics (TPR@5\%, pAUC@5\%, AP) are computed separately for verified and CODE-15 partitions and summarized by track and preprocessing.
+
+As a metadata-only baseline (independent of model outputs), we also summarize \texttt{normal\_ecg} prevalence across datasets.
+For CODE-15 and SaMi-Trop, \texttt{normal\_ecg} is read directly from dataset metadata.
+For PTB-XL, a binary normality flag is derived from \texttt{scp\_codes} using a strict criterion: \texttt{NORM}=100.0.
+This variable is used descriptively (normal vs.\ not normal ECG) and does not depend on lead-specific signal processing.
+
+To quantify potential label--quality coupling inside CODE-15, ECG quality is evaluated using the Zhao2018 categorical score (NeuroKit2 pipeline), and association with the Chagas label is tested using Fisher/Freeman--Halton exact procedures.
+Concretely, two complementary tests are used: (i) a 2$\times$2 Fisher exact test after collapsing quality to \emph{Excellent} vs.\ \emph{Not Excellent}, and (ii) a 3$\times$2 Freeman--Halton extension (Monte-Carlo exact) on the full contingency table (\emph{Excellent}, \emph{Barely acceptable}, \emph{Unacceptable} $\times$ label).
+Percentages reported in Results are computed directly from these contingency counts by column-wise normalization (within label class).
+In addition, a sensitivity-style counterfactual table is constructed by applying CODE-15 positive/negative quality ratios to the PTB-XL negative quality distribution.
+These analyses are descriptive and intended to support interpretation of dataset-specific performance patterns, not causal inference.
 
 \section{ST-DFT-LRP for XAI}
 \paragraph{Implementation source.}
 ST-DFT-LRP is implemented using the official DFT-LRP repository (integrated as a submodule) to ensure fidelity to the method definition.
 \todo{Insert repository citation and URL.}
 The method is applied to model relevance in the time domain and mapped into a short-time frequency grid using window width $H$ and shift $D$.
-For interpretability and comparability, the analysis uses non-overlapping windows ($D=H$) \todo{Confirm the exact window width used (e.g., 125 samples at 400\,Hz).}
+In this thesis, $f_s=400$\,Hz, a rectangular ST-DFT window with $H=125$ samples is used, and non-overlapping windows are enforced via $D=H$ (implemented with \texttt{window\_shift}=1 in the upstream DFT-LRP API).
+Frequency-domain summaries and perturbation checks are restricted to the same passband as preprocessing (0.67--45\,Hz) for consistency.
 
 \paragraph{Qualitative per-sample composites.}
 For individual ECGs, we visualize a composite view consisting of:
@@ -197,8 +241,19 @@ Within each cell, relevance is summarized using a signed-balance statistic
 \]
 yielding values in $[-1,1]$ that encode directional relevance while normalizing magnitude across beats.
 Beat-level matrices are normalized and averaged across beats.
-For this thesis, ST-DFT-LRP is computed on a single lead (Lead II; index 1) for all models; lead-importance statistics (mass, entropy, top-$k$) are still computed across all 12 leads from time-domain relevance.
-\todo{Cite the exact delineation method (e.g., NeuroKit2 DWT) and any QC filtering applied.}
+For this thesis, ST-DFT-LRP is computed on a single representative precordial lead (V2; index 7) for all models; lead-importance statistics (mass, entropy, top-$k$) are still computed across all 12 leads from time-domain relevance.
+Beat segmentation and delineation use NeuroKit2 with DWT delineation (\texttt{ecg\_delineate}, method=\texttt{dwt}) and beat windows from \texttt{ecg\_segment}.
+Rule-based sample selection for qualitative exports uses RRA-matched robust candidates with quality filters (default: Zhao2018 \textit{Excellent}) and can be reconfigured without reimplementing the pipeline.
+\paragraph{Rule-based selection policy (for qualitative XAI exports).}
+\label{sec:xai_rule_policy}
+To avoid cherry-picking and keep comparisons reproducible, qualitative ST-DFT-LRP examples are selected by fixed rules before visual inspection:
+\begin{itemize}
+  \item \textbf{Cross-run comparability:} candidates must exist in all compared preprocessing runs (matched by \texttt{sample\_id}/\texttt{exam\_id}).
+  \item \textbf{Quality control:} candidates are filtered by ECG quality (default allowlist: Zhao2018 \textit{Excellent}).
+  \item \textbf{Coverage across strata:} samples are drawn across \texttt{robust\_set} (\texttt{robust\_neg}, \texttt{robust\_pos}), dataset source (\texttt{CODE15}, \texttt{SAMITROP}, \texttt{PTBXL}), and label (\texttt{chagas}\(\in\)\{0,1\}) where available.
+  \item \textbf{Deterministic ranking pick:} within each stratum, candidates are sorted by robust rank and the top \(N\) are chosen (default \(N=1\)); for \texttt{robust\_neg}, sorting is inverted to prioritize robust negatives at the corresponding rank extreme.
+\end{itemize}
+This policy is implemented in the notebook export pipeline and writes explicit metadata tables (sample ID, dataset, label, robust set, quality, robust rank, baseline predicted probability) for thesis traceability.
 \missingfigure{Example 4$\times$4 relevance grid and group-mean comparisons.}
 
 \paragraph{Lead diagnostics.}
@@ -212,4 +267,5 @@ For each run, the pipeline writes a per-sample CSV (\texttt{stdftlrp\_beat\_agg.
 (iii) the 4$\times$4 relevance matrix (mean and mass-weighted variants), and
 (iv) frequency-only relevance summaries.
 A separate summarization script aggregates these per-model CSVs into non-overlapping group comparisons (e.g., dataset $\times$ label) to facilitate cross-model comparisons without re-running ST-DFT-LRP.
+For matched cross-preprocessing case studies, robust RRA candidates are intersected with the per-run ST-DFT-LRP availability set using \texttt{scripts/analysis/select\_stdftlrp\_matched\_robust\_samples.py}, yielding samples that exist in all compared runs.
 \todo{Add a short description of the chosen grouping strategy and any excluded models.}

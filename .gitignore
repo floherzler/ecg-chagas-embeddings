@@ -39,6 +39,7 @@ analysis/embeddings_probe
 **/artifacts/
 # LaTeX (thesis/)
 thesis/.out/
+thesis/figures/
 thesis/**/*.aux
 thesis/**/*.bbl
 thesis/**/*.bcf

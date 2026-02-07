@@ -1,35 +1,67 @@
-\begin{table}[t]
-\centering
-\caption{Per-run embedding metrics (encoder space).}
-\label{tab:emb_per_run}
-\begin{tabular}{lllrrrrrr}
-\toprule
-run\_id & track & preprocessing & GPU\_0 & GPU\_1 & CAC\_0 & CAC\_1 & SAA\_0 & SAA\_1 \\
-\midrule
-t1-exp01-bp-bce & t1 & bp & 0.417260 & 0.690296 & 78.863415 & 65.360435 & NA & NA \\
-t1-exp02-bp-bce-rot10 & t1 & bp & 0.407334 & 0.627146 & 80.161397 & 65.559196 & NA & NA \\
-t1-exp03-bp-focal & t1 & bp & 0.476851 & 0.669528 & 80.342569 & 64.746309 & NA & NA \\
-t1-exp04-bp-focal-rot10 & t1 & bp & 0.489262 & 0.622797 & 80.825401 & 63.988702 & NA & NA \\
-t1-exp05-bp-rat & t1 & bp & 0.626827 & 0.537492 & 78.162221 & 57.181052 & NA & NA \\
-t1-exp06-bp-rat-rot10 & t1 & bp & 0.514728 & 0.459663 & 80.207757 & 63.219537 & NA & NA \\
-t1-exp07-bp-sc-bce & t1 & bp\_sc & 0.444782 & 0.597660 & 79.706958 & 64.178669 & NA & NA \\
-t1-exp08-bp-sc-focal & t1 & bp\_sc & 0.580944 & 0.595013 & 80.686947 & 60.816305 & NA & NA \\
-t1-exp09-bp-sc-rat & t1 & bp\_sc & 0.539872 & 0.467225 & 80.357394 & 61.137440 & NA & NA \\
-t1-exp10-bp-sc-norm-bce & t1 & bp\_sc\_norm & 0.981631 & 0.974008 & 74.212994 & 41.866350 & NA & NA \\
-t1-exp11-bp-sc-norm-focal & t1 & bp\_sc\_norm & 0.962545 & 0.960916 & 72.108909 & 37.947402 & NA & NA \\
-t1-exp12-bp-sc-norm-rat & t1 & bp\_sc\_norm & 0.987872 & 0.985613 & 72.236559 & 38.712798 & NA & NA \\
-t3-exp01-bp-supstd & t3 & bp & 0.411128 & 0.415369 & 80.711572 & 62.834327 & 95.570198 & 95.493561 \\
-t3-exp02-bp-supstd-rot10 & t3 & bp & 0.397300 & 0.362710 & 82.036943 & 62.423988 & 94.068054 & 94.481918 \\
-t3-exp05-bp-supmin & t3 & bp & 0.241476 & 0.267159 & 76.763476 & 57.779096 & 99.417534 & 99.724098 \\
-t3-exp06-bp-supmin-rot10 & t3 & bp & 0.206362 & 0.200033 & 79.721533 & 54.397634 & 98.589821 & 99.264252 \\
-t3-exp09-bp-proto & t3 & bp & 0.228350 & 0.354399 & 71.348665 & 67.111598 & 98.589821 & 97.823425 \\
-t3-exp10-bp-proto-rot10 & t3 & bp & 0.233363 & 0.330671 & 72.410821 & 62.042798 & 96.673820 & 97.118332 \\
-t3-exp03-bp-sc-supstd & t3 & bp\_sc & 0.430204 & 0.372101 & 82.047245 & 61.420380 & 95.263641 & 94.696503 \\
-t3-exp07-bp-sc-supmin & t3 & bp\_sc & 0.255894 & 0.273081 & 77.121549 & 58.092943 & 99.555489 & 99.816063 \\
-t3-exp11-bp-sc-proto & t3 & bp\_sc & 0.236521 & 0.393037 & 71.721814 & 70.227458 & 98.007355 & 97.792763 \\
-t3-exp04-bp-sc-norm-supstd & t3 & bp\_sc\_norm & 0.999056 & 0.998977 & 70.885934 & 37.912474 & 40.941139 & 48.988350 \\
-t3-exp08-bp-sc-norm-supmin & t3 & bp\_sc\_norm & 0.998391 & 0.998535 & 69.394970 & 36.917912 & 56.866955 & 61.986511 \\
-t3-exp12-bp-sc-norm-proto & t3 & bp\_sc\_norm & 0.983140 & 0.980829 & 70.884678 & 35.049150 & 71.704475 & 75.996323 \\
-\bottomrule
-\end{tabular}
+% --- begin: local helpers for this table file (safe to keep here) ---
+\providecommand{\best}[1]{\textbf{#1}}
+\providecommand{\overall}[1]{\underline{\textbf{#1}}}
+% --- end: local helpers ---
+
+\begin{table}[H]
+    \centering
+    \caption{Per-run embedding metrics (encoder space). Bold marks the best within each (track $\times$ preprocessing) block.}
+    \label{tab:emb_per_run}
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        model & GPU$_0$~$\downarrow$ & GPU$_1$~$\downarrow$ & CAC$_0$~$\uparrow$ & CAC$_1$~$\uparrow$ & SAA$_0$~$\uparrow$ & SAA$_1$~$\uparrow$ \\
+        \midrule
+
+        \multicolumn{7}{l}{\textit{Track t1 \;|\; bp}} \\
+        \midrule
+        \shortstack{t1-bp-bce} & 0.4173 & \best{0.6903} & 78.8634 & 65.3604 & NA & NA \\
+        \shortstack{t1-bp-bce+rot10} & 0.4073 & 0.6271 & 80.1614 & \best{65.5592} & NA & NA \\
+        \shortstack{t1-bp-focal} & 0.4769 & 0.6695 & 80.3426 & 64.7463 & NA & NA \\
+        \shortstack{t1-bp-focal+rot10} & 0.4893 & 0.6228 & \best{80.8254} & 63.9887 & NA & NA \\
+        \shortstack{t1-bp-rat} & \best{0.6268} & 0.5375 & 78.1622 & 57.1811 & NA & NA \\
+        \shortstack{t1-bp-rat+rot10} & 0.5147 & 0.4597 & 80.2078 & 63.2195 & NA & NA \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{7}{l}{\textit{Track t1 \;|\; bp-sc}} \\
+        \midrule
+        \shortstack{t1-bp-sc-bce} & 0.4448 & \best{0.5977} & 79.7070 & \best{64.1787} & NA & NA \\
+        \shortstack{t1-bp-sc-focal} & \best{0.5809} & 0.5950 & \best{80.6869} & 60.8163 & NA & NA \\
+        \shortstack{t1-bp-sc-rat} & 0.5399 & 0.4672 & 80.3574 & 61.1374 & NA & NA \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{7}{l}{\textit{Track t1 \;|\; bp-sc-norm}} \\
+        \midrule
+        \shortstack{t1-bp-sc-norm-bce} & 0.9816 & 0.9740 & \best{74.2130} & \best{41.8663} & NA & NA \\
+        \shortstack{t1-bp-sc-norm-focal} & 0.9625 & 0.9609 & 72.1089 & 37.9474 & NA & NA \\
+        \shortstack{t1-bp-sc-norm-rat} & \best{0.9879} & \best{0.9856} & 72.2366 & 38.7128 & NA & NA \\
+        \addlinespace[4pt]\midrule
+
+        \addlinespace[6pt]\midrule\midrule
+
+        \multicolumn{7}{l}{\textit{Track t3 \;|\; bp}} \\
+        \midrule
+        \shortstack{t3-bp-supstd} & \best{0.4111} & \best{0.4154} & 80.7116 & 62.8343 & 95.5702 & 95.4936 \\
+        \shortstack{t3-bp-supstd+rot10} & 0.3973 & 0.3627 & \best{82.0369} & 62.4240 & 94.0681 & 94.4819 \\
+        \shortstack{t3-bp-supmin} & 0.2415 & 0.2672 & 76.7635 & 57.7791 & \best{99.4175} & \best{99.7241} \\
+        \shortstack{t3-bp-supmin+rot10} & 0.2064 & 0.2000 & 79.7215 & 54.3976 & 98.5898 & 99.2643 \\
+        \shortstack{t3-bp-proto} & 0.2284 & 0.3544 & 71.3487 & \best{67.1116} & 98.5898 & 97.8234 \\
+        \shortstack{t3-bp-proto+rot10} & 0.2334 & 0.3307 & 72.4108 & 62.0428 & 96.6738 & 97.1183 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{7}{l}{\textit{Track t3 \;|\; bp-sc}} \\
+        \midrule
+        \shortstack{t3-bp-sc-supstd} & \best{0.4302} & 0.3721 & \overall{82.0472} & 61.4204 & 95.2636 & 94.6965 \\
+        \shortstack{t3-bp-sc-supmin} & 0.2559 & 0.2731 & 77.1215 & 58.0929 & \overall{99.5555} & \overall{99.8161} \\
+        \shortstack{t3-bp-sc-proto} & 0.2365 & \best{0.3930} & 71.7218 & \overall{70.2275} & 98.0074 & 97.7928 \\
+        \addlinespace[4pt]\midrule
+
+        \multicolumn{7}{l}{\textit{Track t3 \;|\; bp-sc-norm}} \\
+        \midrule
+        \shortstack{t3-bp-sc-norm-supstd} & \overall{0.9991} & \overall{0.9990} & \best{70.8859} & \best{37.9125} & 40.9411 & 48.9883 \\
+        \shortstack{t3-bp-sc-norm-supmin} & 0.9984 & 0.9985 & 69.3950 & 36.9179 & 56.8670 & 61.9865 \\
+        \shortstack{t3-bp-sc-norm-proto} & 0.9831 & 0.9808 & 70.8847 & 35.0492 & \best{71.7045} & \best{75.9963} \\
+        \addlinespace[4pt]\midrule
+
+        \bottomrule
+    \end{tabular}
 \end{table}
