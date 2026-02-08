@@ -30,7 +30,23 @@ The largest source, CODE-15\%, uses self-reported Chagas labels and therefore in
 PTB-XL was recorded in Germany between 1989 and 1996 \parencite{wagner_ptb_xl}; given the non-endemic setting and historical period, its labels are treated as negatives in this thesis (an epidemiological assumption rather than a clinical confirmation).
 In such short windows, models primarily rely on beat morphology and frequent rhythm disturbances; in CCC, these abnormalities are consistent with conduction-system injury (including right/left bundle branch pathways) and myocardial fibrosis, with commonly reported findings including RBBB, LAFB (often combined), ventricular extrasystoles, atrial fibrillation/flutter, and diffuse ST--T or voltage changes \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
 Clinical staging further complicates labels: the indeterminate form (Stage A) is seropositive with a normal ECG, whereas early cardiomyopathy (Stage B1) is defined by ECG abnormalities without heart failure, which implies biological label noise when seropositivity is used as a binary target \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
-\missingfigure{Planned anatomy/clinical-context figure (manual insertion): conduction system schematic with highlighted right and left bundle branches and brief callouts for Chagas-relevant targets (e.g., RBBB/LAFB-associated pathways).}
+Figure~\ref{fig:bg-conduction-cabrera} provides compact geometric context used later in the thesis: left, the conduction pathway terms (AV node, bundle of His, right/left bundle branches); right, the frontal-plane limb-lead orientation in a Cabrera-circle schematic \parencite{SchusterTrappe2024EKGKurs}.
+This is included to contextualize why bundle-branch findings (notably RBBB and LAFB) and axis-related lead geometry are relevant to CCC-focused ECG interpretation; it is not intended as a full tutorial of ECG electrophysiology.
+
+\begin{figure}[!htbp]
+  \centering
+  \begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/heart_physiology.png}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/generated/datasets_overview/cabrera_circle.png}
+  \end{minipage}
+  \caption{Compact ECG geometry context for this thesis. Left: simplified cardiac conduction-system view (AV node, bundle of His, right/left bundle branches) used to contextualize bundle-branch findings such as RBBB/LAFB; adapted from a Creative Commons source (\url{https://smart.servier.com/smart_image/heart-conduction/}). Right: Cabrera-circle schematic in the frontal (hexaxial) plane as a didactic reference for limb-lead orientation and axis interpretation, aligned with \textcite{SchusterTrappe2024EKGKurs}. Outer labels (left arm, right arm, left leg/inferior) are included for anatomical intuition only and do not denote exact physical electrode-placement coordinates.}
+  \label{fig:bg-conduction-cabrera}
+\end{figure}
+\noindent\textit{Note.} The Python code for the geometric Cabrera-circle visualization was generated with ChatGPT and then slightly modified in this codebase by the author (notably for label positioning and layout).
 
 \paragraph{Dataset composition and metadata baseline.}
 To ground later model-level results, fold-level dataset composition and metadata baselines are summarized in Figure~\ref{fig:bg-datasets-overview}.
@@ -74,8 +90,22 @@ The dataset is preprocessed into multiple variants to study the trade-off betwee
 \end{itemize}
 These variants are treated as different experimental regimes rather than interchangeable inputs.
 
-The goal of these harmonization regimes is not to maximize absolute performance in isolation, but to \emph{probe what the models rely on}: progressively stronger standardization should reduce dataset-specific acquisition cues and encourage attention to waveform morphology. Exact filter parameters and normalization definitions are specified in the Methods section to keep the Background focused on motivation.
-\missingfigure{Preprocessing illustration: same ECG segment under bp vs bp\_sc vs bp\_sc\_norm (one lead or multi-lead summary).}
+For intuition, Figure~\ref{fig:bg-raw12} first shows the unprocessed WFDB (WaveForm DataBase format) signal (all 12 leads) for one representative fold-4 sample. This provides a direct visual baseline before any filtering, clipping, or normalization is applied.
+It also illustrates that lead-specific disturbances can occur in raw recordings: in this example, V6 appears more artifact-affected than neighboring leads, which is plausible given physiology, body habitus, electrode placement, baseline drift, and general technical recording artifacts.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.96\textwidth]{figures/generated/datasets_overview/raw12_example.png}
+  \caption{Raw WFDB ECG for one fold-4 sample (first 6 seconds, all 12 leads) before applying the preprocessing pipeline. First three rows are limb leads, V1--V6 are chest leads.}
+  \label{fig:bg-raw12}
+\end{figure}
+
+The goal of these harmonization regimes is not to maximize absolute performance in isolation, but to \emph{probe what the models rely on}: progressively stronger standardization should reduce dataset-specific acquisition cues and encourage attention to waveform morphology. Exact filter parameters and normalization definitions are specified in the Methods section to keep the Background focused on motivation. Figure~\ref{fig:bg-preproc-lead2} then illustrates the same sample after each preprocessing regime on Lead II.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/generated/datasets_overview/preprocessing_lead2_example.png}
+  \caption{Same ECG sample (Lead II) under the three preprocessing regimes used in this thesis: \texttt{bp}, \texttt{bp\_sc}, and \texttt{bp\_sc\_norm}. This visualization gives qualitative context for the later quantitative comparison of preprocessing effects.}
+  \label{fig:bg-preproc-lead2}
+\end{figure}
 
 \paragraph{Why study multiple preprocessing regimes?}
 In multi-source ECG collections, preprocessing serves two partially competing goals: (i) removing nuisance variation such as baseline wander and high-frequency noise, and (ii) preserving diagnostically relevant morphology.
@@ -95,7 +125,7 @@ Data augmentation is used for two distinct reasons in deep learning pipelines \p
 \end{enumerate}
 This distinction motivates why some augmentations are kept mild and generic (invariance-focused), while the following is designed to mimic specific physiological variability.
 
-\subsection{Spatial Interpretation of the 12-Lead ECG and the Cardiac Electrical Axis}
+\subsection{Spatial ECG Interpretation of ECG and Cardiac Electrical Axis}
 The electrical activity of the heart can be modeled as a time-varying dipole vector whose projections onto the body surface are recorded by the standard 12-lead electrocardiogram (ECG).
 In this framework, individual ECG leads do not represent independent signals but rather directional measurements of a common underlying cardiac vector, arranged according to the limb-lead and precordial lead system defined by Einthoven and Goldberger \parencite{SchusterTrappe2024EKGKurs}.
 
@@ -110,7 +140,7 @@ Motivated by this interpretation, controlled rotations in VCG space can be regar
 Importantly, the objective of such transformations is not to generate clinically indistinguishable ECG signals, but to probe the robustness of learned representations with respect to orientation-related variability.
 
 Recent work has further reinforced this geometric view by formalizing the structure of the limb leads.
-Building on the historically used Cabrera sequence---a pedagogical reordering of limb leads according to anatomical orientation---Dathe et al.\ proposed a mathematically consistent extension to a continuous angular representation, referred to as the Cabrera Circle \parencite{completing_cabrera_2023}.
+Building on the clinically used Cabrera sequence described in ECG teaching practice \parencite{SchusterTrappe2024EKGKurs}, Dathe et al.\ proposed a mathematically consistent extension to a continuous angular representation, referred to as the Cabrera Circle \parencite{completing_cabrera_2023}.
 This formulation emphasizes that limb leads can be interpreted as discrete samples of an underlying continuous angular manifold, thereby strengthening the conceptual link between ECG lead geometry and vectorcardiographic representations.
 
 In this work, VCG-based rotations were therefore employed as a data augmentation strategy to assess whether deep learning models trained on ECG data learn representations that are invariant to physiologically plausible changes in cardiac orientation.
@@ -123,9 +153,6 @@ The impact of this augmentation is evaluated empirically through downstream clas
     \label{fig:bg-vcg-rotation-overlay}
   \end{figure}
 }{}
-\missingfigure{Minimal Cabrera-circle schematic (schematic, not anatomical).}
-
-
 \section{Learning Tracks}
 The thesis is organized into three learning tracks:
 \begin{enumerate}
@@ -134,7 +161,6 @@ The thesis is organized into three learning tracks:
   \item \textbf{Track 3 (classification with pretrained encoder)}: linear probing (or partial fine-tuning) on an encoder pretrained in Track~2.
 \end{enumerate}
 Concrete per-track experimental variables (losses, preprocessing regimes, augmentation schemes, and stopping criteria) are summarized in Chapter~\ref{ch:methods}, Section~\ref{sec:track-definitions}.
-\missingfigure{Figure summarizing how preprocessing regimes and learning objectives connect to post-hoc analysis.}
 
 \section{Representation learning and embedding diagnostics (TTC)}
 \label{sec:ttc-metrics}
@@ -217,11 +243,20 @@ Accordingly, interpretation in this thesis is hierarchical: Spearman for global 
 \section{Interpretability via ST-DFT-LRP}
 To probe \emph{how} models attend to ECG morphology and frequency content, this thesis uses Short-Time Discrete Fourier Transform Layer-wise Relevance Propagation (ST-DFT-LRP).
 ST-DFT-LRP extends LRP to the time--frequency domain, allowing relevance to be visualized and summarized over physiologically meaningful signal regions.
+The method follows the Virtual Inspection Layer framework for time-series explainability \parencite{VIELHABEN2024110309}.
 This is particularly useful in multi-source ECG settings where spurious dataset cues can dominate: time--frequency relevance maps provide an additional check for plausible attention patterns.
 To motivate later beat-level aggregation, this thesis uses NeuroKit2 beat-structure primitives:
 \texttt{ecg\_segment} (beat-aligned windows around detected R-peaks) and \texttt{ecg\_delineate} (P/QRS/T onset-offset markers).
 Conceptually, delineation defines physiologic segment boundaries while segmentation provides a beat-consistent indexing frame, which together justify aggregation from dense ST-DFT-LRP maps into fixed segment$\times$band summaries.
-In this thesis, ST-DFT-LRP is applied via the official DFT-LRP implementation used in the project codebase (Git submodule: \url{https://github.com/jvielhaben/DFT-LRP}).
+ST-DFT-LRP is applied via the official DFT-LRP implementation used in the project codebase\footnote{Git submodule: \url{https://github.com/jvielhaben/DFT-LRP}.}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/st-dft-lrp/st-dft-lrp.jpg}
+  \caption{Virtual Inspection Layer concept and resulting explanation domains for\\(ST-)DFT-LRP, illustrating how relevance can be inspected in time, frequency, and time--frequency representations. Used with permission from the authors. \parencite{VIELHABEN2024110309}.}
+  \label{fig:vil_stdftlrp}
+\end{figure}
+
 \IfFileExists{figures/generated/xai_rule_based/xai_rule_based_background.tex}{
   \input{figures/generated/xai_rule_based/xai_rule_based_background.tex}
 }{}

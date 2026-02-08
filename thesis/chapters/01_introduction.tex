@@ -61,7 +61,14 @@ Across these tracks, three preprocessing regimes regarding bandpass filtering an
 
 The resulting models are evaluated on two levels: first, by their clinical ranking utility using metrics such as TPR@5\% and partial AUC; and second, via embedding diagnostics to detect mode collapse and dataset-specific clustering artifacts.
 
-\missingfigure{Thesis flow diagram (convert diagrams/flow.svg to flow.png)}%
+\IfFileExists{figures/generated/background_pipeline_overview.png}{
+  \begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.96\linewidth]{figures/generated/background_pipeline_overview.png}
+    \caption{Study design overview linking preprocessing regimes, learning tracks, and the four analysis stages. Each preprocessing regime feeds both Track~1 and Track~2; Track~2 pretraining feeds Track~3; Track~1 and Track~3 outputs enter Stage~1, followed by the sequential Stage~1$\rightarrow$Stage~2$\rightarrow$Stage~3$\rightarrow$Stage~4 workflow.}
+    \label{fig:intro-pipeline-overview}
+  \end{figure}
+}{}
 
 
 Chapter~\ref{ch:methods} details the configuration system and experimental variables used in these tracks.

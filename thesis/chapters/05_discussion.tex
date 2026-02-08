@@ -6,7 +6,7 @@ While the same backbone architecture is used throughout for consistency, the tra
 
 \section{Summary of Key Results}
 \begin{itemize}
-  \item \textbf{Preprocessing was the dominant lever.} Across stages, \texttt{bp} and \texttt{bp-sc} consistently outperformed \texttt{bp-sc-norm}, while \texttt{bp-sc-norm} showed collapse-like embedding behavior and substantially weaker screening utility.
+  \item \textbf{Preprocessing was the dominant lever.} Across stages, \texttt{bp} and \texttt{bp-sc} consistently outperformed \texttt{bp-sc-norm}, while \texttt{bp-sc-norm} showed collapse-like embedding behavior and substantially weaker screening utility; an important caveat is that per-lead median/IQR scaling can inflate low-IQR traces and distort amplitude comparability.
   \item \textbf{Track roles were complementary rather than interchangeable.} Track~1 provided the strongest end-to-end screening performance, whereas Track~3 was most useful as a probe of representation transfer from Track~2.
   \item \textbf{Embedding-health diagnostics were informative for downstream utility.} Class-separation diagnostics (especially CAC for class~1) aligned better with screening performance than uniformity-style indicators alone, supporting their use as primary embedding checks for this task.
   \item \textbf{Cross-model agreement was structured but not fully stable at the decision boundary.} Models clustered by preprocessing regime in global agreement, yet top-5\% overlap and within-overlap ordering were materially less stable, indicating sensitivity for borderline candidates near screening cutoffs.
@@ -22,6 +22,11 @@ Track~3 is implemented as a linear evaluation protocol: an encoder pretrained in
 This probes whether label information is readily accessible in the learned representation without allowing the encoder to co-adapt to the downstream objective.
 In contrast, Track~1 trains encoder and classifier jointly and therefore reflects the best achievable supervised classifier under the chosen objective and preprocessing.
 Consequently, Track~1 and Track~3 are not an apples-to-apples comparison of classifier performance; Track~3 is primarily used to connect improvements in embedding-space diagnostics to downstream separability.
+
+\paragraph{Do we need a rich embedding space for classification?}
+For a strictly in-distribution binary classification task, an extreme geometric collapse can appear attractive: if all samples map to a nearly one-dimensional decision axis with perfect separation, classification can still be excellent.
+However, this thesis targets screening robustness under heterogeneous ECG manifestations and multi-source data shifts; under this objective, an overly collapsed embedding is risky because it can encode shortcuts and fail under OOD variation.
+The practical goal is therefore not ``maximally rich'' geometry for its own sake, but sufficient class structure and local stability (CAC/SAA/consistency) to preserve ranking quality when morphology varies across cohorts.
 
 \paragraph{Relation to the PhysioNet 2025 evaluation setting.}
 This thesis is directly motivated by the George B.~Moody PhysioNet Challenge 2025 task definition and operating point (fixed-capacity screening at top-5\%), but it is \emph{not} a challenge-ranking study because no independent hidden test set is available in this project workflow \parencite{2025ChallengePreprint,2025ChallengeCinC}.
@@ -83,8 +88,14 @@ This likely left useful augmentation space unexplored: Qiu et al.\ reported gain
 While this choice stabilizes supervised training and supports direct waveform interpretation, it may be suboptimal for contrastive representation learning: Track~2 objectives generally benefit from stronger or more diverse view generation to encourage invariances.
 This is also relevant for interpreting SAA in Track~3: because SAA is defined through agreement between augmented views, it is highly sensitive to augmentation design.
 If per-view augmentations are too mild or too easy to match, SAA can appear artificially strong and become a brittle proxy for representation quality.
-In this setting, class-separation diagnostics (especially CAC) and downstream ranking metrics are therefore more reliable primary criteria than SAA alone.
-Therefore, some of the observed limits in Track~2 (and downstream Track~3) performance could reflect underpowered augmentations rather than intrinsic limitations of the objectives.
+
+\paragraph{IQR normalization can both harmonize and amplify.}
+The new background illustration of the same sample across \texttt{bp}, \texttt{bp-sc}, and \texttt{bp-sc-norm} makes a practical side effect explicit: dividing by per-lead IQR can inflate waveform range when a lead has small within-record dispersion.
+Thus, \texttt{bp-sc-norm} does not only remove scale differences; it can also amplify record-specific noise or minor morphology in low-IQR signals.
+This helps explain why geometric ``uniformization'' (high GPU / low CAC in Results) can coexist with weaker downstream screening utility.
+It also motivates a caution for the dataset-bias argument: if one source has systematically different per-lead IQR statistics, robust per-record scaling may leave residual source structure (or even reweight it) rather than eliminating it completely.
+Accordingly, the \texttt{bp-sc-norm} findings are interpreted as evidence that aggressive per-record standardization is a non-trivial intervention, not a universally beneficial harmonization step.
+Combined with the augmentation-design caveat above, this supports using class-separation diagnostics (especially CAC) and downstream ranking metrics as primary decision criteria, while treating SAA as secondary and augmentation-dependent.
 
 \paragraph{Relation to TTC objective ranking.}
 In the TTC paper's medical imaging experiments, the supervised prototype objective was reported as the strongest of the compared representation-learning objectives.
@@ -115,6 +126,24 @@ The prototype objective in Track~2 did not yield the best downstream screening m
 In this thesis pipeline, this is naturally complementary to ST-DFT-LRP: attribution maps explain \emph{where} relevance concentrates in time-frequency space, while prototype-style nearest-example views can explain \emph{which} stored patterns a case most resembles.
 Importantly, this can be added post hoc on the existing embedding exports without changing the core training code, and should be evaluated as an interpretability extension rather than assumed to improve primary screening metrics \parencite{ttc_2025}.
 
+\paragraph{Why ST-DFT-LRP despite LRP criticism.}
+Gradient- and relevance-based saliency methods are known to require caution: sanity-check studies show that some explanation maps can be weakly sensitive to model parameters or architecture choices if used naively \parencite{adebayo_2018_sanity,yona_2021_revisiting_sanity}.
+Relatedly, \textcite{sixt_when_2020} show that several modified backprop attribution rules can become insensitive to model parameters in deeper layers, so explanation faithfulness cannot be assumed from visual quality alone.
+In this thesis, ST-DFT-LRP is still justified as a \emph{comparative plausibility tool} (not as causal proof) because it is combined with explicit controls already built into the pipeline: fixed lead choice for matched comparisons, rule-based sample selection, cross-preprocessing matched-sample views, and frequency-perturbation sanity curves.
+This keeps interpretation focused on consistent relative patterns across runs/groups rather than over-interpreting single maps.
+
+\paragraph{Cost-value tradeoff versus DeepSHAP-style alternatives.}
+For this specific 12-lead CNN pipeline, replacing ST-DFT-LRP with a DeepSHAP-style workflow was not prioritized because the expected engineering and compute cost is substantially higher under the current project constraints: explainer setup must be aligned with residual architecture details, attribution depends on background-set design, and per-sample inference is markedly slower than single-pass relevance propagation.
+Given the thesis scope (many runs, matched cross-preprocessing comparisons, and rule-based export automation), the practical value was higher in strengthening faithfulness checks for one consistent method than in adding a second, partly orthogonal attribution stack with limited time for full validation.
+
+\paragraph{What the perturbation checks add beyond visualization.}
+The perturbation sanity curves in this thesis provide direct functional evidence that highlighted regions are not only visually plausible: when the most relevant frequency bins are removed first, high-confidence positive examples show a faster confidence drop than random removal, while selected low-confidence/negative examples can show the inverse trend (confidence increase) consistent with removing inhibitory evidence for the positive class.
+This asymmetry supports using signed relevance interpretation (supporting vs.\ opposing evidence) and reduces the risk of treating heatmaps as purely aesthetic overlays.
+
+\paragraph{Positioning versus other ECG/time-series XAI approaches.}
+Recent ECG-XAI work still commonly evaluates gradient-based heatmaps in time domain (e.g., Grad-CAM-like families and related variants) and emphasizes careful, task-specific validation \parencite{hammer_jamia_2025_ecg_xai,xai_cardiology_review_2024}.
+Within that landscape, ST-DFT-LRP is used here because the clinical hypotheses are explicitly morphology- and frequency-linked, and the method provides one shared time--frequency representation for comparing preprocessing regimes and model families under the same aggregation protocol.
+
 \paragraph{RBBB annotations across datasets.}
 For CODE15, RBBB flags are provided directly in the dataset metadata; for PTB-XL, the closest available analogue used here is \texttt{ptb\_crbbb} derived from \texttt{scp\_codes}.
 This mapping allows coarse, cross-dataset comparisons of bundle-branch related patterns, but should be interpreted cautiously because complete RBBB in PTB-XL is not a perfect substitute for the broader RBBB labels in CODE15.
@@ -132,4 +161,10 @@ Future work should revisit augmentation strength in Track~2 specifically, explor
 \paragraph{Source-leakage checks before scaling model capacity.}
 Because the challenge data are explicitly multi-source and heterogeneous, increasing model capacity or importing large pretrained encoders can improve absolute performance while also increasing the risk that embeddings encode source-specific acquisition context.
 In this thesis, the observed preprocessing-driven agreement structure and dataset-dependent robust-rank distributions already motivate explicit leakage checks before interpreting gains as disease-specific (Chapter~\ref{ch:results}, Table~\ref{tab:pairwise_agreement_summary}, Figure~\ref{fig:rra_dataset_violin}, Table~\ref{tab:rra_kw}).
-A stringent next step, compatible with the current codebase, is to add a source-ID linear probe on frozen embeddings for each run and report it alongside CAC/SAA and screening metrics: if source predictability remains high while Chagas utility changes little, apparent gains should be interpreted as potential shortcut amplification rather than improved pathology modeling \parencite{2025ChallengePreprint,2025ChallengeCinC}.
+This concern is also visually supported by the UMAP/PCA dataset-condition panels (main text and appendix), where source-related structure remains visible for several runs, indicating that OOD behavior is a serious risk for external deployment.
+A stringent next step is adding a source-ID linear probe on frozen embeddings for each run and report it alongside CAC/SAA and screening metrics: if source predictability remains high while Chagas utility changes little, apparent gains should be interpreted as potential shortcut amplification rather than improved pathology modeling \parencite{2025ChallengeCinC}.
+
+\section*{Acknowledgments}
+I would like to express my gratitude to my supervisor \textit{Sören Lukassen} for his invaluable guidance, support, and mentorship throughout this project.
+\\
+I also thank my colleagues from AG Lukassen, especially \textit{Nabil Jabareen} for mentoring, \textit{Lea Hein}, \textit{Dingming Liu}, \textit{Dongsheng Yuan} and \textit{Finn Thierolf} as well as \textit{Kristin Köhler} and \textit{Hannah Schmidt} from the department, for many valuable discussions and coffee breaks during my time.

@@ -6,6 +6,13 @@ Experiments are implemented in PyTorch \parencite{pytorch_2019} using PyTorch Li
 Configuration is managed through composable YAML files, separating shared defaults (backbone, optimizer, data loading) from track-specific settings (augmentations, loss functions).
 An individual run combines a base configuration, a track configuration, and an optional loss configuration, with specific parameters overridden via command line arguments.
 
+\paragraph{Software stack and version locking.}
+Method-critical preprocessing and analysis steps use NeuroKit2 0.2.12 \parencite{neurokit2_software}, SciPy 1.16.2 \parencite{scipy_software}, scikit-learn 1.7.2 \parencite{scikit_learn_software}, UMAP-learn 0.5.9.post2 \parencite{umap_learn_software}, NumPy 2.3.4 \parencite{numpy_software}, pandas 2.3.3 \parencite{pandas_software}, and statsmodels 0.14.6 \parencite{statsmodels_software}.
+The core training stack uses PyTorch 2.9.0 \parencite{pytorch_2019} and Lightning 2.5.5 \parencite{pytorch_lightning_2025}.
+Plotting/reporting utilities use Matplotlib 3.10.7 \parencite{matplotlib_software}, seaborn 0.13.2 \parencite{seaborn_software}, and Plotly 6.5.0 \parencite{plotly_software}.
+ECG I/O relies on WFDB 4.3.0 \parencite{wfdb_software}; explainability uses Zennit 1.0.0 \parencite{zennit_software}; experiment tracking uses Weights \& Biases 0.22.2 \parencite{wandb_software}.
+Exact versions are pinned in \texttt{uv.lock}.
+
 \section{Model Architecture}
 A 1D adaptation of the ResNet-18 architecture \parencite{resnet_2015} that operates directly on 12-lead ECG waveforms (Figure~\ref{fig:model_arch}) was implemented.
 The network consists of an initial convolutional layer followed by four residual stages, each containing two blocks with 1D convolutions and internal temporal downsampling.
@@ -218,6 +225,8 @@ These analyses are descriptive and intended to support interpretation of dataset
 
 \section{ST-DFT-LRP for XAI}
 \paragraph{Implementation source.}
+ST-DFT-LRP is motivated by Virtual Inspection Layers for time-series XAI \parencite{VIELHABEN2024110309}, which derive closed-form relevance propagation through DFT/ST-DFT and explicitly target interpretable analysis of model strategies in domains such as audio and ECG.
+For this thesis, ST-DFT-LRP is used because it provides a unified time--frequency explanation space that can be compared across models and preprocessing regimes, rather than relying on only time-domain saliency.
 ST-DFT-LRP is implemented using the official DFT-LRP repository (integrated as a submodule) to ensure fidelity to the method definition.
 Repository URL: \url{https://github.com/jvielhaben/DFT-LRP}.
 The method is applied to model relevance in the time domain and mapped into a short-time frequency grid using window width $H$ and shift $D$.

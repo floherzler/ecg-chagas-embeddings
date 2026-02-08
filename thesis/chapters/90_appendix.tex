@@ -1,7 +1,7 @@
 \chapter{Appendix}
 
 \section{AI Usage Documentation}
-This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by Freie Universität Berlin).
+This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by \href{https://www.imp.fu-berlin.de/fbv/pruefungsbuero/Informationen-Anleitungen-FAQ/Informationen-und-Anleitungen/Handreichung-KI-Nutzung-Informatik.pdf}{Freie Universität Berlin}, PDF accessed 09.02.2026).
 
 \paragraph*{Tools Used}
 \begin{itemize}
@@ -10,7 +10,6 @@ This section provides a transparent record of the use of AI tools in the context
   \item \textbf{Model timeline (official release dates)}:
         GPT-5 in ChatGPT (Aug 7, 2025), GPT-5.2 (Dec 11, 2025), GPT-5.2-Codex (Dec 18, 2025), GPT-5.3-Codex (Feb 5, 2026).
   \item \textbf{Practical model usage in this project}: ChatGPT web usage aligned with the active ChatGPT model at the time; Codex plugin usage focused on GPT-5.2-Codex until GPT-5.3-Codex became available.
-  \item \textbf{Important caveat}: for work performed before Aug 7, 2025, ChatGPT web sessions necessarily used pre-GPT-5 ChatGPT models.
 \end{itemize}
 
 \paragraph{Overview (optional).}
@@ -30,16 +29,14 @@ This section provides a transparent record of the use of AI tools in the context
 \paragraph*{Source note for model dates}
 Release dates above are taken from official OpenAI release notes and announcements:
 \begin{itemize}
-  \item OpenAI Help Center, \emph{Model Release Notes}: \href{https://help.openai.com/en/articles/9624314-model-release-notes}{help.openai.com/model-release-notes}
-  \item OpenAI product post, \emph{GPT-5 and the new era of work} (Aug 7, 2025): \href{https://openai.com/index/gpt-5-new-era-of-work/}{openai.com/index/gpt-5-new-era-of-work}
-  \item OpenAI product post, \emph{Introducing GPT-5.2} (Dec 11, 2025): \href{https://openai.com/index/introducing-gpt-5-2/}{openai.com/index/introducing-gpt-5-2}
-  \item OpenAI product post, \emph{Introducing GPT-5.2-Codex} (Dec 18, 2025): \href{https://openai.com/index/introducing-gpt-5-2-codex/}{openai.com/index/introducing-gpt-5-2-codex}
-  \item OpenAI product post, \emph{Introducing GPT-5.3-Codex} (Feb 5, 2026): \href{https://openai.com/index/introducing-gpt-5-3-codex/}{openai.com/index/introducing-gpt-5-3-codex}
+  \item OpenAI product post, \emph{GPT-5 and the new era of work} (Aug 7, 2025):\\\href{https://openai.com/index/gpt-5-new-era-of-work/}{openai.com/index/gpt-5-new-era-of-work}
+  \item OpenAI product post, \emph{Introducing GPT-5.2} (Dec 11, 2025):\\\href{https://openai.com/index/introducing-gpt-5-2/}{openai.com/index/introducing-gpt-5-2}
+  \item OpenAI product post, \emph{Introducing GPT-5.2-Codex} (Dec 18, 2025):\\\href{https://openai.com/index/introducing-gpt-5-2-codex/}{openai.com/index/introducing-gpt-5-2-codex}
+  \item OpenAI product post, \emph{Introducing GPT-5.3-Codex} (Feb 5, 2026):\\\href{https://openai.com/index/introducing-gpt-5-3-codex/}{openai.com/index/introducing-gpt-5-3-codex}
 \end{itemize}
 
 \paragraph*{How AI Was Used (examples)}
 Below, I document representative prompts and corresponding AI outputs that influenced the working process and/or the submitted thesis.
-The level of detail (e.g., 2--3 typical examples) can be adjusted in consultation with the supervisor.
 
 \paragraph{Example 1.}
 \begin{itemize}
@@ -77,14 +74,13 @@ Guiding questions:
   \item How did you experience using the tool, and what did you learn about your working process?
   \item Why are you satisfied with the result, or why (not yet)?
 \end{itemize}
-\emph{[Insert 400 word reflection here\todo{write personal reflection}]}
-
-\paragraph*{Direct Attribution in the Thesis (note)}
-If AI-generated passages were paraphrased or partially adopted, they should be clearly marked in the thesis text (e.g., using a footnote).
-Example:
-\begin{quote}
-  \emph{This paragraph is based on a suggestion from an AI tool (e.g., ChatGPT-4). The final wording was reviewed and adapted by the author.}
-\end{quote}
+AI and especially codebase-aware agentic tools such as \textit{gpt-codex-5.3} proved to be of substantial value in all aspects of the thesis process.
+My personal inclination is to structure and plan before implementation, and AI tools can help to quickly review my own thoughts against existing literature through training data and additional tools such as web search and image processing.
+An important caveat is the siren call of handing off work to agents without understanding concepts first, but especially in code-related tasks it is my belief that the future will require stronger software-engineering skills in addition to programming.
+AI tools boosted my productivity and scientific rigor by supporting a loop between high-level planning/tasks and low-level implementation details, while the final execution decisions remained mine.
+Moving forward, my focus will be on using a more skill-based approach, steering agents with more specific instructions and reusable skills, most likely through Markdown-based instructional files.
+This could manifest in specific pipelines, plotting libraries, or combinations of libraries, while keeping knowledge transfer bidirectional and letting AI tools document their steps to improve my skills in return.
+Overall, I am happy with the takeaways from this process and the final product, and I am excited to continue exploring the potential of AI tools in my future work.
 
 \section{Supplementary Results}
 
@@ -130,8 +126,6 @@ Example:
   \label{fig:appendix_code15_corr}
 \end{figure}
 
-\subsection{Additional Agreement Figure}
-
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.78\linewidth]{../analysis/iou_kendall.png}
@@ -139,7 +133,7 @@ Example:
   \label{fig:appendix_iou_kendall}
 \end{figure}
 
-\subsection{Additional Embedding Figures}
+\subsection{Additional Agreement and Embedding Figures}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_gpu_vs_tpr5.png}
@@ -212,3 +206,29 @@ Example:
 \IfFileExists{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}{
   \input{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}
 }{}
+
+\subsection{Perturbation Sanity Examples}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figures/generated/xai_rule_based/t1-exp03-bp-focal__S005__CODE15__ch1__robust_pos__1116548__perturb_curve.png}
+  \includegraphics[width=0.49\linewidth]{figures/generated/xai_rule_based/t1-exp03-bp-focal__S000__CODE15__ch0__robust_neg__1701814__perturb_curve.png}
+  \caption{Two representative perturbation sanity curves from the rule-based ST-DFT-LRP export pool. Left: robust positive example (\texttt{CODE15}, \texttt{chagas=1}, \texttt{S005}); right: robust negative example (\texttt{CODE15}, \texttt{chagas=0}, \texttt{S000}). Curves show model probability under progressive removal of most-relevant frequency bins.}
+  \label{fig:appendix_perturb_examples}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \small
+  \caption{Compact perturbation sanity summary for the current rule-based export set (reported in Stage 4).}
+  \label{tab:appendix_perturb_summary}
+  \begin{tabular}{l c}
+    \toprule
+    \textbf{Statistic}                 & \textbf{Value}         \\
+    \midrule
+    Total curves (\(n\))               & 24                     \\
+    Curves with final probability drop & 11/24                  \\
+    Median \(\Delta p\) (max removal)  & \(-0.0019\)            \\
+    IQR of \(\Delta p\)                & \([-0.0067,\ 0.0046]\) \\
+    \bottomrule
+  \end{tabular}
+\end{table}

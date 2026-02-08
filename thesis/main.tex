@@ -15,23 +15,28 @@
 
 \input{chapters/00_title}
 \includepdf[pages=1,fitpaper=true,pagecommand={\thispagestyle{empty}}]{figures/selbststaendigkeitserklaerung_fh.pdf}
-\cleardoublepage
+\clearpage
 \pagestyle{scrheadings}
 \pagenumbering{roman}
 
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+This thesis investigates ECG-based Chagas disease screening under severe class imbalance, label heterogeneity, and multi-source domain shift.
+The work combines three datasets (CODE-15, SaMi-Trop, PTB-XL) and evaluates a fixed 1D ResNet-18 pipeline across three preprocessing regimes (\texttt{bp}, \texttt{bp-sc}, \texttt{bp-sc-norm}) and three learning tracks: end-to-end supervised classification (Track~1), supervised contrastive representation learning (Track~2), and linear probing of pretrained encoders (Track~3).
+Evaluation follows a four-stage analysis workflow: (1) clinical ranking utility (primary endpoint: TPR@5\%), (2) embedding-health diagnostics, (3) cross-model ranking consistency and robust rank aggregation (RRA), and (4) physiological plausibility using ST-DFT-LRP.
 
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+Across fold~4 experiments, preprocessing was the dominant determinant of performance: \texttt{bp} and \texttt{bp-sc} consistently outperformed \texttt{bp-sc-norm}, while \texttt{bp-sc-norm} showed collapse-like embedding behavior and markedly weaker screening utility.
+Embedding diagnostics supported these findings: class-separation metrics (especially CAC for class~1) aligned better with downstream TPR@5\% than uniformity-style metrics alone.
+Cross-model agreement analyses showed structured clustering by preprocessing regime in global ranks, but substantially lower stability at the top-5\% decision boundary, motivating consensus-based sample selection.
+RRA produced robust cross-model candidate sets that were informative for qualitative analysis but not identical to per-model score extremes.
+Lead-level ST-DFT-LRP summaries highlighted consistent precordial emphasis and preprocessing-dependent attenuation of disease-contrast relevance patterns.
+Perturbation checks provided supportive, though heterogeneous, faithfulness evidence for selected explanations.
 
-Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+Methodologically, the thesis shows that in this setting robust screening behavior is primarily controlled by data harmonization strength and objective design, not backbone changes. At the same time, results are constrained by single-fold evaluation, mixed label reliability, and model-pool dependence of consensus procedures. The findings provide a reproducible analysis framework and concrete hypotheses for future work on stronger augmentations, architecture transfer, and external validation.
 \cleardoublepage
 
-\listoftodos
 \tableofcontents
 
-\clearpage
 \pagenumbering{arabic}
 \input{chapters/01_introduction}
 \input{chapters/02_background}

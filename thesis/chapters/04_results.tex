@@ -141,7 +141,7 @@ This counterfactual is not intended as a causal estimate, but as an interpretabl
 \section{Stage 2: Embedding-space diagnostics}
 Embedding-space diagnostics are computed on the fixed probe subset (all positives plus twice as many negatives) to provide a comparable representation snapshot across runs.
 The primary analyzed space is the encoder embedding (\texttt{enc}) for all tracks.
-Metrics include GPU and CAC (collapse diagnostics and global class separation), and SAA where available (two-view consistency on the probe set).
+Metrics include GPU (lower is better; values near 1 indicate collapse), CAC (higher is better class separation), and SAA where available (two-view consistency on the probe set).
 Per-run embedding diagnostics are reported with compact model labels.
 
 \paragraph{Effect of preprocessing and learning strategy.}
@@ -439,6 +439,28 @@ Accordingly, RBBB-based spatial overlays are interpreted as supportive plausibil
   \end{tabular}
 \end{table}
 
+Using these counts as context, we inspect Chagas$\times$RBBB UMAP condition panels for the same matched model sets used in the main UMAP comparison.
+For both Track~1 and Track~3, the \texttt{chagas=1, RBBB=1} component is concentrated near a boundary/edge region of the reduced embedding space, consistent with the previously reported increase in Chagas enrichment toward outer UMAP regions.
+Because the \texttt{RBBB=1} strata are comparatively small (especially for \texttt{chagas=0, RBBB=1}), we treat this as supportive colocalization evidence rather than a standalone structural claim.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__umap__sm_chagas_x_rbbb.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t1-exp08-bp-sc-focal/plots/t1-exp08-bp-sc-focal__enc__umap__sm_chagas_x_rbbb.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t1-exp11-bp-sc-norm-focal/plots/t1-exp11-bp-sc-norm-focal__enc__umap__sm_chagas_x_rbbb.png}
+  \caption{UMAP Chagas$\times$RBBB condition composites for matched Track~1 focal models across preprocessing regimes (top-to-bottom: \texttt{t1-exp03-bp-focal}, \texttt{t1-exp08-bp-sc-focal}, \texttt{t1-exp11-bp-sc-norm-focal}).}
+  \label{fig:umap_chagas_rbbb_t1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t3-exp01-bp-supstd/plots/t3-exp01-bp-supstd__enc__umap__sm_chagas_x_rbbb.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__umap__sm_chagas_x_rbbb.png}\\[0.2em]
+  \includegraphics[height=0.26\textheight,keepaspectratio]{../analysis/embeddings_probe/runs/t3-exp04-bp-sc-norm-supstd/plots/t3-exp04-bp-sc-norm-supstd__enc__umap__sm_chagas_x_rbbb.png}
+  \caption{UMAP Chagas$\times$RBBB condition composites for matched Track~3 \texttt{supstd} models across preprocessing regimes (top-to-bottom: \texttt{t3-exp01-bp-supstd}, \texttt{t3-exp03-bp-sc-supstd}, \texttt{t3-exp04-bp-sc-norm-supstd}).}
+  \label{fig:umap_chagas_rbbb_t3}
+\end{figure}
+
 \paragraph{Lead-importance summaries across model families.}
 Per-sample lead masses are normalized to sum to 1, so each value is the fraction of total relevance mass assigned to a lead.
 Across dataset$\times$label conditions, the limb-vs-precordial balance is preprocessing-dependent: precordial share is high under \texttt{bp} (0.599), near parity under \texttt{bp-sc} (0.505), and effectively uniform under \texttt{bp-sc-norm} (0.500; Table~\ref{tab:lead_mass_preproc_share}).
@@ -534,7 +556,7 @@ This indicates regime-sensitive attribution behavior in representation-learning 
   \item \textbf{Best clinical utility:} \texttt{t1-bp-focal} achieves the best TPR@5\% and also the best pAUC@5\% and AP among the evaluated runs; representation learning (\texttt{t3-bp-sc-supstd}) is competitive under \texttt{bp-sc}.
   \item \textbf{Rotation augmentation is detrimental:} \texttt{+rot10} consistently reduces performance, suggesting the employed frontal-plane rotation is not reliably label-preserving under the dataset and transform assumptions.
   \item \textbf{Label/quality confounding is measurable:} within CODE-15\%, Zhao2018 quality is significantly associated with the Chagas label, motivating explicit stratification and cautious interpretation of embedding overlays.
-  \item \textbf{Embedding diagnostics support validity filtering:} healthier embedding geometry (GPU/CAC) generally co-occurs with better screening utility, supporting a hierarchical evaluation workflow before interpretability analyses.
+  \item \textbf{Embedding diagnostics support validity filtering:} lower GPU and higher CAC generally co-occur with better screening utility, supporting a hierarchical evaluation workflow before interpretability analyses.
   \item \textbf{Precordial lead emphasis is consistent:} lead-mass attribution concentrates on V1--V6 under mild preprocessing, motivating V2-based beat-structure attribution as a focused plausibility probe.
   \item \textbf{Matched robust-XAI coverage is limited but usable:} under the strict all-run lead-V2 constraint, 596 robust positives and 975 robust negatives remain available for same-sample cross-preprocessing comparisons.
   \item \textbf{4$\times$4 disease contrast weakens under stronger preprocessing:} median CODE15 disease deltas (\(\Delta\)QRS, \(\Delta\)Between, \(\Delta\)physio-ratio) are strongest in \texttt{bp}, reduced in \texttt{bp-sc}, and close to neutral in \texttt{bp-sc-norm}.
