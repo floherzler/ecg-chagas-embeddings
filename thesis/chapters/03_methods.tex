@@ -141,7 +141,8 @@ For contrastive training with multiple views, the rotation angle is sampled inde
 \subsection{Track 1: Supervised Classification}
 Track~1 trains a binary classifier end-to-end. We evaluate combinations of loss functions (weighted BCE, Focal Loss, RAT), preprocessing regimes, and augmentation strategies.
 Performance is primarily measured using the challenge-aligned TPR at 5\% FPR, alongside AUROC and Average Precision (AP).
-We also compare against a random forest baseline trained on simple per-channel mean/std statistics to quantify the value of learning from raw waveforms.
+We also compare against a random forest baseline trained on simple per-channel mean/std statistics.
+This baseline intentionally removes beat-level morphology and temporal structure, so it serves as a conservative reference for the value of end-to-end deep learning on raw waveforms.
 
 \subsection{Track 2: Representation Learning}
 Track~2 focuses on optimizing the geometric structure of the embedding space without direct classification supervision. We compare:

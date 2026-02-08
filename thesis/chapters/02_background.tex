@@ -28,12 +28,13 @@ Source datasets use slightly different acquisition settings (e.g., PTB-XL provid
 The underlying ECG sources include large-scale cohorts such as CODE-15 \parencite{ribeiro_code-15_2021}, SaMi-Trop \parencite{ribeiro_sami-trop_2021}, and PTB-XL \parencite{wagner_ptb_xl}.
 The largest source, CODE-15\%, uses self-reported Chagas labels and therefore introduces additional label noise beyond biological staging effects, whereas SaMi-Trop provides clinically confirmed positives \parencite{ribeiro_code-15_2021,ribeiro_sami-trop_2021}.
 PTB-XL was recorded in Germany between 1989 and 1996 \parencite{wagner_ptb_xl}; given the non-endemic setting and historical period, its labels are treated as negatives in this thesis (an epidemiological assumption rather than a clinical confirmation).
-In such short windows, models primarily rely on beat morphology and frequent rhythm disturbances; in CCC, these abnormalities reflect conduction system injury and myocardial fibrosis, with commonly reported findings including RBBB, LAFB (often combined), ventricular extrasystoles, atrial fibrillation/flutter, and diffuse ST--T or voltage changes \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+In such short windows, models primarily rely on beat morphology and frequent rhythm disturbances; in CCC, these abnormalities are consistent with conduction-system injury (including right/left bundle branch pathways) and myocardial fibrosis, with commonly reported findings including RBBB, LAFB (often combined), ventricular extrasystoles, atrial fibrillation/flutter, and diffuse ST--T or voltage changes \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
 Clinical staging further complicates labels: the indeterminate form (Stage A) is seropositive with a normal ECG, whereas early cardiomyopathy (Stage B1) is defined by ECG abnormalities without heart failure, which implies biological label noise when seropositivity is used as a binary target \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
+\missingfigure{Planned anatomy/clinical-context figure (manual insertion): conduction system schematic with highlighted right and left bundle branches and brief callouts for Chagas-relevant targets (e.g., RBBB/LAFB-associated pathways).}
 
 \paragraph{Dataset composition and metadata baseline.}
 To ground later model-level results, fold-level dataset composition and metadata baselines are summarized in Figure~\ref{fig:bg-datasets-overview}.
-The fold-share heatmap checks that source proportions are broadly stable across folds.
+The fold-share heatmap checks that source proportions are broadly stable across folds, so the held-out fold~4 remains compositionally close to folds~0--3 used for training/validation.
 The fold-4 label-balance plot makes the mono-label nature of PTB-XL (negative-only) and SaMi-Trop (positive-only) explicit, while showing the mixed-label CODE-15 partition.
 Finally, the metadata-only normal-ECG baseline shows that SaMi-Trop has a lower normal-ECG share than CODE-15 and PTB-XL, which motivates later separation of metadata effects from model-derived quality and relevance analyses.
 
@@ -114,7 +115,14 @@ This formulation emphasizes that limb leads can be interpreted as discrete sampl
 
 In this work, VCG-based rotations were therefore employed as a data augmentation strategy to assess whether deep learning models trained on ECG data learn representations that are invariant to physiologically plausible changes in cardiac orientation.
 The impact of this augmentation is evaluated empirically through downstream classification performance and embedding-space analyses, rather than through assumptions of clinical equivalence.
-\todo{Add an illustrative figure showing the same ECG before vs.\ after VCG heart-axis rotation (e.g., lead-wise overlay for a representative sample).}
+\IfFileExists{figures/generated/datasets_overview/vcg_axis_rotation_overlay.png}{
+  \begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/generated/datasets_overview/vcg_axis_rotation_overlay.png}
+    \caption{Illustrative VCG frontal-axis rotation augmentation on one representative ECG (same sample before vs. after a seeded random draw within $\pm10^\circ$). Overlays are shown for leads I, II, V2, and V5 to visualize lead-specific waveform changes induced by the geometric rotation.}
+    \label{fig:bg-vcg-rotation-overlay}
+  \end{figure}
+}{}
 \missingfigure{Minimal Cabrera-circle schematic (schematic, not anatomical).}
 
 

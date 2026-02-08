@@ -33,6 +33,12 @@ Full per-run values are reported in Table~\ref{tab:cls_per_run}.
 
 \input{tables/classification_per_run.tex}
 
+\paragraph{Metadata random-forest baseline vs.\ deep learning.}
+To contextualize the gain from waveform-level representation learning, a metadata-style random forest baseline (per-channel mean/std features only; Methods, Chapter~\ref{ch:methods}) was evaluated on the same fold~4 split.
+Without using temporal morphology, this baseline reaches AUROC values of 0.7504 (\texttt{bp}), 0.7506 (\texttt{bp-sc}), and 0.7235 (\texttt{bp-sc-norm}), with corresponding PR-AUC values of 0.1318, 0.1322, and 0.1117.
+In contrast, the best deep-learning runs in Stage~1 reach substantially higher AUROC and AP (e.g., \texttt{t1-bp-focal}: AUROC=0.8388, AP=0.2080), supporting the use of deep encoders beyond simple summary-feature baselines.
+The RF summary metrics are listed in Appendix Table~\ref{tab:appendix_rf_metrics}, and feature-importance profiles are shown in Appendix Figure~\ref{fig:appendix_rf_importance}.
+
 \paragraph{Rotation augmentation.}
 Pairwise comparisons of otherwise matched runs (same track, preprocessing, and objective; with vs.\ without \texttt{+rot10}) show predominantly negative effects.
 For the primary metric TPR@5\%, \texttt{+rot10} is lower in 5/6 pairs and higher in 1/6; the single improvement occurs for \texttt{t3-bp-supmin} (0.2980 $\rightarrow$ 0.3409).
@@ -87,6 +93,7 @@ Using the counts in Table~\ref{tab:code15_quality_chagas} and normalizing within
 This shift is statistically supported by both tests reported in the table (2$\times$2 Fisher, Excellent vs.\ not: OR=1.870, $p=3.94\times10^{-129}$; 3$\times$2 FFH Monte-Carlo: $p\approx 0.0001$).
 This demonstrates a strong label--quality dependency that can act as a shortcut signal in both model scoring and qualitative embedding overlays.
 Therefore, quality is treated as an explicit covariate in later visualizations and groupwise analyses.
+For additional context, CODE-15 metadata correlation maps and pairwise plots are provided in Appendix Figure~\ref{fig:appendix_code15_corr}.
 
 \begin{table}[H]
   \centering
@@ -266,6 +273,7 @@ Notably, \texttt{t1-bp} aligns much more with \texttt{t3-bp-sc} than with \textt
 For IoU specifically, \texttt{t1-bp} overlaps more with \texttt{t1-bp-sc} (median \(0.403\)) than with \texttt{t1-bp} internal pairs (median \(0.295\)), indicating that preprocessing can preserve screening-set identity across some cross-track/cross-objective pairings.
 Overall, IoU values are mostly below \(0.5\) (global median \(0.175\); typical ranges \(\approx 0.10\) to \(0.45\), maximum \(0.583\)), so exact top-5\% membership is only partially stable.
 Practically, IoU here measures how many selected candidates are shared relative to the union of both model selections; low-to-moderate IoU therefore implies that many borderline samples around the 5\% cut-off are model-dependent.
+A compact combined IoU/Kendall overview is shown in Appendix Figure~\ref{fig:appendix_iou_kendall}.
 
 \begin{table}[H]
   \centering
