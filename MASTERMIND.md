@@ -101,7 +101,7 @@ Entropy sign note:
 Objective:
 - Establish strong, interpretable baselines and quantify impact of physiological augmentation (axis rotation) on `bp`.
 
-Plan (4-fold CV each):
+Plan (screening on 1 fixed split; full CV as future work):
 1) `bp` + weighted BCE, mild augs (no rotation)
 2) `bp` + weighted BCE, mild augs + axis rotation
 3) Repeat (1–2) for Focal
@@ -109,13 +109,23 @@ Plan (4-fold CV each):
 5) Optional: oversampling ablation at `pos_fraction=0.05` for the best loss (no rotation), to test whether sampling materially helps.
 6) Only after choosing best 1–2 losses: run preprocessing comparison (`bp` vs `bp_sc` vs `bp_sc_norm`) without axis rotation.
 
+Screening protocol (resource-constrained):
+- Use a single fixed split for all experiments (array index 0: train folds `[0,1,2]`, validation fold `[3]`).
+- Rationale: quickly weed out unpromising runs, then rerun the finalists with full 4-fold CV when resources permit.
+
 Scripts:
-- `scripts/experiments/exp1_track1_bp_bce.sh`
-- `scripts/experiments/exp2_track1_bp_bce_rotation.sh`
-- `scripts/experiments/exp3_track1_bp_focal.sh`
-- `scripts/experiments/exp4_track1_bp_focal_rotation.sh`
-- `scripts/experiments/exp5_track1_bp_rat.sh`
-- `scripts/experiments/exp6_track1_bp_rat_rotation.sh`
+- `scripts/experiments/track1/exp01_bp_bce.sh`
+- `scripts/experiments/track1/exp02_bp_bce_rot.sh`
+- `scripts/experiments/track1/exp03_bp_focal.sh`
+- `scripts/experiments/track1/exp04_bp_focal_rot.sh`
+- `scripts/experiments/track1/exp05_bp_rat.sh`
+- `scripts/experiments/track1/exp06_bp_rat_rot.sh`
+- `scripts/experiments/track1/exp07_bp_sc_bce.sh`
+- `scripts/experiments/track1/exp08_bp_sc_focal.sh`
+- `scripts/experiments/track1/exp09_bp_sc_rat.sh`
+- `scripts/experiments/track1/exp10_bp_sc_norm_bce.sh`
+- `scripts/experiments/track1/exp11_bp_sc_norm_focal.sh`
+- `scripts/experiments/track1/exp12_bp_sc_norm_rat.sh`
 
 ### Track 2 — Projection / Representation Learning
 Objective:
@@ -124,11 +134,26 @@ Objective:
 Configs:
 - `configs/track2_sup_min.yaml` (SupCon)
 - `configs/track2_sup_proto.yaml` (prototype variant)
+- `configs/track2_sup_standard.yaml` (standard SupCon baseline)
 
 Plan:
 1) Start with mild augs (same base) and no oversampling.
 2) Select best embedding checkpoint via `emb_CAC_1` early stopping.
 3) Compare preprocessing regimes only after establishing a stable baseline (to keep geometry comparisons interpretable).
+
+Scripts:
+- `scripts/experiments/track2/exp01_bp_sup_standard.sh`
+- `scripts/experiments/track2/exp02_bp_sup_standard_rot.sh`
+- `scripts/experiments/track2/exp03_bp_sc_sup_standard.sh`
+- `scripts/experiments/track2/exp04_bp_sc_norm_sup_standard.sh`
+- `scripts/experiments/track2/exp05_bp_sup_min.sh`
+- `scripts/experiments/track2/exp06_bp_sup_min_rot.sh`
+- `scripts/experiments/track2/exp07_bp_sc_sup_min.sh`
+- `scripts/experiments/track2/exp08_bp_sc_norm_sup_min.sh`
+- `scripts/experiments/track2/exp09_bp_sup_proto.sh`
+- `scripts/experiments/track2/exp10_bp_sup_proto_rot.sh`
+- `scripts/experiments/track2/exp11_bp_sc_sup_proto.sh`
+- `scripts/experiments/track2/exp12_bp_sc_norm_sup_proto.sh`
 
 ### Track 3 — Classification with Pretrained Encoder
 Objective:
@@ -140,6 +165,7 @@ Plan:
 3) Optional “future work”: unfreeze last block if time permits, but treat as secondary.
 
 ## Analysis Deliverables (Thesis)
-- For each experiment family: report mean±std across 4 folds for `val/score`, `val/auroc`, `val/ap`.
+- Screening stage: report metrics on the fixed validation fold (`val/score`, `val/auroc`, `val/ap`) and use these for model selection.
+- Final evaluation (planned): rerun selected configurations with 4-fold CV and report mean±std.
 - For geometry: report `emb_CAC_0/1`, `emb_CAD_0/1`, `emb_SAA/SAD`, plus curated UMAPs colored by dataset and marker by label.
 - Discuss harmonization tradeoffs: improved alignment vs potential loss of informative amplitude cues.

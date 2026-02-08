@@ -15,7 +15,9 @@ dist/
 build/
 
 # IDEs / editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 
 # Logs
@@ -30,3 +32,28 @@ build/
 # Models
 lightning_logs/
 wandb/
+
+# Local run outputs / notebooks
+artifacts/
+analysis/embeddings_probe
+**/artifacts/
+# LaTeX (thesis/)
+thesis/.out/
+thesis/figures/
+thesis/**/*.aux
+thesis/**/*.bbl
+thesis/**/*.bcf
+thesis/**/*.blg
+thesis/**/*.fdb_latexmk
+thesis/**/*.fls
+thesis/**/*.lof
+thesis/**/*.lot
+thesis/**/*.out
+thesis/**/*.run.xml
+thesis/**/*.synctex.gz
+thesis/**/*.toc
+
+# LaTeX (repo root)
+*.aux
+*.fdb_latexmk
+*.fls

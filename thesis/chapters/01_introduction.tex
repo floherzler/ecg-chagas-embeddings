@@ -1,0 +1,83 @@
+\chapter{Introduction}
+
+\section{Clinical Motivation}
+Chagas disease (ChD) is a longstanding neglected tropical disease.
+It is a systemic infection caused by the parasite \textit{Trypanosoma cruzi}.
+
+Chagas cardiomyopathy (CCC) is the cardiac manifestation that develops in a subset of chronically infected patients and is associated with conduction abnormalities, arrhythmias, and heart failure \parencite{chagas_progression_2022,chagas_review_lancet_2024,chagas_ecg_abnormalities_2018}.
+After an often mild or asymptomatic acute phase, roughly 60--70\% of infected patients remain in a chronic indeterminate form with normal Electrocardiogram (ECG) and no organ damage, while about 20--30\% progress over years to decades to CCC \parencite{chagas_progression_2022,chagas_review_lancet_2024}.
+ECG abnormalities often mark the transition from indeterminate infection to cardiac disease and reflect conduction system injury and myocardial fibrosis, with typical findings such as Right Bundle Branch Block (RBBB), Left Anterior Fascicular Block (LAFB) and ventricular ectopy \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+Because ECG changes reflect cardiac involvement rather than early infection, ECG-based screening cannot detect all infected individuals; instead, it can triage who should receive confirmatory serology when testing capacity is limited (e.g., a 5\% serological screening budget in the PhysioNet Challenge setting \parencite{2025ChallengeCinC}).
+
+\subsection*{Electrocardiogram as Screening Modality}
+The 12-lead electrocardiogram (ECG) is inexpensive, widely available, and directly reflects cardiac electrical activity.
+Since chronic Chagas disease can manifest with characteristic electrophysiological changes, the ECG is a plausible first-line screening modality to \emph{prioritize} who should receive confirmatory serology \parencite{jidling_screening_2023}.
+Importantly, an ECG-based model is expected to be insensitive to early infection without cardiac involvement; in that setting the ECG may appear normal and serology remains the definitive test.
+
+\subsection*{George B.~Moody PhysioNet Challenge 2025}
+The experimental classification task in this thesis originates from the George B.~Moody PhysioNet Challenge 2025, which focused on detecting Chagas disease from the ECG \parencite{2025ChallengeCinC}.
+
+The task is therefore interpreted as learning a \emph{risk score for Chagas-related ECG manifestations} (as represented by the available labels), rather than a universal screen for all infected individuals irrespective of disease stage.
+The challenge emphasizes performance at a low false-positive rate, motivating metric-aligned modeling choices.
+
+Specifically, it defines the operating point as a fixed-capacity screening scenario where only the top $K\%$ (set to $K=5\%$ in the challenge) are flagged for follow-up.
+Evaluation therefore focuses on ranking quality under strict false-positive constraints.
+The dataset combines three sources:
+\begin{itemize}
+  \item \textbf{CODE-15\%} large-scale cohort \parencite{ribeiro_code-15_2021} with self-reported labels from Brazil.
+  \item \textbf{SaMi-Trop} \parencite{ribeiro_sami-trop_2021} containing clinically confirmed positives from Brazil.
+  \item \textbf{PTB-XL} \parencite{wagner_ptb_xl}, which is taken as safe negatives due to geography (Germany).
+\end{itemize}
+
+
+
+\section{Deep Learning for ECG Classification}
+ECG-based detection requires modeling subtle, distributed waveform patterns across leads and time.
+Deep learning methods, particularly convolutional architectures, can learn such representations directly from raw waveforms and have shown strong performance for ECG interpretation tasks \parencite{jidling_screening_2023}.
+
+This thesis investigates the extent to which these models learn disease-relevant morphology versus dataset shortcuts, while developing strategies to ensure robustness under the practical constraints of strong class imbalance and domain shift.
+Models are explicitly only trained on signal data wihtout introducing age, sex and other related metadata as features to avoid potential biases and aim for generalizability.
+
+\section{Key Challenges}
+Two properties of the training data complicate optimization and interpretation.
+
+First, the severe class imbalance with only approximately 2~\% positives can cause standard learning objectives to be dominated by easy negatives.
+
+Second, dataset bias and label noise arise because the pooled dataset combines multiple sources with different acquisition contexts (country, cohort composition, and collection period) and different label protocols (self-reported CODE-15\% labels versus clinically verified SaMi-Trop labels).
+Additionally, labels in CODE-15\% are less reliable than clinically validated labels.
+These issues can lead to inflated apparent performance on in-distribution validation while degrading generalization across sources.
+
+\section{Contributions and Thesis Structure}
+This thesis investigates practical strategies for improving model robustness under the constraints of severe class imbalance and dataset bias.
+The core hypothesis is that careful data harmonization and metric-aligned objectives significantly influence the geometry of the learned embedding space, thereby determining downstream separability and generalization.
+To test this, the experimental work is organized into three tracks utilizing embedding-space analysis as a primary diagnostic tool.
+
+(i) The first track focuses on supervised classification, employing metric-aligned loss functions and controlled augmentations to optimize performance at low false-positive rates.
+
+(ii) The second track explores supervised contrastive and prototype-based training methods to explicitly shape the embedding space, allowing for the quantification of representation quality.
+
+(iii) The third track connects these representations to classification performance through downstream linear probing of pretrained encoders.
+Across these tracks, three preprocessing regimes regarding bandpass filtering and scaling normalization appear as key experimental variables to balance data harmonization against the preservation of physiological variation.
+
+The resulting models are evaluated on two levels: first, by their clinical ranking utility using metrics such as TPR@5\% and partial AUC; and second, via embedding diagnostics to detect mode collapse and dataset-specific clustering artifacts.
+
+\IfFileExists{figures/generated/background_pipeline_overview.png}{
+  \begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.96\linewidth]{figures/generated/background_pipeline_overview.png}
+    \caption{Study design overview linking preprocessing regimes, learning tracks, and the four analysis stages. Each preprocessing regime feeds both Track~1 and Track~2; Track~2 pretraining feeds Track~3; Track~1 and Track~3 outputs enter Stage~1, followed by the sequential Stage~1$\rightarrow$Stage~2$\rightarrow$Stage~3$\rightarrow$Stage~4 workflow.}
+    \label{fig:intro-pipeline-overview}
+  \end{figure}
+}{}
+
+
+Chapter~\ref{ch:methods} details the configuration system and experimental variables used in these tracks.
+Chapter~\ref{ch:background} introduces clinical and methodological foundations, Chapter~\ref{ch:methods} specifies the experimental and analysis pipeline, Chapter~\ref{ch:results} reports findings across the four-stage evaluation workflow, and Chapter~\ref{ch:discussion} interprets limitations, implications, and future work.
+
+\paragraph{Open-Source Resources}
+To support reproducibility, the codebase, experiment tracking, and project planning are publicly accessible:
+\begin{itemize}
+  \item Code repository: \url{https://github.com/floherzler/ecg-chagas-embeddings}
+  \item Project board: \url{https://github.com/users/floherzler/projects/1}
+  \item W\&B project: \url{https://wandb.ai/ag-lukassen/ecg-chagas-embeddings-cli}
+\end{itemize}

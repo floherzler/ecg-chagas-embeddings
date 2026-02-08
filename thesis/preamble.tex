@@ -1,0 +1,65 @@
+% Compile with LuaLaTeX (recommended) or XeLaTeX.
+% Keep this file stable; put chapter-specific macros into the chapter file.
+
+\PassOptionsToPackage{dvipsnames}{xcolor}
+
+\usepackage[onehalfspacing]{setspace}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% Language / typography
+\usepackage[main=english,ngerman]{babel}
+\usepackage{csquotes}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Graphics / tables
+\usepackage{graphicx}
+\usepackage{pdfpages}
+\graphicspath{{figures/}}
+\usepackage{xcolor}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{needspace}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+% Code (fast, no shell-escape)
+\usepackage{listings}
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  frame=single,
+  breaklines=true,
+  keywordstyle=\color{NavyBlue},
+  commentstyle=\color{Gray},
+  stringstyle=\color{OliveGreen},
+}
+\lstset{style=code}
+
+% Algorithms (optional; remove if you don't use it)
+\usepackage[noend]{algorithm2e}
+
+% TODO notes (disable in final by switching to \usepackage[disable]{todonotes})
+\usepackage[colorinlistoftodos,prependcaption,textsize=small]{todonotes}
+
+% KOMA-friendly headers/footers
+\usepackage[automark,headsepline]{scrlayer-scrpage}
+\clearpairofpagestyles
+\ihead*{\headmark}
+\ofoot*{\pagemark}
+\renewcommand*{\chapterpagestyle}{scrheadings}
+
+% References
+\usepackage[
+  backend=biber,
+  style=apa,
+  sorting=ynt
+]{biblatex}
+\addbibresource{bib/references.bib}
+
+% Links (load late)
+\usepackage[colorlinks=true,urlcolor=NavyBlue,linkcolor=black,citecolor=BlueViolet]{hyperref}

@@ -1,0 +1,3 @@
+[submodule "external/dft-lrp"]
+	path = external/dft-lrp
+	url = git@github.com:jvielhaben/DFT-LRP.git

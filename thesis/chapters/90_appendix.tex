@@ -1,0 +1,234 @@
+\chapter{Appendix}
+
+\section{AI Usage Documentation}
+This section provides a transparent record of the use of AI tools in the context of this thesis (following the recommended format by \href{https://www.imp.fu-berlin.de/fbv/pruefungsbuero/Informationen-Anleitungen-FAQ/Informationen-und-Anleitungen/Handreichung-KI-Nutzung-Informatik.pdf}{Freie Universität Berlin}, PDF accessed 09.02.2026).
+
+\paragraph*{Tools Used}
+\begin{itemize}
+  \item \textbf{ChatGPT web interface (OpenAI)}: used for general feasibility discussions, writing support, and scoped literature-search guidance.
+  \item \textbf{VS Code Codex plugin (OpenAI)}: used for codebase-aware editing, debugging, LaTeX/table/figure restructuring, and consistency checks between implementation and thesis text.
+  \item \textbf{Model timeline (official release dates)}:
+        GPT-5 in ChatGPT (Aug 7, 2025), GPT-5.2 (Dec 11, 2025), GPT-5.2-Codex (Dec 18, 2025), GPT-5.3-Codex (Feb 5, 2026).
+  \item \textbf{Practical model usage in this project}: ChatGPT web usage aligned with the active ChatGPT model at the time; Codex plugin usage focused on GPT-5.2-Codex until GPT-5.3-Codex became available.
+\end{itemize}
+
+\paragraph{Overview (optional).}
+\begin{center}
+  \small
+  \begin{tabular}{@{}p{0.20\textwidth}p{0.44\textwidth}p{0.28\textwidth}@{}}
+    \toprule
+    \textbf{Tool}   & \textbf{Model family}                                     & \textbf{Period}                     \\
+    \midrule
+    ChatGPT (web)   & GPT-5 / GPT-5.2; pre-GPT-5 ChatGPT models before Aug 2025 & Date-dependent across thesis period \\
+    Codex (VS Code) & GPT-5.2-Codex \(\rightarrow\) GPT-5.3-Codex               & Before/after Feb 5, 2026 transition \\
+    \bottomrule
+  \end{tabular}
+  \normalsize
+\end{center}
+
+\paragraph*{Source note for model dates}
+Release dates above are taken from official OpenAI release notes and announcements:
+\begin{itemize}
+  \item OpenAI product post, \emph{GPT-5 and the new era of work} (Aug 7, 2025):\\\href{https://openai.com/index/gpt-5-new-era-of-work/}{openai.com/index/gpt-5-new-era-of-work}
+  \item OpenAI product post, \emph{Introducing GPT-5.2} (Dec 11, 2025):\\\href{https://openai.com/index/introducing-gpt-5-2/}{openai.com/index/introducing-gpt-5-2}
+  \item OpenAI product post, \emph{Introducing GPT-5.2-Codex} (Dec 18, 2025):\\\href{https://openai.com/index/introducing-gpt-5-2-codex/}{openai.com/index/introducing-gpt-5-2-codex}
+  \item OpenAI product post, \emph{Introducing GPT-5.3-Codex} (Feb 5, 2026):\\\href{https://openai.com/index/introducing-gpt-5-3-codex/}{openai.com/index/introducing-gpt-5-3-codex}
+\end{itemize}
+
+\paragraph*{How AI Was Used (examples)}
+Below, I document representative prompts and corresponding AI outputs that influenced the working process and/or the submitted thesis.
+
+\paragraph{Example 1.}
+\begin{itemize}
+  \item \textbf{Goal}: Identify additional open-source deep-learning strategies for 1D ECG classification and augmentation beyond the current ResNet-18 setup.
+  \item \textbf{Prompt (excerpt)}: \emph{``Since you are able to search the web, can you suggest some open-source papers for other DL strategies for this 1D ECG data for me to look at?''}
+  \item \textbf{AI output (excerpt)}: A curated list of ECG SSL/representation-learning and time-series baselines with links to papers/code repositories (including augmentation-focused work such as Qiu et al., EMBC 2022).
+  \item \textbf{Impact on process/product}: Used to extend the Discussion (architecture generalization and augmentation limitations) and to add targeted literature citations in Background/Discussion.
+  \item \textbf{Your revision}: Recommendations were filtered for direct relevance to ECG settings and then integrated only where consistent with reported results and thesis scope.
+\end{itemize}
+
+\paragraph{Example 2.}
+\begin{itemize}
+  \item \textbf{Goal}: Improve thesis readability and page flow by fixing table/figure placement, heading density in TOC, and oversized composite graphics in Results/Appendix.
+  \item \textbf{Prompt (excerpt)}: \emph{``Please include the referenced tables closer to their point of reference ... move the results tables closer to their place in the text in general.''} and \emph{``The ST-DFT-LRP sample figures are taking up a lot of space ... make them smaller so that 3 fit on the same page and stack them using LaTeX.''}
+  \item \textbf{AI output (excerpt)}: Suggested and applied targeted LaTeX edits (float placement options, grouped figure layouts, caption consolidation, and heading-level demotion from subsection to paragraph* where appropriate).
+  \item \textbf{Impact on process/product}: Improved visual consistency, reduced TOC clutter, better proximity of figures/tables to corresponding interpretation paragraphs, and clearer presentation of stage-wise results.
+  \item \textbf{Your revision}: Final placement and style decisions were manually checked in the compiled PDF and adjusted iteratively based on domain-specific narrative priorities.
+\end{itemize}
+
+\paragraph{Example 3.}
+\begin{itemize}
+  \item \textbf{Goal}: Verify that methodological descriptions and formulas in the thesis match the actual implementation in scripts and notebooks.
+  \item \textbf{Prompt (excerpt)}: \emph{``Please check if all components of the used formulas in background are explained ...''} and \emph{``Please do the same for methods ... check if they could be better explained.''}
+  \item \textbf{AI output (excerpt)}: Performed code-text consistency checks, identified ambiguous or undefined symbols in formulas, and proposed concrete wording patches aligned with implementation details (e.g., top-$k$ definitions, indexing, stability constants).
+  \item \textbf{Impact on process/product}: Reduced risk of method-reporting mismatch, improved reproducibility of the written methodology, and increased clarity for reviewers.
+  \item \textbf{Your revision}: Final decisions on formula scope and level of mathematical detail were retained by the author to match thesis audience and chapter goals.
+\end{itemize}
+
+\paragraph*{Reflection on AI Usage}
+Guiding questions:
+\begin{itemize}
+  \item How did AI usage influence your working process?
+  \item What were the benefits, and what were the challenges/limitations?
+  \item Were there parts where working without AI would have been better or faster?
+  \item How did you experience using the tool, and what did you learn about your working process?
+  \item Why are you satisfied with the result, or why (not yet)?
+\end{itemize}
+AI and especially codebase-aware agentic tools such as \textit{gpt-codex-5.3} proved to be of substantial value in all aspects of the thesis process.
+My personal inclination is to structure and plan before implementation, and AI tools can help to quickly review my own thoughts against existing literature through training data and additional tools such as web search and image processing.
+An important caveat is the siren call of handing off work to agents without understanding concepts first, but especially in code-related tasks it is my belief that the future will require stronger software-engineering skills in addition to programming.
+AI tools boosted my productivity and scientific rigor by supporting a loop between high-level planning/tasks and low-level implementation details, while the final execution decisions remained mine.
+Moving forward, my focus will be on using a more skill-based approach, steering agents with more specific instructions and reusable skills, most likely through Markdown-based instructional files.
+This could manifest in specific pipelines, plotting libraries, or combinations of libraries, while keeping knowledge transfer bidirectional and letting AI tools document their steps to improve my skills in return.
+Overall, I am happy with the takeaways from this process and the final product, and I am excited to continue exploring the potential of AI tools in my future work.
+
+\section{Supplementary Results}
+
+\subsection{Per-run Metric Tables}
+\input{tables/classification_by_group.tex}
+\input{tables/embedding_by_group.tex}
+\input{tables/classification_tpr_split_per_run.tex}
+
+\subsection{Random-Forest Baseline (Feature Importance)}
+\begin{table}[H]
+  \centering
+  \caption{Fold-4 random-forest baseline summary (per-channel mean/std features).}
+  \label{tab:appendix_rf_metrics}
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Preprocessing} & \textbf{AUROC} & \textbf{PR-AUC} \\
+    \midrule
+    \texttt{bp}            & 0.7504         & 0.1318          \\
+    \texttt{bp-sc}         & 0.7506         & 0.1322          \\
+    \texttt{bp-sc-norm}    & 0.7235         & 0.1117          \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.32\linewidth]{../analysis/random_forest/rf_bp_top20_feature_importance.png}
+  \hfill
+  \includegraphics[width=0.32\linewidth]{../analysis/random_forest/rf_bp_sc_top20_feature_importance.png}
+  \hfill
+  \includegraphics[width=0.32\linewidth]{../analysis/random_forest/rf_bp_sc_norm_top20_feature_importance.png}
+  \caption{Top-20 feature-importance profiles for the fold-4 random-forest baseline (left-to-right: \texttt{bp}, \texttt{bp-sc}, \texttt{bp-sc-norm}). Features are per-channel summary statistics (mean/std), not waveform-level representations.}
+  \label{fig:appendix_rf_importance}
+\end{figure}
+
+\subsection{CODE-15 Metadata Correlation Diagnostics}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{../analysis/code15_correlations/code15_correlation_report.png}
+  \hfill
+  \includegraphics[width=0.49\linewidth]{../analysis/code15_correlations/code15_pairplot.png}
+  \caption{Supplementary CODE-15 metadata correlation diagnostics (left: correlation report; right: pairwise distribution plot).}
+  \label{fig:appendix_code15_corr}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/iou_kendall.png}
+  \caption{Combined screening-stability view using IoU and Kendall's \(\tau\).}
+  \label{fig:appendix_iou_kendall}
+\end{figure}
+
+\subsection{Additional Agreement and Embedding Figures}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/overview_gpu_vs_tpr5.png}
+  \caption{Embedding uniformity (GPU$_1$) versus clinical utility (TPR@5\%). Point labels denote experiment IDs extracted from \texttt{run\_id} (\texttt{expXX}).}
+  \label{fig:appendix_gpu_tpr}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\linewidth]{../analysis/embeddings_probe/thesis_assets/figures/appendix_cac0_vs_cac1.png}
+  \caption{Cross-class class-alignment consistency (CAC$_0$ vs CAC$_1$). Point labels denote experiment IDs extracted from \texttt{run\_id} (\texttt{expXX}).}
+  \label{fig:appendix_cac0_cac1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__pca__multipanel_main.png}
+  \caption{Representative PCA composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_pca_t1_best}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__pca__multipanel_main.png}
+  \caption{Representative PCA composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_pca_t3_best}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__pca__sm_dataset_conditions.png}
+  \caption{Representative PCA dataset$\times$Chagas condition composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_pca_dataset_t1_best}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__pca__sm_dataset_conditions.png}
+  \caption{Representative PCA dataset$\times$Chagas condition composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_pca_dataset_t3_best}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t1-exp03-bp-focal/plots/t1-exp03-bp-focal__enc__umap__sm_dataset_conditions.png}
+  \caption{Representative UMAP dataset$\times$Chagas condition composite for the best Track~1 model (\texttt{t1-exp03-bp-focal}).}
+  \label{fig:appendix_umap_dataset_t1_best}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../analysis/embeddings_probe/runs/t3-exp03-bp-sc-supstd/plots/t3-exp03-bp-sc-supstd__enc__umap__sm_dataset_conditions.png}
+  \caption{Representative UMAP dataset$\times$Chagas condition composite for the best Track~3 model (\texttt{t3-exp03-bp-sc-supstd}).}
+  \label{fig:appendix_umap_dataset_t3_best}
+\end{figure}
+
+\subsection{Qualitative Embedding Panels and XAI Grids}
+\begin{itemize}
+  \item Full UMAP/PCA hex-panel outputs for all runs are stored under \texttt{analysis/embeddings\_probe/runs/<run\_id>/plots}.
+  \item Per-model ST-DFT-LRP 4$\times$4 overview grids are stored under \texttt{analysis/embeddings\_probe/xai\_summary/plots}.
+\end{itemize}
+
+\subsection{Rule-based XAI Sample Tables}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_sample_tables.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_sample_tables.tex}
+}{}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_evolution_tables.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_evolution_tables.tex}
+}{}
+\IfFileExists{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}{
+  \input{figures/generated/xai_rule_based/xai_rule_based_score_extremes.tex}
+}{}
+
+\subsection{Perturbation Sanity Examples}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figures/generated/xai_rule_based/t1-exp03-bp-focal__S005__CODE15__ch1__robust_pos__1116548__perturb_curve.png}
+  \includegraphics[width=0.49\linewidth]{figures/generated/xai_rule_based/t1-exp03-bp-focal__S000__CODE15__ch0__robust_neg__1701814__perturb_curve.png}
+  \caption{Two representative perturbation sanity curves from the rule-based ST-DFT-LRP export pool. Left: robust positive example (\texttt{CODE15}, \texttt{chagas=1}, \texttt{S005}); right: robust negative example (\texttt{CODE15}, \texttt{chagas=0}, \texttt{S000}). Curves show model probability under progressive removal of most-relevant frequency bins.}
+  \label{fig:appendix_perturb_examples}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \small
+  \caption{Compact perturbation sanity summary for the current rule-based export set (reported in Stage 4).}
+  \label{tab:appendix_perturb_summary}
+  \begin{tabular}{l c}
+    \toprule
+    \textbf{Statistic}                 & \textbf{Value}         \\
+    \midrule
+    Total curves (\(n\))               & 24                     \\
+    Curves with final probability drop & 11/24                  \\
+    Median \(\Delta p\) (max removal)  & \(-0.0019\)            \\
+    IQR of \(\Delta p\)                & \([-0.0067,\ 0.0046]\) \\
+    \bottomrule
+  \end{tabular}
+\end{table}

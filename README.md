@@ -27,3 +27,6 @@ curl -fsSL https://d2lang.com/install.sh | sh -s --
 Notes:
 - The diagram above is located at `diagrams/flow.svg`.
 - Run the install commands with appropriate permissions (sudo) or in your CI environment.
+
+## Thesis
+LaTeX sources live in `thesis/` (see `thesis/README.md`).

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: _texshim <cmd> [args...]" >&2
+  exit 2
+fi
+
+cmd="$1"
+shift
+
+if command -v "$cmd" >/dev/null 2>&1; then
+  exec "$cmd" "$@"
+fi
+
+if command -v "${cmd}.exe" >/dev/null 2>&1; then
+  exec "${cmd}.exe" "$@"
+fi
+
+echo "error: '$cmd' not found (neither '$cmd' nor '${cmd}.exe' is on PATH)" >&2
+exit 127
+

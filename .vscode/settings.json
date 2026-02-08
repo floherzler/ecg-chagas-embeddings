@@ -1,0 +1,30 @@
+{
+  "python.analysis.typeCheckingMode": "basic",
+
+  "latex-workshop.latex.rootFile.useSubFile": false,
+  "latex-workshop.latex.outDir": "%DIR%/.out",
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk (thesis)",
+      "command": "latexmk",
+      "args": [
+        "-r",
+        "%DIR%/latexmkrc",
+        "-cd",
+        "-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "%DOC%"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk (thesis)",
+      "tools": [
+        "latexmk (thesis)"
+      ]
+    }
+  ],
+  "latex-workshop.view.pdf.viewer": "tab"
+}

@@ -1,0 +1,32 @@
+direction: right
+grid-rows: 1
+
+acute_stage: Acute Stage (~2 months) {
+  grid-columns: 1
+  asymptomatic: |md
+    # 90-95% Asymptomatic
+  |
+  symptomatic: |md
+    # 5-10% Symptomatic
+    - fever, general malaise
+    - rare cardiac involvement (<5%)
+    - myocarditis, pericarditis
+    - possible heart failure
+  |
+}
+
+chronic_stage: Chronic Stage (years to decades) {
+  grid-columns: 1
+  asymptomatic: |md
+    # 60-70% Asymptomatic
+    - indeterminate form, normal ECG
+    - may last until death
+  |
+  symptomatic: |md
+    # 20-30% Develop Cardiomyopathy
+    - progressive cardiomyopathy
+    - ECG abnormalities, arrhythmias
+  |
+}
+acute_stage -> chronic_stage
+chronic_stage.asymptomatic -> chronic_stage.symptomatic

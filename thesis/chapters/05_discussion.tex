@@ -1,0 +1,170 @@
+\chapter{Discussion}
+\label{ch:discussion}
+
+This thesis compares supervised classification (Track~1), representation learning (Track~2), and downstream probing of learned representations (Track~3).
+While the same backbone architecture is used throughout for consistency, the tracks answer different questions and should be interpreted accordingly.
+
+\section{Summary of Key Results}
+\begin{itemize}
+  \item \textbf{Preprocessing was the dominant lever.} Across stages, \texttt{bp} and \texttt{bp-sc} consistently outperformed \texttt{bp-sc-norm}, while \texttt{bp-sc-norm} showed collapse-like embedding behavior and substantially weaker screening utility; an important caveat is that per-lead median/IQR scaling can inflate low-IQR traces and distort amplitude comparability.
+  \item \textbf{Track roles were complementary rather than interchangeable.} Track~1 provided the strongest end-to-end screening performance, whereas Track~3 was most useful as a probe of representation transfer from Track~2.
+  \item \textbf{Embedding-health diagnostics were informative for downstream utility.} Class-separation diagnostics (especially CAC for class~1) aligned better with screening performance than uniformity-style indicators alone, supporting their use as primary embedding checks for this task.
+  \item \textbf{Cross-model agreement was structured but not fully stable at the decision boundary.} Models clustered by preprocessing regime in global agreement, yet top-5\% overlap and within-overlap ordering were materially less stable, indicating sensitivity for borderline candidates near screening cutoffs.
+  \item \textbf{RRA produced robust consensus sets, not score-extreme sets.} Robust cross-model samples were concentrated at rank extremes by construction, but they did not necessarily coincide with highest-probability examples of the best individual models.
+  \item \textbf{Interpretability outputs were plausible but constrained.} ST-DFT-LRP and beat-aggregated summaries provided consistent, physiologically interpretable relevance patterns under the chosen workflow, but conclusions remain conditional on single-lead focus (V2), model pool composition, and single-fold evaluation.
+\end{itemize}
+All points above are interpreted as within-cohort evidence on fold~4 and should be treated as hypothesis-strengthening rather than externally validated final claims.
+
+\section{Validity and Scope of Inference}
+
+\paragraph{Linear probe vs.\ end-to-end classification.}
+Track~3 is implemented as a linear evaluation protocol: an encoder pretrained in Track~2 is reused and (by default) frozen, and only a lightweight classifier head is trained to predict the Chagas label.
+This probes whether label information is readily accessible in the learned representation without allowing the encoder to co-adapt to the downstream objective.
+In contrast, Track~1 trains encoder and classifier jointly and therefore reflects the best achievable supervised classifier under the chosen objective and preprocessing.
+Consequently, Track~1 and Track~3 are not an apples-to-apples comparison of classifier performance; Track~3 is primarily used to connect improvements in embedding-space diagnostics to downstream separability.
+
+\paragraph{Do we need a rich embedding space for classification?}
+For a strictly in-distribution binary classification task, an extreme geometric collapse can appear attractive: if all samples map to a nearly one-dimensional decision axis with perfect separation, classification can still be excellent.
+However, this thesis targets screening robustness under heterogeneous ECG manifestations and multi-source data shifts; under this objective, an overly collapsed embedding is risky because it can encode shortcuts and fail under OOD variation.
+The practical goal is therefore not ``maximally rich'' geometry for its own sake, but sufficient class structure and local stability (CAC/SAA/consistency) to preserve ranking quality when morphology varies across cohorts.
+
+\paragraph{Relation to the PhysioNet 2025 evaluation setting.}
+This thesis is directly motivated by the George B.~Moody PhysioNet Challenge 2025 task definition and operating point (fixed-capacity screening at top-5\%), but it is \emph{not} a challenge-ranking study because no independent hidden test set is available in this project workflow \parencite{2025ChallengePreprint,2025ChallengeCinC}.
+All model selection and inference are therefore conditional on a single stratified held-out fold (fold~4) from the pooled dataset, as specified in Methods.
+This supports internal, challenge-aligned comparisons between objectives and preprocessing regimes, but does not permit claims about leaderboard-equivalent generalization or comparative standing against external teams.
+Accordingly, reported gains are interpreted as within-cohort evidence and should be treated as hypothesis-strengthening for future external validation rather than final performance claims.
+
+\paragraph{Clinical label noise and short-window ECGs.}
+The labels in this thesis are based on seropositivity, yet clinical staging defines the indeterminate form (Stage A) as seropositive with a normal ECG and early cardiomyopathy (Stage B1) as the first appearance of ECG abnormalities in a seropositive patient \parencite{chagas_progression_2022,lancet_clinical_chagas_features_2024}.
+This creates biological label noise for ECG-based classification because a large fraction of positives may be ECG-normal, while the model's signal is driven by electrophysiological manifestations such as RBBB/LAFB and ventricular ectopy that are typical of CCC \parencite{chagas_ecg_abnormalities_2018,lancet_clinical_chagas_features_2024}.
+In addition, the largest dataset (CODE-15\%) uses self-reported Chagas labels, which introduces extra uncertainty beyond staging effects, whereas SaMi-Trop provides clinically confirmed positives \parencite{ribeiro_code-15_2021,ribeiro_sami-trop_2021}.
+Conversely, PTB-XL provides comparatively clean negatives because it was recorded in Germany (1989--1996), a non-endemic setting, so Chagas labels are treated as negatives on epidemiological grounds \parencite{wagner_ptb_xl}.
+Given short (~6.25~s) windows, the models are inherently biased toward beat morphology and high-burden ectopy rather than low-frequency paroxysmal events, which helps explain why performance is stronger in cohorts enriched for cardiomyopathy and why ranking-based screening is the most clinically plausible objective.
+
+\paragraph{Asymmetric label uncertainty across classes.}
+Because CODE-15 dominates the sample count, even a modest amount of self-report error in the negative class can materially affect aggregate metrics and embedding summaries: potentially mislabeled negatives are numerous and therefore can dilute class-separation signals.
+At the same time, clinically verified SaMi-Trop positives are not guaranteed to be ECG-abnormal in short windows; seropositivity and ECG manifestations are not equivalent, especially in earlier disease stages.
+This creates an asymmetric ambiguity: class~0 can contain hidden positives by volume, while class~1 can contain ECG-normal true positives.
+Operationally, this supports the thesis focus on ranking-oriented positive retrieval (top-fraction screening metrics) and cautious interpretation of class~0 embedding behavior.
+This interpretation is now supported by the metadata-normality summary in Results, which makes the class-asymmetric uncertainty explicit across datasets before introducing model-based quality analyses.
+
+\paragraph{ECG quality as a label confounder.}
+Beyond label noise, Results show a significant association between Zhao2018 ECG quality categories and Chagas label inside CODE-15\% (Table~\ref{tab:code15_quality_chagas}), with quality computed via the NeuroKit2-based Zhao2018 pipeline and tested using Fisher/FFH procedures as defined in Methods.
+Given the low positive prevalence and the dominance of self-reported labels in CODE-15\%, this raises a concrete shortcut risk: part of ranking performance may come from quality-correlated cues rather than disease-specific electrophysiology.
+This also affects transfer interpretation: split differences between CODE-15 and verified cohorts can partly reflect changing quality composition, not only changing pathology.
+The PTB-XL counterfactual and observed SaMi-Trop comparison supports this interpretation by showing that the transferred quality shift reproduces a substantial part of the positive-class quality profile.
+Importantly, metadata-defined ECG normality and NeuroKit2 Zhao2018 quality capture different constructs: the former reflects diagnostic coding/clinical normality labels, while the latter reflects signal-level recording quality.
+For PTB-XL, the metadata normality analysis used a strict rule (\texttt{NORM}=100.0 in \texttt{scp\_codes}), which is conservative and can undercount ``mostly normal'' records that still carry additional SCP annotations (e.g., \texttt{NORM}<100 with other codes).
+Accordingly, quality-stratified analyses are treated as mandatory context for metric interpretation, and these results are interpreted descriptively rather than causally.
+
+\section{Methodological Robustness}
+
+\paragraph{Limits of agreement metrics and top-5\% focus.}
+Stage~3 uses a complementary trio of agreement measures (Spearman, IoU, Kendall's \(\tau\)), but each has blind spots.
+Spearman captures global rank similarity and can remain moderate even when clinically relevant tail ordering differs.
+IoU captures overlap of selected top-5\% candidates, but ignores ordering within that overlap and is sensitive to small score shifts around the cut-off.
+Kendall's \(\tau\) on the overlap addresses this ordering question, yet it is conditioned on the overlap set itself and therefore depends on IoU.
+The reported pattern (moderate global agreement but substantially lower cross-preprocessing IoU/\(\tau\)) indicates that candidate selection near the 5\% boundary is comparatively unstable.
+This implies that some borderline samples may enter or leave the screening set depending on model/preprocessing choice, even when global rankings look similar.
+Consequently, consensus-based selection in this thesis should be interpreted as a robustness filter rather than a uniquely ``true'' case ranking, and threshold choices (\(c_i\geq 8\), \(c_i\geq 16\)) remain pragmatic design decisions rather than theoretically optimal constants.
+An additional limitation is that these stability estimates are from a single held-out fold; without repeated fold-level or bootstrap uncertainty bands, the tail-stability conclusions are informative but not yet fully quantified.
+
+\paragraph{Interpreting RRA distribution shapes.}
+The dataset-specific RRA ridgelines indicate non-identical rank distributions across CODE-15, PTB-XL, and SaMi-Trop in both robust-positive and robust-negative sets.
+This supports the view that robustness structure is dataset-dependent, not purely a pooled ranking artifact.
+However, ridge-shape differences should be interpreted cautiously because subset sizes are highly imbalanced (especially for SaMi-Trop and PTB-XL in selected robust subsets), which can make densities appear narrower or multi-peaked even without strong underlying multimodality.
+Accordingly, the present RRA ridgelines are used as descriptive evidence for cross-dataset heterogeneity, while stronger shape claims would require repeated-split uncertainty analysis.
+
+\paragraph{RRA robustness depends on the model pool.}
+RRA is robust only relative to the input ranked lists, so its output quality depends on the robustness of the included models.
+In this thesis, all models were intentionally included for consistency with the global pipeline; this keeps selection rules uniform across stages, but it also means collapsed or weakly stable runs (notably \texttt{bp-sc-norm}) can influence aggregate robust sets.
+Future work should test a filtered RRA pool that excludes collapse-prone runs and compare resulting robust sets against the all-model baseline.
+This is especially relevant because \texttt{bp} and, to a lesser extent, \texttt{bp-sc} still show dataset-structure effects; under such conditions, ``robust'' cross-model samples need not coincide with the highest-probability examples in the best individual models.
+The appendix score-extreme add-on therefore complements the main robust set by explicitly showing lowest/highest-\(p_0\) examples selected from full-fold model predictions.
+
+\paragraph{Augmentation strength as a limiting factor.}
+The augmentation suite used in this thesis was intentionally mild (small gain jitter and low-variance Gaussian noise), with stronger perturbations such as time warping, time masking, and channel masking disabled to preserve clinical interpretability.
+This likely left useful augmentation space unexplored: Qiu et al.\ reported gains from ECG-specific geometric/electrode augmentations (including limb/chest electrode move and heart-axis rotation transforms) beyond generic time-series perturbations \parencite{qiu_augmentation_2022}\footnote{This publication was suggested as relevant by Codex-5.3 and is used as an example in the section about AI usage in the appendix.}.
+While this choice stabilizes supervised training and supports direct waveform interpretation, it may be suboptimal for contrastive representation learning: Track~2 objectives generally benefit from stronger or more diverse view generation to encourage invariances.
+This is also relevant for interpreting SAA in Track~3: because SAA is defined through agreement between augmented views, it is highly sensitive to augmentation design.
+If per-view augmentations are too mild or too easy to match, SAA can appear artificially strong and become a brittle proxy for representation quality.
+
+\paragraph{IQR normalization can both harmonize and amplify.}
+The new background illustration of the same sample across \texttt{bp}, \texttt{bp-sc}, and \texttt{bp-sc-norm} makes a practical side effect explicit: dividing by per-lead IQR can inflate waveform range when a lead has small within-record dispersion.
+Thus, \texttt{bp-sc-norm} does not only remove scale differences; it can also amplify record-specific noise or minor morphology in low-IQR signals.
+This helps explain why geometric ``uniformization'' (high GPU / low CAC in Results) can coexist with weaker downstream screening utility.
+It also motivates a caution for the dataset-bias argument: if one source has systematically different per-lead IQR statistics, robust per-record scaling may leave residual source structure (or even reweight it) rather than eliminating it completely.
+Accordingly, the \texttt{bp-sc-norm} findings are interpreted as evidence that aggressive per-record standardization is a non-trivial intervention, not a universally beneficial harmonization step.
+Combined with the augmentation-design caveat above, this supports using class-separation diagnostics (especially CAC) and downstream ranking metrics as primary decision criteria, while treating SAA as secondary and augmentation-dependent.
+
+\paragraph{Relation to TTC objective ranking.}
+In the TTC paper's medical imaging experiments, the supervised prototype objective was reported as the strongest of the compared representation-learning objectives.
+In this thesis, that ordering did not transfer to the downstream clinical classification metrics on fold~4: within Track~3, \texttt{supstd} consistently outperformed \texttt{proto} (and \texttt{supmin}) on the primary endpoint TPR@5\% across preprocessing regimes.
+This should not be over-generalized from a single held-out split, but it is an important negative-transfer result: objective rankings from one modality/task family do not automatically carry over to ECG screening under the present label mix, preprocessing pipeline, and augmentation strength.
+This interpretation is consistent with TTC's main message that representation quality under imbalance is strongly objective-dependent and must be verified in-task, rather than assumed transferable across domains \parencite{ttc_2025}.
+
+\paragraph{First-order versus second-order levers in this thesis.}
+Given the fixed-backbone design (single ResNet-18 encoder across tracks), the strongest empirical effects in this work are attributable to preprocessing regime and training objective, not architecture changes.
+Across Stages~1--2, \texttt{bp}/\texttt{bp-sc} versus \texttt{bp-sc-norm} produced large and consistent shifts in both screening utility and embedding-health diagnostics, and objective choice further modulated these outcomes within each regime (Chapter~\ref{ch:results}, Tables~\ref{tab:cls_per_run} and~\ref{tab:emb_per_run}).
+For this implementation setting, this supports a practical priority order: first stabilize data regime and imbalance-aware objective behavior; only then treat architecture scaling as a secondary optimization step.
+
+\paragraph{Lead construction and rotation fidelity.}
+All experiments operate on the 12-lead signals as provided by the source datasets; no new leads are re-derived from raw electrode potentials, and the only signal modifications are the defined preprocessing and augmentations.
+Consequently, the axis-rotation augmentation relies on a fixed linear lead model applied to potentially heterogeneous acquisition pipelines and gain calibrations.
+This means the rotation parameters are approximate and may not correspond to a precise physical change in cardiac orientation for every record, which is another reason the rotation should be interpreted as a controlled robustness probe rather than a clinically exact transformation.
+
+\section{Interpretability and Mechanistic Plausibility}
+
+\paragraph{Lead selection in ST-DFT-LRP.}
+Beat-level ST-DFT-LRP aggregation in this thesis is restricted to lead V2 (index~7), chosen as a representative precordial lead from the lead-mass analysis.
+This choice improves feasibility and interpretability but is not optimal for all Chagas-related abnormalities: several structural and conduction manifestations (e.g., bundle-branch patterns or regional ST--T changes) are known to be more prominent in precordial or alternative limb leads.
+Moreover, in the present runs V2 is consistently high but not uniformly dominant (V3 is more often top-1 in mild preprocessing), so lead-specific interpretations should not be over-generalized.
+Therefore, the V2 focus should be interpreted as a targeted plausibility view rather than a comprehensive 12-lead characterization of Chagas cardiomyopathy.
+
+\paragraph{Prototype-style interpretation as a complement.}
+The prototype objective in Track~2 did not yield the best downstream screening metrics in this fold-4 evaluation, but the underlying idea remains useful for interpretation: class-representative anchors can provide case-based context for why a sample is embedded as high-risk versus low-risk.
+In this thesis pipeline, this is naturally complementary to ST-DFT-LRP: attribution maps explain \emph{where} relevance concentrates in time-frequency space, while prototype-style nearest-example views can explain \emph{which} stored patterns a case most resembles.
+Importantly, this can be added post hoc on the existing embedding exports without changing the core training code, and should be evaluated as an interpretability extension rather than assumed to improve primary screening metrics \parencite{ttc_2025}.
+
+\paragraph{Why ST-DFT-LRP despite LRP criticism.}
+Gradient- and relevance-based saliency methods are known to require caution: sanity-check studies show that some explanation maps can be weakly sensitive to model parameters or architecture choices if used naively \parencite{adebayo_2018_sanity,yona_2021_revisiting_sanity}.
+Relatedly, \textcite{sixt_when_2020} show that several modified backprop attribution rules can become insensitive to model parameters in deeper layers, so explanation faithfulness cannot be assumed from visual quality alone.
+In this thesis, ST-DFT-LRP is still justified as a \emph{comparative plausibility tool} (not as causal proof) because it is combined with explicit controls already built into the pipeline: fixed lead choice for matched comparisons, rule-based sample selection, cross-preprocessing matched-sample views, and frequency-perturbation sanity curves.
+This keeps interpretation focused on consistent relative patterns across runs/groups rather than over-interpreting single maps.
+
+\paragraph{Cost-value tradeoff versus DeepSHAP-style alternatives.}
+For this specific 12-lead CNN pipeline, replacing ST-DFT-LRP with a DeepSHAP-style workflow was not prioritized because the expected engineering and compute cost is substantially higher under the current project constraints: explainer setup must be aligned with residual architecture details, attribution depends on background-set design, and per-sample inference is markedly slower than single-pass relevance propagation.
+Given the thesis scope (many runs, matched cross-preprocessing comparisons, and rule-based export automation), the practical value was higher in strengthening faithfulness checks for one consistent method than in adding a second, partly orthogonal attribution stack with limited time for full validation.
+
+\paragraph{What the perturbation checks add beyond visualization.}
+The perturbation sanity curves in this thesis provide direct functional evidence that highlighted regions are not only visually plausible: when the most relevant frequency bins are removed first, high-confidence positive examples show a faster confidence drop than random removal, while selected low-confidence/negative examples can show the inverse trend (confidence increase) consistent with removing inhibitory evidence for the positive class.
+This asymmetry supports using signed relevance interpretation (supporting vs.\ opposing evidence) and reduces the risk of treating heatmaps as purely aesthetic overlays.
+
+\paragraph{Positioning versus other ECG/time-series XAI approaches.}
+Recent ECG-XAI work still commonly evaluates gradient-based heatmaps in time domain (e.g., Grad-CAM-like families and related variants) and emphasizes careful, task-specific validation \parencite{hammer_jamia_2025_ecg_xai,xai_cardiology_review_2024}.
+Within that landscape, ST-DFT-LRP is used here because the clinical hypotheses are explicitly morphology- and frequency-linked, and the method provides one shared time--frequency representation for comparing preprocessing regimes and model families under the same aggregation protocol.
+
+\paragraph{RBBB annotations across datasets.}
+For CODE15, RBBB flags are provided directly in the dataset metadata; for PTB-XL, the closest available analogue used here is \texttt{ptb\_crbbb} derived from \texttt{scp\_codes}.
+This mapping allows coarse, cross-dataset comparisons of bundle-branch related patterns, but should be interpreted cautiously because complete RBBB in PTB-XL is not a perfect substitute for the broader RBBB labels in CODE15.
+
+\section{External Validity and Future Extensions}
+
+\paragraph{Architecture-specificity and generalization.}
+All results in this thesis are conditional on a fixed ResNet-18 backbone, chosen to isolate the effects of preprocessing and objective functions rather than to optimize architecture.
+This implies that the reported gains and failure modes are most directly applicable to CNN-style inductive biases that emphasize local morphology and translation invariance.
+Architectures with different temporal aggregation (e.g., ECG-Transformers with self-attention and dilated temporal convolutional networks) may emphasize rhythm, interval structure, or long-range dependencies differently, which can change the sensitivity to augmentation, normalization, and dataset bias.
+In particular, the axis-rotation augmentation may interact differently with lead-fusion strategies: early-fusion models ingest all 12 leads jointly from the first layer, whereas late-fusion or cross-lead-attention models first build lead-local features and then combine them, potentially changing how inter-lead geometry perturbations are represented.
+Future work should therefore validate the key findings (e.g., loss-function effects, preprocessing regimes, rotation robustness) on at least one non-CNN baseline to assess architectural transferability; a pragmatic next baseline is InceptionTime, which is well-established for multivariate time-series and offers a strong non-ResNet convolutional comparison.
+Future work should revisit augmentation strength in Track~2 specifically, exploring moderate temporal perturbations or structured masking while validating that ECG morphology remains interpretable and physiologically plausible.
+
+\paragraph{Source-leakage checks before scaling model capacity.}
+Because the challenge data are explicitly multi-source and heterogeneous, increasing model capacity or importing large pretrained encoders can improve absolute performance while also increasing the risk that embeddings encode source-specific acquisition context.
+In this thesis, the observed preprocessing-driven agreement structure and dataset-dependent robust-rank distributions already motivate explicit leakage checks before interpreting gains as disease-specific (Chapter~\ref{ch:results}, Table~\ref{tab:pairwise_agreement_summary}, Figure~\ref{fig:rra_dataset_violin}, Table~\ref{tab:rra_kw}).
+This concern is also visually supported by the UMAP/PCA dataset-condition panels (main text and appendix), where source-related structure remains visible for several runs, indicating that OOD behavior is a serious risk for external deployment.
+A stringent next step is adding a source-ID linear probe on frozen embeddings for each run and report it alongside CAC/SAA and screening metrics: if source predictability remains high while Chagas utility changes little, apparent gains should be interpreted as potential shortcut amplification rather than improved pathology modeling \parencite{2025ChallengeCinC}.
+
+\section*{Acknowledgments}
+I would like to express my gratitude to my supervisor \textit{Sören Lukassen} for his invaluable guidance, support, and mentorship throughout this project.
+\\
+I also thank my colleagues from AG Lukassen, especially \textit{Nabil Jabareen} for mentoring, \textit{Lea Hein}, \textit{Dingming Liu}, \textit{Dongsheng Yuan} and \textit{Finn Thierolf} as well as \textit{Kristin Köhler} and \textit{Hannah Schmidt} from the department, for many valuable discussions and coffee breaks during my time.

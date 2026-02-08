@@ -1,5 +1,5 @@
 trainer:
-  max_epochs: 20
+  max_epochs: 10
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
@@ -16,11 +16,14 @@ trainer:
       init_args:
         monitor: val_score
         mode: max
-        patience: 10
+        patience: 4
         strict: true
 
 model:
   track: 3
+  # Linear probe: use plain BCE on frozen features (no imbalance-shaped loss).
+  lr: 0.003
+  lr_scheduler: none
   init_classifier_bias: true
   classifier_bias_pos_fraction: null
   use_sup_con: false
@@ -29,3 +32,7 @@ model:
   freeze_encoder: true
   unfreeze_last_block: false
   use_linear_probe_head: true
+  criterion:
+    class_path: ecg_chagas_embeddings.models.losses.BCEWithLogitsLossModule
+    init_args:
+      pos_weight: 49.0
